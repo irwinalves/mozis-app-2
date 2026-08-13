@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Dados financeiros reais — retratos da planilha, nunca versionar
+*.xlsx
+baseline/
