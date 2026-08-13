@@ -12,10 +12,12 @@
     "db:views": "psql -d mozis -f sql/views.sql",
     "sync": "tsx scripts/sync-from-sheets.ts",
     "reconcile": "tsx scripts/reconcile.ts",
-    "test": "node --import tsx --test src/lib/*.test.ts"
+    "test": "node --import tsx --test src/lib/*.test.ts",
+    "inspect": "tsx scripts/inspect-xlsx.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
+    "exceljs": "^4.4.0",
     "next": "16.3.0",
     "postgres": "^3.4.9",
     "react": "19.2.8",
