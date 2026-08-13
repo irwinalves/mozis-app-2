@@ -1,0 +1,1 @@
+ALTER TABLE "lancamentos" ALTER COLUMN "pct_irwin_custom" SET DATA TYPE numeric;

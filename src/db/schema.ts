@@ -67,8 +67,21 @@ export const lancamentos = pgTable(
     valorTotal: numeric('valor_total', { precision: 12, scale: 2 }).notNull(),
     /** 50/50 · Renda · 100% Irwin · 100% Maria · Custom. */
     divisao: text('divisao').notNull(),
-    /** Só quando divisao = 'Custom'. Guardado como percentual (ex.: 70), igual à planilha. */
-    pctIrwinCustom: numeric('pct_irwin_custom', { precision: 5, scale: 2 }),
+    /**
+     * Só quando divisao = 'Custom'. É FRAÇÃO (0.4), não percentual (40).
+     *
+     * Medido nos 3.504 lançamentos: todos os valores são ≤ 1, e a fórmula da
+     * planilha é `G*I` — sem `/100`.
+     *
+     * A unidade muda de camada, e as duas estão certas: o front e a API falam
+     * PERCENTUAL (70), e `escreverLinha` converte com `/100` antes de gravar.
+     * Quem lê esta coluna já recebe fração e não deve dividir de novo.
+     *
+     * Sem precisão declarada de propósito: o histórico do Splitwise tem valores
+     * como 0.39999999999999997 e 0.06059005578102704, vindos do rateio real de
+     * cada despesa. Um numeric(5,2) truncaria isso e quebraria a reconciliação.
+     */
+    pctIrwinCustom: numeric('pct_irwin_custom'),
     /** Irwin · Maria · Ambos. 'Conjunta' é o rótulo antigo, ainda aceito. */
     quemPagou: text('quem_pagou'),
     /**
