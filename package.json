@@ -9,7 +9,7 @@
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:views": "psql -d mozis -f sql/views.sql",
+    "db:views": "psql \"$DATABASE_URL\" -f sql/views.sql",
     "sync": "tsx --env-file=.env scripts/sync-from-sheets.ts",
     "reconcile": "tsx --env-file=.env scripts/reconcile.ts",
     "test": "node --import tsx --test src/lib/*.test.ts",
