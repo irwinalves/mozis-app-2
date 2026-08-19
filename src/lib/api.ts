@@ -22,6 +22,11 @@ import {
   type DadosParcelas,
   type DadosRecorrencia,
 } from './lancamentos';
+import {
+  parsePorTipo,
+  sugerirCategoria,
+  type CategoriaKw,
+} from './importacao';
 
 const MESES_PT = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -569,4 +574,99 @@ export async function getDashboard(filtro?: {
     ritmoMax: Number(ritmo?.maximo ?? 0),
     patrimonio: await getPatrimonio(),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Importação de extrato
+// ---------------------------------------------------------------------------
+
+/**
+ * Categorias que entram na sugestão automática.
+ * Filtra `8 ` (investimento tem tela própria) e `9 ` (acerto não é gasto).
+ */
+async function planoParaSugestao(): Promise<CategoriaKw[]> {
+  const linhas = await db.execute<{ nome: string; palavras_chave: string | null }>(
+    sql`select nome, palavras_chave from plano_de_contas
+        where nome not like '8 %' and nome not like '9 %'
+        order by ordem`,
+  );
+  return linhas.map((r) => ({
+    nome: r.nome,
+    keywords: String(r.palavras_chave ?? '')
+      .toLowerCase()
+      .split(',')
+      .map((k) => k.trim())
+      .filter(Boolean),
+  }));
+}
+
+async function planoTipoPadrao(categoria: string): Promise<string> {
+  const [r] = await db.execute<{ tipo_padrao: string | null }>(
+    sql`select tipo_padrao from plano_de_contas where nome = ${categoria}`,
+  );
+  return r?.tipo_padrao ?? 'Variável';
+}
+
+/** Lista sugerida, sem gravar nada. */
+export async function previewImportacao(conteudo: string, tipoArquivo: string) {
+  const transacoes = parsePorTipo(conteudo, tipoArquivo);
+  const plano = await planoParaSugestao();
+  return transacoes.map((t) => ({
+    data: t.data,
+    descricao: t.descricao,
+    valor: arred(t.valor),
+    categoria: sugerirCategoria(t.descricao, plano),
+  }));
+}
+
+/**
+ * Grava o lote.
+ *
+ * Mapa de atribuição: Irwin → `100% Irwin`; Maria → `100% Maria`; Ambos → a
+ * divisão escolhida na tela. Com 'Ambos' não há rateio por transação — cada um
+ * entra com a própria parte, então a importação NÃO gera dívida entre os dois.
+ */
+export async function lancarImportacaoLote(
+  transacoes: { data: string; descricao: string; valor: number; categoria: string }[],
+  quemPagou: string,
+  divisao?: string,
+) {
+  if (!transacoes || !transacoes.length) throw new Error('Nada para lançar.');
+
+  const divisaoFinal =
+    quemPagou === 'Irwin' ? '100% Irwin'
+    : quemPagou === 'Maria' ? '100% Maria'
+    : divisao || 'Renda';
+
+  const [conf] = await db.execute<{ pct_irwin_renda: string }>(
+    sql`select pct_irwin_renda from config where id = 1`,
+  );
+  const pctI = pctIrwinDe(divisaoFinal, null, Number(conf?.pct_irwin_renda ?? 0.4947));
+
+  // Uma consulta por categoria distinta, não uma por transação.
+  const tipos = new Map<string, string>();
+  for (const c of new Set(transacoes.map((t) => t.categoria))) {
+    tipos.set(c, await planoTipoPadrao(c));
+  }
+
+  let total = 0;
+  await db.transaction(async (tx) => {
+    for (const t of transacoes) {
+      const valor = arred(Number(t.valor));
+      const parteIrwin = arred(valor * pctI);
+      const pagoIrwin = pagoIrwinDe(quemPagou as never, valor, parteIrwin, null);
+      await tx.execute(
+        sql`insert into lancamentos
+              (data, descricao, categoria, tipo, cat_original, fonte, valor_total,
+               divisao, quem_pagou, pago_irwin, recorrente)
+            values (${t.data}, ${t.descricao}, ${t.categoria},
+                    ${tipos.get(t.categoria) ?? 'Variável'}, 'Importação OFX/CSV',
+                    'Extrato banco', ${valor}, ${divisaoFinal}, ${quemPagou},
+                    ${pagoIrwin}, false)`,
+      );
+      total += valor;
+    }
+  });
+
+  return { ok: true, qtd: transacoes.length, total: arred(total) };
 }

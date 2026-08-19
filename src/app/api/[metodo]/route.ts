@@ -22,6 +22,8 @@ const METODOS = {
   previewParcelas: api.previewParcelas,
   previewRecorrencia: api.previewRecorrencia,
   salvarInvestimento: api.salvarInvestimento,
+  previewImportacao: api.previewImportacao,
+  lancarImportacaoLote: api.lancarImportacaoLote,
 } as const;
 
 type Metodo = keyof typeof METODOS;

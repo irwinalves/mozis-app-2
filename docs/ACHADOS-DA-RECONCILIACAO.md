@@ -120,3 +120,45 @@ a comparação era sempre falsa e nada era excluído. É a mesma armadilha de fu
 
 Corrigido movendo a comparação de datas para o Postgres. **A suíte de testes passou
 o tempo todo** — quem pegou foi o número implausível.
+
+---
+
+# Achados da Fase 2b — importação de extrato
+
+Dois comportamentos **pré-existentes** do app antigo, encontrados ao testar os
+parsers portados. Ambos foram portados FIELMENTE: mudar comportamento durante
+uma migração esconderia a origem de qualquer divergência futura. Ficam aqui como
+decisão a tomar depois.
+
+## 8. OFX não descarta crédito (o CSV descarta)
+
+O `REGISTRO-DO-PROJETO.md` afirma que o filtro `valor > 0` é comum a todos os
+formatos e "descarta de propósito estornos e pagamentos de fatura". Isso é
+verdade no `parseCSV` e no `parsePDF`, mas **não no `parseOFX`**, que faz
+`Math.abs()` antes de filtrar:
+
+```js
+valor: Math.abs(parseFloat(valorStr)) || 0
+...
+.filter(t => t.data && t.valor > 0)
+```
+
+Medido: um OFX com `<TRNAMT>2500.00` e `<NAME>PAGAMENTO FATURA` entra como
+**despesa de R$ 2.500**. No CSV, um estorno de `-45,00` é corretamente ignorado.
+
+Consequência prática: importar OFX de cartão traz o pagamento da própria fatura
+como gasto, inflando o mês. Correção seria trocar `Math.abs(...)` por
+`parseFloat(...)`, alinhando com os outros dois parsers.
+
+## 9. A categorização automática não normaliza acentos
+
+`sugerirCategoria` faz `descricao.toLowerCase().indexOf(palavraChave)`, sem
+remover diacríticos. Como as palavras-chave do Plano de Contas são acentuadas
+(`Farmácia`, `Saúde`, `manutenção`) e extratos de banco costumam vir em
+maiúsculas sem acento, o casamento falha.
+
+Medido: `FARMACIA POPULAR` cai em `7 Outros` em vez de `4 Saúde`.
+
+Isso ajuda a explicar por que "Outros" concentrava quase metade do histórico — o
+que o briefing apontava como "a maior alavanca de clareza disponível hoje".
+Correção seria normalizar os dois lados com `.normalize('NFD').replace(/[̀-ͯ]/g, '')`.
