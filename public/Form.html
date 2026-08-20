@@ -22,6 +22,8 @@
   --borda-input:#DADCE0; --borda-card:#EBEBEB; --borda-card2:#F1F1F1;
   --chip-neutro:#EDEEF0; --suave:#F8F9FA;
   --verde:#2F5233;
+  /* Sinal do efeito no acerto: verde = a receber, vermelho = a pagar. */
+  --pos:#1E7B4F; --neg:#C0392B;
   --irwin:#1F4E79; --irwin-l:#D9E7F5;
   --maria:#6A1B9A; --maria-l:#EADCF5;
   --conjunta:#5f6368; --conjunta-l:#F1F3F4;
@@ -37,6 +39,7 @@
     --borda-input:#4B4F54; --borda-card:#333438; --borda-card2:#2A2B2E;
     --chip-neutro:#2A2A2D; --suave:#232326;
     --verde:#4CAF6D;
+    --pos:#4CAF6D; --neg:#E38B7D;
     --irwin:#6FA8DC; --irwin-l:#16233A;
     --maria:#C58AF0; --maria-l:#2A1F3D;
     --conjunta:#9AA0A6; --conjunta-l:#2A2B2E;
@@ -53,6 +56,7 @@
   --borda-input:#4B4F54; --borda-card:#333438; --borda-card2:#2A2B2E;
   --chip-neutro:#2A2A2D; --suave:#232326;
   --verde:#4CAF6D;
+  --pos:#4CAF6D; --neg:#E38B7D;
   --irwin:#6FA8DC; --irwin-l:#16233A;
   --maria:#C58AF0; --maria-l:#2A1F3D;
   --conjunta:#9AA0A6; --conjunta-l:#2A2B2E;
@@ -205,6 +209,17 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 .col-data .mes{font-size:10px;color:var(--texto3);text-transform:uppercase}
 .avatar-mini{width:20px;height:20px;border-radius:999px;object-fit:cover;flex:0 0 20px;
       border:1.5px solid #fff;box-shadow:0 0 0 1px var(--borda-card)}
+/* Pago pelos dois: um círculo só, dividido ao meio — Irwin à esquerda, Maria à direita.
+   Cada metade recorta uma camada do tamanho do círculo INTEIRO (200% da metade), então
+   nenhuma das duas fotos distorce nem aparece pela metade do rosto. */
+.avatar-duo{position:relative;overflow:hidden;background:var(--chip-neutro)}
+.avatar-duo i{position:absolute;top:0;height:100%;width:50%;overflow:hidden}
+.avatar-duo i.esq{left:0}
+.avatar-duo i.dir{right:0;border-left:1px solid #fff}
+.avatar-duo i::before{content:'';position:absolute;top:0;height:100%;width:200%;
+      background-size:cover;background-position:center}
+.avatar-duo i.esq::before{left:0}
+.avatar-duo i.dir::before{right:0}
 .dot-cat{width:6px;height:6px;border-radius:999px;flex:0 0 6px}
 .item-info{flex:1;min-width:0}
 .item-info .desc{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -213,6 +228,11 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
 .item-valor{text-align:right;flex:0 0 auto}
 .item-valor .v{font-size:14px;font-weight:500}
 .item-valor .partes{font-size:10px;color:var(--texto3);margin-top:2px}
+.item-valor .partes .pos{color:var(--pos);font-weight:500}
+.item-valor .partes .neg{color:var(--neg);font-weight:500}
+/* Quitação não é despesa: ganha selo próprio no lugar da bolinha de categoria. */
+.badge-quit{width:14px;height:14px;border-radius:999px;flex:0 0 14px;display:flex;
+      align-items:center;justify-content:center;font-size:9px;line-height:1}
 .vazio{color:var(--texto3);font-size:13px;padding:8px 0}
 
 /* botão importar */
@@ -560,6 +580,17 @@ const AVATAR_MARIA = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAc
 
 const AVATAR_ANDRE = 'data:image/jpeg;base64,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';
 
+/* As metades do avatar duplo recebem a foto por CSS, injetado uma única vez.
+   O avatar de uma pessoa só continua vindo no `src` de cada linha, como sempre foi —
+   mas o duplo não podia seguir esse caminho: seriam DUAS cópias de ~6 KB por
+   lançamento, e a lista carrega 50 de uma vez. */
+(function(){
+  const st = document.createElement('style');
+  st.textContent = '.avatar-duo i.esq::before{background-image:url(' + AVATAR_IRWIN + ')}'
+                 + '.avatar-duo i.dir::before{background-image:url(' + AVATAR_MARIA + ')}';
+  document.head.appendChild(st);
+})();
+
 let OPC = null, DASH = null, ULTIMOS = null;
 let FILTRO_DASH = { granularidade: 'anual', dataIni: '', dataFim: '' };
 let tabAtiva = 'home', telaAtual = 'home';
@@ -842,22 +873,59 @@ function renderUltimos(){
       h += '<div class="mes-separador">' + escapeHtml(x.mesLabel || '') + '</div>';
     }
     const c = CATS[x.categoria] || {forte:'#6E6E6E'};
+    const quit = ehQuitacao(x.categoria);
+    const marcaCat = quit
+      ? '<span class="badge-quit" style="background:' + (c.clara || 'var(--chip-neutro)') + ';color:' + c.forte + '" title="Quitação de acerto de contas">⇄</span>'
+      : '<div class="dot-cat" style="background:' + c.forte + '"></div>';
+    // 'Conjunta' é o rótulo legado de 'Ambos' — os dois significam pagamento dos dois.
+    const pagouAmbos = x.quemPagou === 'Ambos' || x.quemPagou === 'Conjunta';
     const avatarSrc = x.quemPagou === 'Irwin' ? AVATAR_IRWIN : (x.quemPagou === 'Maria' ? AVATAR_MARIA : '');
-    const avatarHtml = avatarSrc ? '<img class="avatar-mini" src="' + avatarSrc + '" alt="' + escapeHtml(x.quemPagou) + '" title="Pago por ' + escapeHtml(x.quemPagou) + '">' : '<span class="avatar-mini" style="background:var(--chip-neutro)"></span>';
+    const avatarHtml = pagouAmbos
+      ? '<span class="avatar-mini avatar-duo" title="Pago por Irwin e Maria"><i class="esq"></i><i class="dir"></i></span>'
+      : (avatarSrc ? '<img class="avatar-mini" src="' + avatarSrc + '" alt="' + escapeHtml(x.quemPagou) + '" title="Pago por ' + escapeHtml(x.quemPagou) + '">' : '<span class="avatar-mini" style="background:var(--chip-neutro)"></span>');
     const tagRecorrente = x.recorrente
       ? '<span class="tag-recorrente" title="Gasto recorrente"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></span>'
       : '';
     h += '<div class="item-lanc" data-linha="' + x.linha + '">' +
       '<div class="col-data"><div class="dia">' + x.dia + '</div><div class="mes">' + x.mesAbrev + '</div></div>' +
       avatarHtml +
-      '<div class="dot-cat" style="background:' + c.forte + '"></div>' +
+      marcaCat +
       '<div class="item-info"><div class="desc">' + tagRecorrente + escapeHtml(x.descricao) + '</div>' +
-      '<div class="meta">' + escapeHtml(x.categoria || '') + ' · ' + escapeHtml(x.tipo || '') + '</div></div>' +
+      '<div class="meta">' + (quit ? metaQuitacao(x) : escapeHtml(x.categoria || '') + ' · ' + escapeHtml(x.tipo || '')) + '</div></div>' +
       '<div class="item-valor"><div class="v">' + brl(x.valor) + '</div>' +
-      '<div class="partes">I ' + brl(x.parteIrwin) + ' · M ' + brl(x.parteMaria) + '</div></div>' +
+      efeitoNoAcerto(x.saldoIrwin) + '</div>' +
       '</div>';
   });
   $('listaUltimos').innerHTML = h;
+}
+
+/* Quitação de acerto não é despesa: é o acerto sendo pago. O backend já a exclui do
+   Dashboard; aqui ela ganha marca própria para não se confundir com gasto na lista. */
+function ehQuitacao(cat){ return String(cat || '').indexOf('9 ') === 0; }
+
+/** "Quitação · Irwin → Maria" — a direção sai de quem pagou, não do sinal do saldo. */
+function metaQuitacao(x){
+  const de = x.quemPagou === 'Irwin' ? 'Irwin' : (x.quemPagou === 'Maria' ? 'Maria' : '');
+  const para = de === 'Irwin' ? 'Maria' : (de === 'Maria' ? 'Irwin' : '');
+  return 'Quitação' + (de ? ' · ' + de + ' → ' + para : '');
+}
+
+/* O complemento da linha mostra quanto AQUELA transação mexeu no acerto, com sinal.
+   Antes mostrava 'Parte Irwin · Parte Maria', que responde outra pergunta — de quem é
+   o gasto — e nunca dizia quem ficou devendo a quem por causa dele.
+
+   Saldo Maria não precisa vir do servidor: é o oposto exato do Saldo Irwin, porque
+   'pago' e 'parte' somam o valor cheio dos dois lados. */
+function efeitoNoAcerto(saldoIrwin){
+  const s = Number(saldoIrwin) || 0;
+  // Zero é comum (quem pagou é dono de 100% do gasto, ou cada um pôs a própria parte).
+  // Escrever '+R$ 0,00 · −R$ 0,00' seria ruído: melhor dizer que não mexeu.
+  if (Math.abs(s) < 0.005) return '<div class="partes">sem efeito no acerto</div>';
+  const comSinal = function(v){ return (v > 0 ? '+' : '−') + brl(Math.abs(v)); };
+  return '<div class="partes">' +
+    '<span class="' + (s > 0 ? 'pos' : 'neg') + '">I ' + comSinal(s) + '</span> · ' +
+    '<span class="' + (s > 0 ? 'neg' : 'pos') + '">M ' + comSinal(-s) + '</span>' +
+    '</div>';
 }
 
 function escapeHtml(s){
@@ -1169,9 +1237,12 @@ function agendarPreviewRec(){
   }, 300);
 }
 
+/* `LF.pagador` entra na validação: sem pagador o lançamento nasce com 'Pago Irwin'
+   vazio e some do acerto de contas sem avisar ninguém. O backend também recusa — isto
+   aqui é só para o botão não prometer o que a gravação vai negar. */
 function validarLanc(){
   const v = lerValor('fValor');
-  const ok = (v > 0) && $('fDescricao').value.trim() && LF.categoria && LF.tipo && (!LF.repetir || LF.semFimRec || LF.fimRec) && rateioValido();
+  const ok = (v > 0) && $('fDescricao').value.trim() && LF.categoria && LF.tipo && LF.pagador && (!LF.repetir || LF.semFimRec || LF.fimRec) && rateioValido();
   const b = $('btnSalvarLanc');
   b.disabled = !ok; b.classList.toggle('valido', !!ok);
 }

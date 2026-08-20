@@ -20,6 +20,15 @@ export async function GET() {
   // verificável por hash.
   const injecao = [
     '  <script src="/gs-shim.js"></script>',
+    // C2 pede que "pagaram os dois" tenha representação PRÓPRIA — antes caía
+    // num círculo cinza idêntico ao de "sem pagador", que é coisa diferente.
+    // Aqui a foto da família cumpre isso melhor que o círculo dividido, e por
+    // URL: a advertência de payload da própria C2 é não embutir imagem em cada
+    // item de lista. Sobreposto por CSS para o Form.html seguir intocado.
+    '  <style>',
+    "    .avatar-duo{background-image:url('/avatar-ambos-192.png');background-size:cover;background-position:center}",
+    '    .avatar-duo i{display:none}',
+    '  </style>',
     '  <link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">',
     '  <link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">',
     '  <link rel="manifest" href="/manifest.json">',
