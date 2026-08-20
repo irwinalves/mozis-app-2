@@ -87,8 +87,17 @@ export const lancamentos = pgTable(
     /**
      * Quanto o Irwin efetivamente desembolsou. É ENTRADA, não fórmula.
      * NULL = sem pagador definido: a linha fica fora do acerto, como sempre foi.
+     *
+     * SEM precisão declarada, e isso NÃO é excesso de zelo: quando os dois
+     * pagam e cada um põe a própria parte, o desembolso é metade do valor — e
+     * metade de um valor de centavo ímpar é MEIO CENTAVO. Medido na base:
+     * 2 linhas com 3 casas decimais (`Aluguel Dez21` = 2193,63/2 = 1096,815 e
+     * `Luz Agosto/20` = 113,29/2 = 56,645). Com numeric(12,2) elas divergiam.
+     *
+     * Mesma classe de erro que `pct_irwin_custom` — precisão declarada por
+     * suposição sobre o que "dinheiro tem que ter".
      */
-    pagoIrwin: numeric('pago_irwin', { precision: 12, scale: 2 }),
+    pagoIrwin: numeric('pago_irwin'),
     obs: text('obs'),
     recorrente: boolean('recorrente').notNull().default(false),
 

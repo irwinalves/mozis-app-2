@@ -1,0 +1,1 @@
+ALTER TABLE "lancamentos" ALTER COLUMN "pago_irwin" SET DATA TYPE numeric;
