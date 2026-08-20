@@ -42,12 +42,40 @@ de um valor de centavo ímpar é meio centavo (`2193,63 / 2 = 1096,815`), e o
 histórico do Splitwise tem percentuais com até 21 casas. `numeric(12,2)` truncava
 os dois — e a reconciliação foi quem acusou, não o typecheck.
 
-## Regra número 5: data se compara no Postgres
+## Regra número 5: o front é o contrato
+
+Enquanto o `Form.html` rodar sem alteração, **os nomes de campo que ele manda
+mandam**. A API se adapta a eles — nunca o contrário.
+
+Na prática isso inclui nomes que parecem errados fora de contexto: **`grupo`**
+para categoria e **`quem`** para o dono do investimento, herdados do mapa `COL`
+do backend Apps Script.
+
+Ler `categoria` em vez de `grupo` fez gravar recusar com "Escolha a categoria"
+mesmo com a categoria escolhida. E ler `deQuem` em vez de `quem` salvava
+investimento **sem dono, em silêncio**.
+
+`src/lib/contrato.test.ts` extrai os nomes do `Form.html` REAL e falha se o front
+mudar. Os testes antigos chamavam a API com os nomes da própria API — eram
+incapazes de detectar divergência de contrato, e passavam com o app quebrado.
+
+> Quando duas partes precisam concordar sobre nomes, o teste tem que **derivar**
+> de um dos lados, não repetir a suposição dos dois.
+
+## Regra número 6: data se compara no Postgres
 
 O driver devolve `date` como `Date` em **meia-noite UTC**. Interpolar numa string
 e comparar em JavaScript dá `Invalid Date` em silêncio, e o filtro passa a não
 excluir nada. Já escondeu 11 parcelas futuras fazendo os três cortes do acerto
 darem idênticos — e **a suíte de testes passou o tempo todo**.
+
+## Regra número 7: teste de tela clica nos controles reais
+
+Setar o estado interno do formulário por código pula a validação do front — o
+botão fica desabilitado e o clique cai no vazio, sem erro e sem sucesso. Já
+custou um minuto de "a correção não funcionou" quando ela tinha funcionado.
+
+**Clicar nos chips e digitar nos campos** é o que exercita o caminho completo.
 
 ## Como testar (e por que isso mudou tudo)
 
