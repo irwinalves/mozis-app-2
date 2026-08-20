@@ -313,7 +313,17 @@ export async function obterLancamento(id: number) {
 interface DadosLancamento {
   data: string;
   descricao: string;
-  categoria: string;
+  /**
+   * A categoria. Chama-se `grupo` porque é ASSIM que o front manda — o nome
+   * vem do mapa `COL.grupo` do backend Apps Script.
+   *
+   * Ler `categoria` aqui foi o bug de 20/08: a gravação recusava com
+   * "Escolha a categoria" mesmo com a categoria escolhida na tela. Meus testes
+   * usavam MEUS nomes de campo, então nunca poderiam pegar isso.
+   *
+   * Regra: o front é o contrato. Quem adapta é a API.
+   */
+  grupo: string;
   tipo: string;
   fonte?: string;
   valor: number | string;
@@ -333,7 +343,7 @@ interface DadosLancamento {
 
 export async function salvarLancamento(dados: DadosLancamento) {
   if (!dados.descricao) throw new Error('Informe a descrição.');
-  if (!dados.categoria) throw new Error('Escolha a categoria.');
+  if (!dados.grupo) throw new Error('Escolha a categoria.');
   if (!dados.tipo) throw new Error('Escolha o tipo.');
   const quemPagou = exigirPagador(dados.quemPagou);
 
@@ -384,9 +394,9 @@ export async function salvarLancamento(dados: DadosLancamento) {
               (data, descricao, categoria, tipo, fonte, valor_total, divisao,
                pct_irwin_custom, pct_irwin, eh_quitacao, quem_pagou, pago_irwin,
                obs, recorrente)
-            values (${formatarData(o.data)}, ${o.descricao}, ${dados.categoria}, ${tipo},
+            values (${formatarData(o.data)}, ${o.descricao}, ${dados.grupo}, ${tipo},
                     ${dados.fonte ?? null}, ${o.valor}, ${dados.divisao},
-                    ${pctCustomFracao}, ${pct}, ${ehQuitacaoDe(dados.categoria)},
+                    ${pctCustomFracao}, ${pct}, ${ehQuitacaoDe(dados.grupo)},
                     ${quemPagou}, ${pagoIrwin},
                     ${dados.obs ?? null}, ${!!dados.repetir})
             returning id`,
@@ -413,10 +423,10 @@ export async function atualizarLancamento(id: number, dados: DadosLancamento) {
   await db.execute(
     sql`update lancamentos set
           data = ${dados.data}, descricao = ${dados.descricao},
-          categoria = ${dados.categoria}, tipo = ${dados.tipo},
+          categoria = ${dados.grupo}, tipo = ${dados.tipo},
           fonte = ${dados.fonte ?? null}, valor_total = ${valor},
           divisao = ${dados.divisao}, pct_irwin_custom = ${pctCustomFracao},
-          pct_irwin = ${pct}, eh_quitacao = ${ehQuitacaoDe(dados.categoria)},
+          pct_irwin = ${pct}, eh_quitacao = ${ehQuitacaoDe(dados.grupo)},
           quem_pagou = ${quemPagouAtual}, pago_irwin = ${pagoIrwin}
         where id = ${id}`,
   );
@@ -445,7 +455,8 @@ export async function salvarInvestimento(dados: {
   movimento: string;
   valor: number | string;
   classe?: string;
-  deQuem?: string;
+  /** `quem`, não `deQuem` — mesmo motivo: é o nome que o front manda. */
+  quem?: string;
   obs?: string;
 }) {
   if (!dados.conta) throw new Error('Informe a instituição.');
@@ -455,13 +466,13 @@ export async function salvarInvestimento(dados: {
   await db.transaction(async (tx) => {
     await tx.execute(
       sql`insert into investimentos_contas (nome, classe, de_quem)
-          values (${dados.conta}, ${dados.classe ?? null}, ${dados.deQuem ?? null})
+          values (${dados.conta}, ${dados.classe ?? null}, ${dados.quem ?? null})
           on conflict (nome) do nothing`,
     );
     await tx.execute(
       sql`insert into investimentos_movimentos (data, conta, tipo, valor, de_quem, obs)
           values (${dados.data}, ${dados.conta}, ${dados.movimento}, ${valor},
-                  ${dados.deQuem ?? null}, ${dados.obs ?? null})`,
+                  ${dados.quem ?? null}, ${dados.obs ?? null})`,
     );
   });
   return { ok: true };
