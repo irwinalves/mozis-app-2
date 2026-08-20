@@ -15,6 +15,7 @@
  */
 import ExcelJS from 'exceljs';
 import postgres from 'postgres';
+import { pctIrwinDe } from '../src/lib/lancamentos';
 
 const caminho = process.argv[2] ?? `${process.env.HOME}/Downloads/DRE - Casal - v2.xlsx`;
 const url = process.env.DATABASE_URL;
@@ -115,6 +116,7 @@ async function main() {
     // --- Config -----------------------------------------------------------
     const conf = wb.getWorksheet('Config');
     const pct = conf ? numero(conf.getCell('C6')) : null;
+    const pctRenda = pct ?? 0.4947;
     await tx`insert into config (id, pct_irwin_renda) values (1, ${pct ?? 0.4947})`;
     console.log(`  config            pct_irwin_renda = ${pct}`);
 
@@ -144,16 +146,23 @@ async function main() {
       const row = lanc.getRow(r);
       const dt = data(row.getCell(1));
       if (!dt) continue;
+      const divisao = texto(row.getCell(8)) ?? '';
+      const custom = numero(row.getCell(9));
+      const categoria = texto(row.getCell(3)) ?? '';
       lote.push({
         data: dt,
         descricao: texto(row.getCell(2)) ?? '',
-        categoria: texto(row.getCell(3)) ?? '',
+        categoria,
         tipo: texto(row.getCell(4)) ?? '',
         cat_original: texto(row.getCell(5)),
         fonte: texto(row.getCell(6)),
         valor_total: numero(row.getCell(7)),
-        divisao: texto(row.getCell(8)) ?? '',
-        pct_irwin_custom: numero(row.getCell(9)),
+        divisao,
+        pct_irwin_custom: custom,
+        // A MESMA função que a API usa ao gravar. Se a regra mudar, muda num
+        // lugar só — a carga histórica não pode ter sua própria versão.
+        pct_irwin: pctIrwinDe(divisao, custom === null ? null : custom * 100, pctRenda),
+        eh_quitacao: categoria.trim().startsWith('9 '),
         quem_pagou: texto(row.getCell(12)),
         obs: texto(row.getCell(14)),
         recorrente: booleano(row.getCell(17)),

@@ -9,7 +9,11 @@
 import { db } from '@/db';
 import { sql } from 'drizzle-orm';
 import {
+  ehQuitacaoDe,
+} from './api';
+import {
   fimDoMes,
+  pctIrwinDe,
   formatarData,
   gerarDatasRecorrencia,
   normalizarFreq,
@@ -44,6 +48,11 @@ export async function gerarRecorrenciasPendentes() {
   const regras = await db.execute<Regra & Record<string, unknown>>(
     sql`select * from recorrencias where ativo = true`,
   );
+
+  const [conf] = await db.execute<{ pct_irwin_renda: string }>(
+    sql`select pct_irwin_renda from config where id = 1`,
+  );
+  const pctRenda = Number(conf?.pct_irwin_renda ?? 0.4947);
 
   const limite = fimDoMes(new Date());
   const geradas: { regra: string; datas: string[] }[] = [];
@@ -84,10 +93,12 @@ export async function gerarRecorrenciasPendentes() {
         await tx.execute(
           sql`insert into lancamentos
                 (data, descricao, categoria, tipo, fonte, valor_total, divisao,
-                 pct_irwin_custom, quem_pagou, pago_irwin, recorrente)
+                 pct_irwin_custom, pct_irwin, eh_quitacao, quem_pagou,
+                 pago_irwin, recorrente)
               values (${formatarData(data)}, ${r.descricao}, ${r.categoria}, 'Fixa',
                       ${r.fonte}, ${r.valor}, ${r.divisao}, ${r.pct_irwin_custom},
-                      ${r.quem_pagou},
+                      ${pctIrwinDe(r.divisao, Number(r.pct_irwin_custom) * 100, pctRenda)},
+                      ${ehQuitacaoDe(r.categoria)}, ${r.quem_pagou},
                       -- mesmo mapa de pagamento de um lançamento comum
                       ${r.quem_pagou === 'Irwin' ? Number(r.valor) : r.quem_pagou === 'Maria' ? 0 : null},
                       true)`,

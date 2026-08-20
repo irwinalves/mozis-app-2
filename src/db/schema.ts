@@ -91,6 +91,30 @@ export const lancamentos = pgTable(
     pagoIrwin: numeric('pago_irwin', { precision: 12, scale: 2 }),
     obs: text('obs'),
     recorrente: boolean('recorrente').notNull().default(false),
+
+    /**
+     * % do Irwin JÁ RESOLVIDO, congelado na gravação.
+     *
+     * A regra que escolhe o percentual (`pctIrwinDe`) existe em UM lugar só, em
+     * TypeScript. A view faz aritmética sobre esta coluna, não repete a tabela
+     * de casos — antes o `CASE` do SQL duplicava a regra, e duas
+     * implementações da mesma coisa divergem mais cedo ou mais tarde.
+     *
+     * Efeito colateral desejado: mudar a proporção de renda passa a valer só
+     * para lançamentos novos. Antes reescrevia o passado. Conferido antes de
+     * adotar: nenhuma das 3.510 linhas usa divisão 'Renda', então congelar
+     * produziu números idênticos.
+     */
+    pctIrwin: numeric('pct_irwin').notNull(),
+
+    /**
+     * Quitação de dívida entre os dois — NÃO é despesa.
+     *
+     * Campo próprio em vez de casar o texto da categoria (`'9 Acerto…'`), que
+     * era string mágica repetida em quatro lugares no app antigo.
+     */
+    ehQuitacao: boolean('eh_quitacao').notNull().default(false),
+
     linhaOrigem: integer('linha_origem'),
   },
   (t) => [

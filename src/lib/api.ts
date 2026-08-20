@@ -46,15 +46,32 @@ function isoDaLinha(v: unknown): string {
 }
 
 /**
- * Assinatura de um lançamento: data, descrição e valor.
+ * A4 — todo lançamento precisa de pagador.
  *
- * O front referencia o lançamento por um identificador que ele guardou quando a
- * lista foi carregada. Se o registro mudou nesse meio-tempo, gravar acertaria
- * outra coisa em silêncio. A assinatura viaja junto e é conferida antes de
- * qualquer escrita.
+ * Sem pagador a linha nasce com o desembolso vazio e fica FORA do acerto: o
+ * gasto aparece no resultado mas não na dívida entre os dois, sem erro e sem
+ * aviso. Havia 19 linhas assim no histórico, de 2020 a 2026, nenhuma percebida.
+ *
+ * A checagem mora aqui, no servidor, porque a tela é só UMA das portas —
+ * importação em lote e gatilho de recorrência entram por outras.
  */
-function assinaturaDe(data: string, descricao: string, valor: number): string {
-  return `${data}|${descricao}|${Number(valor).toFixed(2)}`;
+/**
+ * A11 — quitação é tipo de registro, não categoria especial.
+ *
+ * O texto da categoria é interpretado AQUI e só aqui, na fronteira onde o dado
+ * entra. Dali para dentro o que circula é o booleano `eh_quitacao`. No app
+ * antigo essa string era casada em quatro lugares diferentes.
+ */
+export function ehQuitacaoDe(categoria: unknown): boolean {
+  return String(categoria ?? '').trim().startsWith('9 ');
+}
+
+function exigirPagador(quemPagou: unknown): string {
+  const q = String(quemPagou ?? '').trim();
+  if (!q) {
+    throw new Error('Escolha quem pagou — sem isso o lançamento fica fora do acerto de contas.');
+  }
+  return q;
 }
 
 interface LinhaView extends Record<string, unknown> {
@@ -91,8 +108,11 @@ function paraItem(r: LinhaView) {
     categoria: r.categoria,
     tipo: r.tipo,
     valor: Number(r.valor_total),
-    parteIrwin: Number(r.parte_irwin ?? 0),
-    parteMaria: Number(r.parte_maria ?? 0),
+    // C1: o que importa por linha é QUANTO ISSO MEXEU NO ACERTO, com sinal —
+    // não a fatia de cada um. Duas transações de R$ 200 meio a meio parecem
+    // idênticas quando se mostra "100 e 100", mesmo com efeito oposto no saldo.
+    // Vai UM número só: o outro lado é o negativo exato, derivado no front.
+    saldoIrwin: r.saldo_irwin === null ? null : Number(r.saldo_irwin),
     quemPagou: r.quem_pagou ?? '',
     recorrente: !!r.recorrente,
   };
@@ -287,7 +307,6 @@ export async function obterLancamento(id: number) {
     quemPagou: r.quem_pagou,
     pagoIrwin: r.pago_irwin === null ? null : Number(r.pago_irwin),
     obs: r.obs,
-    assinatura: assinaturaDe(iso, r.descricao, Number(r.valor_total)),
   };
 }
 
@@ -310,25 +329,13 @@ interface DadosLancamento {
   freqRec?: string;
   fimRec?: string;
   semFimRec?: boolean;
-  assinatura?: string;
-}
-
-/** Confere que o registro não mudou desde que o front carregou a lista. */
-async function conferirAssinatura(id: number, assinatura: string | undefined) {
-  const [r] = await db.execute<{ data: Date; descricao: string; valor_total: string }>(
-    sql`select data, descricao, valor_total from lancamentos where id = ${id}`,
-  );
-  if (!r) throw new Error('Lançamento não encontrado.');
-  const atual = assinaturaDe(isoDaLinha(r.data), r.descricao, Number(r.valor_total));
-  if (!assinatura || assinatura !== atual) {
-    throw new Error('Essa lista está desatualizada. Recarregue o app e tente de novo.');
-  }
 }
 
 export async function salvarLancamento(dados: DadosLancamento) {
   if (!dados.descricao) throw new Error('Informe a descrição.');
   if (!dados.categoria) throw new Error('Escolha a categoria.');
   if (!dados.tipo) throw new Error('Escolha o tipo.');
+  const quemPagou = exigirPagador(dados.quemPagou);
 
   // Todo gasto recorrente é Fixa.
   const tipo = dados.repetir ? 'Fixa' : dados.tipo;
@@ -375,10 +382,12 @@ export async function salvarLancamento(dados: DadosLancamento) {
       const [row] = await tx.execute<{ id: number }>(
         sql`insert into lancamentos
               (data, descricao, categoria, tipo, fonte, valor_total, divisao,
-               pct_irwin_custom, quem_pagou, pago_irwin, obs, recorrente)
+               pct_irwin_custom, pct_irwin, eh_quitacao, quem_pagou, pago_irwin,
+               obs, recorrente)
             values (${formatarData(o.data)}, ${o.descricao}, ${dados.categoria}, ${tipo},
                     ${dados.fonte ?? null}, ${o.valor}, ${dados.divisao},
-                    ${pctCustomFracao}, ${dados.quemPagou ?? null}, ${pagoIrwin},
+                    ${pctCustomFracao}, ${pct}, ${ehQuitacaoDe(dados.categoria)},
+                    ${quemPagou}, ${pagoIrwin},
                     ${dados.obs ?? null}, ${!!dados.repetir})
             returning id`,
       );
@@ -391,8 +400,7 @@ export async function salvarLancamento(dados: DadosLancamento) {
 }
 
 export async function atualizarLancamento(id: number, dados: DadosLancamento) {
-  await conferirAssinatura(id, dados.assinatura);
-
+  const quemPagouAtual = exigirPagador(dados.quemPagou);
   const pct = pctIrwinDe(dados.divisao, Number(dados.pctIrwinCustom));
   const valor = arred(Number(dados.valor));
   const parteIrwin = arred(valor * pct);
@@ -408,16 +416,22 @@ export async function atualizarLancamento(id: number, dados: DadosLancamento) {
           categoria = ${dados.categoria}, tipo = ${dados.tipo},
           fonte = ${dados.fonte ?? null}, valor_total = ${valor},
           divisao = ${dados.divisao}, pct_irwin_custom = ${pctCustomFracao},
-          quem_pagou = ${dados.quemPagou ?? null}, pago_irwin = ${pagoIrwin}
+          pct_irwin = ${pct}, eh_quitacao = ${ehQuitacaoDe(dados.categoria)},
+          quem_pagou = ${quemPagouAtual}, pago_irwin = ${pagoIrwin}
         where id = ${id}`,
   );
   return { ok: true };
 }
 
-export async function excluirLancamento(id: number, assinatura?: string) {
-  // Numa exclusão a confusão de registro é irreversível — a conferência pesa mais.
-  await conferirAssinatura(id, assinatura);
-  await db.execute(sql`delete from lancamentos where id = ${id}`);
+export async function excluirLancamento(id: number) {
+  // B2 — sem assinatura de conteúdo, de propósito.
+  //
+  // A assinatura existia no app antigo como contorno para um modelo SEM id: a
+  // linha era identificada pela posição, que muda quando a planilha é
+  // reordenada. Aqui `id` é chave primária estável — o problema não existe, e
+  // portar o contorno seria copiar um remendo achando que é regra.
+  const r = await db.execute(sql`delete from lancamentos where id = ${id} returning id`);
+  if (!r.length) throw new Error('Lançamento não encontrado.');
   return { ok: true };
 }
 
@@ -490,7 +504,7 @@ export async function getDashboard(filtro?: {
   // Investimento e '9 Acerto de Contas' ficam fora de todo relatório de gasto.
   const base = sql`from v_lancamentos
                    where tipo <> 'Investimento'
-                     and categoria not like '9 %'
+                     and not eh_quitacao
                      ${filtro?.dataIni ? sql`and data >= ${filtro.dataIni}` : sql``}
                      ${filtro?.dataFim ? sql`and data <= ${filtro.dataFim}` : sql``}`;
 
@@ -632,6 +646,7 @@ export async function lancarImportacaoLote(
   divisao?: string,
 ) {
   if (!transacoes || !transacoes.length) throw new Error('Nada para lançar.');
+  exigirPagador(quemPagou);
 
   const divisaoFinal =
     quemPagou === 'Irwin' ? '100% Irwin'
@@ -658,10 +673,11 @@ export async function lancarImportacaoLote(
       await tx.execute(
         sql`insert into lancamentos
               (data, descricao, categoria, tipo, cat_original, fonte, valor_total,
-               divisao, quem_pagou, pago_irwin, recorrente)
+               divisao, pct_irwin, eh_quitacao, quem_pagou, pago_irwin, recorrente)
             values (${t.data}, ${t.descricao}, ${t.categoria},
                     ${tipos.get(t.categoria) ?? 'Variável'}, 'Importação OFX/CSV',
-                    'Extrato banco', ${valor}, ${divisaoFinal}, ${quemPagou},
+                    'Extrato banco', ${valor}, ${divisaoFinal}, ${pctI},
+                    ${ehQuitacaoDe(t.categoria)}, ${quemPagou},
                     ${pagoIrwin}, false)`,
       );
       total += valor;

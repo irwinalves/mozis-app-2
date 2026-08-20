@@ -15,6 +15,13 @@
       "when": 1786582167424,
       "tag": "0001_round_komodo",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787250023743,
+      "tag": "0002_fat_satana",
+      "breakpoints": true
     }
   ]
 }
