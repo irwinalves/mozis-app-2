@@ -43,3 +43,5 @@ next-env.d.ts
 # Dados financeiros reais — retratos da planilha, nunca versionar
 *.xlsx
 baseline/
+
+# sharp é usado só para gerar os ícones, sob demanda

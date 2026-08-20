@@ -47,5 +47,10 @@ export default auth((req) => {
 
 export const config = {
   // Deixa passar estáticos e o shim; todo o resto é protegido.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|gs-shim.js).*)'],
+  // Ícones e manifest ficam FORA da proteção de propósito: o iOS busca o
+  // apple-touch-icon sem cookie de sessão ao criar o atalho. Protegê-los
+  // faria o atalho nascer com ícone genérico.
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|gs-shim.js|manifest.json|icone-).*)',
+  ],
 };

@@ -15,10 +15,18 @@ export async function GET() {
   const arquivo = path.join(process.cwd(), 'public', 'Form.html');
   const html = await readFile(arquivo, 'utf8');
 
-  const comShim = html.replace(
+  // Injetados aqui, não no arquivo: o `Form.html` permanece byte a byte
+  // idêntico ao que roda em produção no Apps Script, e essa paridade continua
+  // verificável por hash.
+  const injecao = [
+    '  <script src="/gs-shim.js"></script>',
+    '  <link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">',
+    '  <link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">',
+    '  <link rel="manifest" href="/manifest.json">',
     '</head>',
-    '  <script src="/gs-shim.js"></script>\n</head>',
-  );
+  ].join('\n');
+
+  const comShim = html.replace('</head>', injecao);
 
   return new Response(comShim, {
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
