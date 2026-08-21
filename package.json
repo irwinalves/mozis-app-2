@@ -13,7 +13,9 @@
     "sync": "tsx --env-file=.env scripts/sync-from-sheets.ts",
     "reconcile": "tsx --env-file=.env scripts/reconcile.ts",
     "test": "node --import tsx --test src/lib/*.test.ts",
-    "inspect": "tsx scripts/inspect-xlsx.ts"
+    "inspect": "tsx scripts/inspect-xlsx.ts",
+    "invariantes": "tsx --env-file=.env scripts/invariantes.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
