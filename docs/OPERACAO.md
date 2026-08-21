@@ -101,3 +101,34 @@ passa por engano.
   efeito visível é **1º de setembro**.
 - **A Maria nunca entrou.** Está na allowlist e como usuária de teste.
 - **Uso real no celular.** Navegação e gravação foram testadas pelo navegador.
+
+## Recriar uma view não basta: as conexões abertas continuam com o schema antigo
+
+**Sintoma:** você acrescenta uma coluna a `v_lancamentos`, confirma no banco que
+ela existe, e mesmo assim a API devolve o campo **vazio** — não ausente, vazio.
+Chamar a mesma função por um script novo funciona; pelo servidor, não.
+
+**Causa:** o `postgres.js` usa *prepared statements*. Um `select * from
+v_lancamentos` preparado ANTES do `drop view` / `create view` guarda o conjunto
+de colunas de então. A conexão continua devolvendo aquelas colunas, e quem lê a
+nova encontra `undefined`.
+
+Foi exatamente o que aconteceu em 21/08/2026 com `gasto_de`: o servidor de
+desenvolvimento estava no ar havia 26 horas, de antes da migração. O detalhe que
+despistou é que o campo APARECIA na resposta — o `paraItem` tinha recarregado
+por hot reload e criava a chave; só o valor vinha vazio.
+
+**Como confirmar em um passo:** chame a função direto por um processo novo.
+
+```bash
+npx tsx --env-file=.env -e "import('./src/lib/api').then(async m => console.log(await m.ultimosLancamentos(5)))"
+```
+
+Se ali vier preenchido e pelo servidor não, é isto.
+
+**Correção:** reinicie o servidor. Em produção o problema não se sustenta —
+cada deploy sobe funções novas —, mas uma janela existe entre aplicar a view e
+publicar o código: conexões vivas de antes seguem com o schema velho.
+
+**Ordem segura:** aplicar a migração e a view, e só então publicar o código que
+lê a coluna nova.
