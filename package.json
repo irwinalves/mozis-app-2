@@ -9,13 +9,16 @@
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:views": "psql \"$DATABASE_URL\" -f sql/views.sql",
+    "db:views": "tsx --env-file=.env scripts/aplicar-sql.ts sql/views.sql",
     "sync": "tsx --env-file=.env scripts/sync-from-sheets.ts",
     "reconcile": "tsx --env-file=.env scripts/reconcile.ts",
     "test": "node --import tsx --test src/lib/*.test.ts",
     "inspect": "tsx scripts/inspect-xlsx.ts",
     "invariantes": "tsx --env-file=.env scripts/invariantes.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "checar-form": "node scripts/checar-form.mjs",
+    "db:sql": "tsx --env-file=.env scripts/aplicar-sql.ts",
+    "verificar-e2e": "tsx --env-file=.env scripts/verificar-e2e.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

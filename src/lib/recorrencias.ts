@@ -32,6 +32,7 @@ interface Regra {
   frequencia: string;
   ultima_geracao: Date | string | null;
   data_inicio: Date | string;
+  gasto_de: string | null;
 }
 
 function comoData(v: Date | string): Date {
@@ -94,14 +95,16 @@ export async function gerarRecorrenciasPendentes() {
           sql`insert into lancamentos
                 (data, descricao, categoria, tipo, fonte, valor_total, divisao,
                  pct_irwin_custom, pct_irwin, eh_quitacao, quem_pagou,
-                 pago_irwin, recorrente)
+                 pago_irwin, recorrente, gasto_de)
               values (${formatarData(data)}, ${r.descricao}, ${r.categoria}, 'Fixa',
                       ${r.fonte}, ${r.valor}, ${r.divisao}, ${r.pct_irwin_custom},
                       ${pctIrwinDe(r.divisao, Number(r.pct_irwin_custom) * 100, pctRenda)},
                       ${ehQuitacaoDe(r.categoria)}, ${r.quem_pagou},
                       -- mesmo mapa de pagamento de um lançamento comum
                       ${r.quem_pagou === 'Irwin' ? Number(r.valor) : r.quem_pagou === 'Maria' ? 0 : null},
-                      true)`,
+                      -- a tag da regra desce para cada ocorrência gerada: uma
+                      -- recorrência do André gera lançamentos do André
+                      true, ${r.gasto_de ?? null})`,
         );
       }
       await tx.execute(

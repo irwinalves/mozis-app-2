@@ -34,6 +34,7 @@ select
   obs,
   recorrente,
   eh_quitacao,
+  gasto_de,
   linha_origem,
   pct_irwin,
 

@@ -17,14 +17,35 @@ congelado no cutover.
 > partir de uma exportação da planilha. Fazia sentido enquanto a planilha mandava;
 > hoje apagaria tudo que foi lançado no app novo. Só contra banco descartável.
 
-## Regra número 2: o `Form.html` não se edita
+## Regra número 2: o `Form.html` agora se edita — e o que isso custou para valer
 
-Ele é **byte a byte idêntico** ao do app antigo, e essa paridade é verificável por
-hash. O que a tela precisa a mais — shim, ícones, manifest, foto no avatar de
-"Ambos" — é **injetado em `src/app/route.ts`**.
+**A paridade byte a byte terminou em 20/08/2026**, no commit que introduziu a tag do
+André, a busca por valor, os filtros e a ordenação alfabética. Foi decisão explícita,
+não descuido.
 
-Quando a reescrita em React começar, isso muda. Até lá, editar o arquivo quebra a
-única propriedade que torna a migração auditável.
+O último hash com paridade, para quem precisar comparar as duas telas algum dia:
+
+```
+1a47347dea94857156076097d9c2d4502b59de69fc4abe4870ae6d8876d4d913
+```
+
+Ele bate com `app-financeiro/Form.html` no repositório do legado, que segue preservado
+inteiro. A auditabilidade não se perdeu: ela mora no git, não na igualdade dos arquivos
+de trabalho.
+
+**Por que a regra existiu.** Enquanto o arquivo fosse idêntico, qualquer diferença de
+comportamento entre os dois apps vinha do backend e de nenhum outro lugar. Isso tornou
+a migração verificável: 14.128 comparações linha a linha, 0 divergências.
+
+**Por que acabou.** Essa propriedade já entregou o que tinha para entregar. Mantê-la
+depois disso significaria empurrar toda feature nova para dentro de `src/app/route.ts`
+como JavaScript injetado — e esse arquivo foi feito para acréscimos pequenos (shim,
+ícones, manifest, a foto no avatar de "Ambos"), não para carregar lógica de produto.
+
+**O que continua valendo.** As injeções que já existem em `route.ts` ficam onde estão;
+não há motivo para trazê-las para dentro do HTML. E a regra 5 — **o front é o contrato**
+— fica mais importante, não menos: agora que os dois lados podem mudar, `contrato.test.ts`
+é o que impede que mudem em desacordo.
 
 ## Regra número 3: uma implementação, nunca duas
 

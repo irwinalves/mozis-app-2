@@ -87,6 +87,7 @@ interface LinhaView extends Record<string, unknown> {
   quem_pagou: string | null;
   obs: string | null;
   recorrente: boolean;
+  gasto_de: string | null;
   parte_irwin: string | null;
   parte_maria: string | null;
   pago_irwin: string | null;
@@ -115,6 +116,11 @@ function paraItem(r: LinhaView) {
     saldoIrwin: r.saldo_irwin === null ? null : Number(r.saldo_irwin),
     quemPagou: r.quem_pagou ?? '',
     recorrente: !!r.recorrente,
+    gastoDe: r.gasto_de ?? '',
+    // Derivado da descrição, não de coluna: quem numera as parcelas é
+    // `montarParcelas`, sempre no formato " N/M" no fim. Não há coluna de
+    // parcelamento e criar uma deixaria as 272 linhas do histórico de fora.
+    parcelado: / \d+\/\d+$/.test(String(r.descricao || '')),
   };
 }
 
@@ -160,7 +166,53 @@ export async function getOpcoes() {
  * ordem física não é ordem de data — parcelas futuras e lançamentos
  * retroativos são gravados no fim. Aqui é `order by data desc` sobre um índice.
  */
-export async function ultimosLancamentos(qtd = 50, offset = 0, incluirFuturos = false) {
+/**
+ * A ordem da lista, em um lugar só.
+ *
+ * Data decrescente como sempre foi; o que mudou é o desempate DENTRO do mesmo
+ * dia, que era a ordem de gravação e agora é alfabético.
+ *
+ * `collate "pt-BR-x-icu"` não é preciosismo: a collation padrão ordena por byte
+ * e coloca "açaí" depois de "Aveia" e "Ávila" depois de "Bold". Medido contra o
+ * banco antes de escolher. O `id` no fim mantém a ordem estável quando duas
+ * linhas têm data e descrição iguais — sem ele a paginação pode repetir ou
+ * pular um item entre uma página e outra.
+ */
+const ORDEM = sql`order by data desc, descricao collate "pt-BR-x-icu" asc, id desc`;
+
+/** Os filtros da tela de Início. Todos opcionais; combinam entre si com AND. */
+export interface FiltrosLista {
+  /** Só recorrentes. */
+  recorrente?: boolean;
+  /** Só parceladas. */
+  parcelado?: boolean;
+  /** 'André' — ou 'casal' para o que NÃO tem dono. */
+  gastoDe?: string;
+  categoria?: string;
+  quemPagou?: string;
+}
+
+function clausulasDe(f: FiltrosLista = {}) {
+  const partes = [];
+  if (f.recorrente) partes.push(sql`recorrente = true`);
+  // O mesmo padrão " N/M" que `paraItem` usa — a regra de reconhecer parcela
+  // vive nos dois lugares porque um é SQL e o outro é JS, mas é a MESMA regra:
+  // se mudar aqui, muda lá.
+  if (f.parcelado) partes.push(sql`descricao ~ ' [0-9]+/[0-9]+$'`);
+  if (f.gastoDe === 'casal') partes.push(sql`gasto_de is null`);
+  else if (f.gastoDe) partes.push(sql`gasto_de = ${f.gastoDe}`);
+  if (f.categoria) partes.push(sql`categoria = ${f.categoria}`);
+  if (f.quemPagou) partes.push(sql`quem_pagou = ${f.quemPagou}`);
+  if (!partes.length) return sql`true`;
+  return partes.reduce((a, b) => sql`${a} and ${b}`);
+}
+
+export async function ultimosLancamentos(
+  qtd = 50,
+  offset = 0,
+  incluirFuturos = false,
+  filtros: FiltrosLista = {},
+) {
   const limite = sql`(date_trunc('month', current_date) + interval '1 month' - interval '1 day')::date`;
 
   const [{ n }] = await db.execute<{ n: string }>(
@@ -168,40 +220,75 @@ export async function ultimosLancamentos(qtd = 50, offset = 0, incluirFuturos = 
   );
   const qtdFuturos = Number(n);
 
-  const filtro = incluirFuturos ? sql`true` : sql`data <= ${limite}`;
+  const janela = incluirFuturos ? sql`true` : sql`data <= ${limite}`;
+  const filtro = sql`${janela} and ${clausulasDe(filtros)}`;
 
   const linhas = await db.execute<LinhaView>(
     sql`select * from v_lancamentos where ${filtro}
-        order by data desc, id desc
+        ${ORDEM}
         limit ${qtd + 1} offset ${offset}`,
   );
 
+  // Com filtro ativo, "quantos e quanto somam" costuma ser a pergunta real por
+  // trás do filtro — e não dá para responder pela página, que é parcial.
+  const temFiltro = Object.keys(filtros).some((k) => filtros[k as keyof FiltrosLista]);
+  let resumo = null;
+  if (temFiltro) {
+    const [r] = await db.execute<{ n: string; soma: string | null }>(
+      sql`select count(*) as n, sum(valor_total) as soma from v_lancamentos where ${filtro}`,
+    );
+    resumo = { qtd: Number(r.n), soma: Number(r.soma ?? 0) };
+  }
+
   const temMais = linhas.length > qtd;
-  return { itens: linhas.slice(0, qtd).map(paraItem), temMais, qtdFuturos };
+  return { itens: linhas.slice(0, qtd).map(paraItem), temMais, qtdFuturos, resumo };
 }
 
 /**
- * Busca em todo o histórico, por descrição ou data.
- * Aceita `dd/mm` e `dd/mm/yyyy`, como o backend antigo. Teto de 60 resultados.
+ * Busca em todo o histórico, por descrição, data ou valor.
+ *
+ * O tipo de busca sai do FORMATO do que foi digitado, não de um seletor na
+ * tela — quem procura já sabe o que está procurando, e escolher em qual campo
+ * buscar é trabalho que o programa consegue fazer sozinho:
+ *
+ *   `20/08` ou `20/08/2026`  → data
+ *   `320` ou `320,50`        → valor
+ *   qualquer outra coisa     → descrição
+ *
+ * Teto de 60 resultados, como antes.
  */
-export async function buscarLancamentos(termo: string) {
+export async function buscarLancamentos(termo: string, filtros: FiltrosLista = {}) {
   const t = String(termo || '').trim();
-  if (!t) return [];
+  if (!t && !Object.keys(filtros).length) return [];
 
-  const m = t.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);
-  let filtro;
-  if (m) {
-    const dia = Number(m[1]);
-    const mes = Number(m[2]);
-    filtro = m[3]
-      ? sql`data = make_date(${Number(m[3])}, ${mes}, ${dia})`
+  let alvo;
+  const mData = t.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);
+  const mValor = t.match(/^(\d+)(?:[.,](\d{1,2}))?$/);
+
+  if (mData) {
+    const dia = Number(mData[1]);
+    const mes = Number(mData[2]);
+    alvo = mData[3]
+      ? sql`data = make_date(${Number(mData[3])}, ${mes}, ${dia})`
       : sql`extract(day from data) = ${dia} and extract(month from data) = ${mes}`;
+  } else if (mValor) {
+    // Com centavos, é exato: quem digita `320,50` quer aquele lançamento.
+    // Sem centavos, casa a parte inteira — `320` acha 320,00 e 320,90, e não
+    // arrasta 1.320,00 nem 3.200,00 junto. Buscar por substring do número traz
+    // esse lixo e faz o resultado parecer aleatório.
+    alvo = mValor[2]
+      ? sql`valor_total = ${`${mValor[1]}.${mValor[2].padEnd(2, '0')}`}`
+      : sql`trunc(valor_total) = ${Number(mValor[1])}`;
+  } else if (t) {
+    alvo = sql`descricao ilike ${'%' + t + '%'}`;
   } else {
-    filtro = sql`descricao ilike ${'%' + t + '%'}`;
+    alvo = sql`true`;
   }
 
   const linhas = await db.execute<LinhaView>(
-    sql`select * from v_lancamentos where ${filtro} order by data desc, id desc limit 60`,
+    sql`select * from v_lancamentos
+         where ${alvo} and ${clausulasDe(filtros)}
+         ${ORDEM} limit 60`,
   );
   return linhas.map(paraItem);
 }
@@ -307,6 +394,7 @@ export async function obterLancamento(id: number) {
     quemPagou: r.quem_pagou,
     pagoIrwin: r.pago_irwin === null ? null : Number(r.pago_irwin),
     obs: r.obs,
+    gastoDe: r.gasto_de ?? '',
   };
 }
 
@@ -332,6 +420,13 @@ interface DadosLancamento {
   quemPagou?: string | null;
   pagoIrwin?: number | string | null;
   obs?: string | null;
+  /**
+   * De quem é o custo. Vazio ou ausente = do casal.
+   *
+   * Não afeta divisão, pagador nem acerto: um gasto do André pago pelo Irwin e
+   * dividido 50/50 continua dividido 50/50. A tag classifica, não redistribui.
+   */
+  gastoDe?: string | null;
   parcelado?: boolean;
   parcelas?: number | string;
   tipoValor?: 'total' | 'parcela';
@@ -393,12 +488,12 @@ export async function salvarLancamento(dados: DadosLancamento) {
         sql`insert into lancamentos
               (data, descricao, categoria, tipo, fonte, valor_total, divisao,
                pct_irwin_custom, pct_irwin, eh_quitacao, quem_pagou, pago_irwin,
-               obs, recorrente)
+               obs, recorrente, gasto_de)
             values (${formatarData(o.data)}, ${o.descricao}, ${dados.grupo}, ${tipo},
                     ${dados.fonte ?? null}, ${o.valor}, ${dados.divisao},
                     ${pctCustomFracao}, ${pct}, ${ehQuitacaoDe(dados.grupo)},
                     ${quemPagou}, ${pagoIrwin},
-                    ${dados.obs ?? null}, ${!!dados.repetir})
+                    ${dados.obs ?? null}, ${!!dados.repetir}, ${dados.gastoDe || null})
             returning id`,
       );
       ids.push(row.id);
@@ -427,7 +522,8 @@ export async function atualizarLancamento(id: number, dados: DadosLancamento) {
           fonte = ${dados.fonte ?? null}, valor_total = ${valor},
           divisao = ${dados.divisao}, pct_irwin_custom = ${pctCustomFracao},
           pct_irwin = ${pct}, eh_quitacao = ${ehQuitacaoDe(dados.grupo)},
-          quem_pagou = ${quemPagouAtual}, pago_irwin = ${pagoIrwin}
+          quem_pagou = ${quemPagouAtual}, pago_irwin = ${pagoIrwin},
+          gasto_de = ${dados.gastoDe || null}
         where id = ${id}`,
   );
   return { ok: true };

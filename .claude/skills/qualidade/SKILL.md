@@ -65,19 +65,32 @@ do projeto é clara sobre quem cede: o front é o contrato, a API se adapta.
 npm run typecheck && npm run lint
 ```
 
-### 3. Paridade do `Form.html` — instantâneo
+### 3. Sanidade do `Form.html` — instantâneo
 
 ```bash
-shasum -a 256 "../Mozi's App/app-financeiro/Form.html" public/Form.html
+npm run checar-form
 ```
 
-Os dois hashes têm que ser idênticos. Essa igualdade byte a byte é o que torna a
-migração auditável: enquanto ela vale, qualquer diferença de comportamento entre
-os apps vem do backend, nunca da tela. O que a tela precisa a mais — shim,
-ícones, manifest, a foto no avatar de "Ambos" — é injetado em `src/app/route.ts`.
+**A paridade byte a byte com o app antigo terminou em 20/08/2026** — decisão
+registrada na regra 2 do `CLAUDE.md`, junto com o último hash que batia. Não
+compare mais os dois arquivos: eles divergem de propósito, e um "conserto" aqui
+desfaria trabalho.
 
-Se divergirem, descubra qual lado mudou antes de "consertar" — pode ser o início
-legítimo da reescrita em React, e nesse caso é esta skill que precisa mudar.
+O que resta verificar é que o arquivo continua íntegro. Ele não passa por build
+nenhum — é servido como está, então um erro de sintaxe **não aparece em lugar
+nenhum do terminal**: a tela fica em branco no celular e só o console do navegador
+conta o que houve. `scripts/checar-form.mjs` analisa cada bloco `<script>` inline e
+é o compilador que este arquivo não tem. Verificado que ele falha de verdade,
+quebrando o arquivo de propósito — aponta o bloco e a linha.
+
+A contagem de `google.script.run` no fim da saída é o segundo sinal: toda chamada
+ao backend passa por ali, sobre o shim. Se o número cair sem que uma feature tenha
+sido removida, alguma virou `fetch` solto e escapou da rota única de RPC — que é
+onde vive a allowlist de métodos.
+
+E o `contrato.test.ts` da camada 1 cobre a parte que mais importa — que os nomes de
+campo do front e da API continuem os mesmos. Agora que os dois lados podem mudar,
+ele deixou de ser rede de segurança e virou a checagem principal.
 
 ### 4. Invariantes do banco — poucos segundos
 
@@ -100,7 +113,27 @@ Dois deles calculam a mesma grandeza por caminhos independentes:
   que está gravado — pega tanto uma regra que mudou sem migração quanto uma
   gravação que escapou da função.
 
-### 5. Tela — minutos, quando o pedido envolve o front
+### 5. Ponta a ponta — meio minuto, quando mexeu em API ou schema
+
+```bash
+npm run verificar-e2e
+```
+
+Grava um lançamento de verdade pela API, confere **no banco** o que foi gravado,
+exercita busca, filtros e ordenação sobre o histórico real, e apaga no fim —
+verificando que a contagem voltou ao número original.
+
+⚠️ **Escreve na base.** Não é destrutivo, mas o lançamento `ZZTESTE` existe por
+alguns segundos e aparece para quem estiver com o app aberto. Não é problema na
+prática; só não vale a pena rodar por hábito quando nada mudou no backend.
+
+É a única camada que cruza API → banco → API, que é onde a regra E1 aponta. Duas
+coisas que ele já pegou e que nenhuma outra camada pegaria: uma asserção de
+ordenação que passava com **um** item no dia (lista de um item está sempre
+ordenada — um teste incapaz de falhar), e a confirmação de que a tag do André não
+mexe na divisão do valor.
+
+### 6. Tela — minutos, quando o pedido envolve o front
 
 Só vale a pena quando algo mudou no `Form.html`, no `route.ts` ou num método que
 a tela chama. Use a skill **`webapp-testing`** (Playwright).

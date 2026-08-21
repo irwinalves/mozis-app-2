@@ -102,6 +102,25 @@ export const lancamentos = pgTable(
     recorrente: boolean('recorrente').notNull().default(false),
 
     /**
+     * De quem é o custo — NÃO quem pagou.
+     *
+     * São perguntas diferentes e o app já modelava só a segunda. `quem_pagou`
+     * diz de quem saiu o dinheiro; esta coluna diz a quem o gasto se refere,
+     * para responder "quanto custa o André" sem depender de a descrição conter
+     * a palavra "André".
+     *
+     * NULL = gasto do casal, que é a esmagadora maioria. Texto e não booleano
+     * porque uma segunda pessoa não deveria exigir migração de tipo — é o mesmo
+     * padrão de `quem_pagou`, que também é texto com um conjunto conhecido de
+     * valores.
+     *
+     * Deliberadamente NÃO entra no cálculo do acerto: um gasto do André pago
+     * pelo Irwin e dividido 50/50 continua dividido 50/50. A tag classifica,
+     * não redistribui.
+     */
+    gastoDe: text('gasto_de'),
+
+    /**
      * % do Irwin JÁ RESOLVIDO, congelado na gravação.
      *
      * A regra que escolhe o percentual (`pctIrwinDe`) existe em UM lugar só, em
@@ -131,6 +150,9 @@ export const lancamentos = pgTable(
     // contíguo e ordenar inteiro, porque ordem física != ordem de data.
     index('idx_lancamentos_data').on(t.data),
     index('idx_lancamentos_categoria').on(t.categoria),
+    // O relatório por pessoa filtra por esta coluna, e a esmagadora maioria das
+    // linhas é NULL — um índice parcial cobre as que interessam a custo baixo.
+    index('idx_lancamentos_gasto_de').on(t.gastoDe),
   ],
 );
 
@@ -153,6 +175,8 @@ export const recorrencias = pgTable('recorrencias', {
   frequencia: text('frequencia').notNull().default('mensal'),
   ultimaGeracao: date('ultima_geracao'),
   ativo: boolean('ativo').notNull().default(true),
+  /** Propagado para cada lançamento gerado — ver `lancamentos.gastoDe`. */
+  gastoDe: text('gasto_de'),
 });
 
 /**
