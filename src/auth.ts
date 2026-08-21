@@ -7,12 +7,7 @@
  */
 import NextAuth from 'next-auth';
 import Google from 'next-auth/providers/google';
-
-/** Quem pode entrar. Vem do ambiente para não versionar e-mail no repositório. */
-const PERMITIDOS = (process.env.EMAILS_PERMITIDOS ?? '')
-  .split(',')
-  .map((e) => e.trim().toLowerCase())
-  .filter(Boolean);
+import { elencoDoAmbiente, podeEntrar } from '@/lib/pessoas';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [Google],
@@ -21,12 +16,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   // então não dá para fixar AUTH_URL.
   trustHost: true,
   callbacks: {
+    // Quem pode entrar sai de `lib/pessoas`, que é a MESMA fonte de quem é
+    // quem. Eram duas listas antes; duas listas que precisam concordar acabam
+    // divergindo, e aqui isso significaria ou ninguém entrar, ou alguém ver o
+    // sinal da dívida trocado.
     signIn({ profile }) {
-      const email = profile?.email?.toLowerCase();
-      if (!email) return false;
-      // Lista vazia recusa TODO MUNDO, de propósito: uma variável de ambiente
-      // esquecida no deploy não pode virar porta aberta.
-      return PERMITIDOS.includes(email);
+      return podeEntrar(elencoDoAmbiente(), profile?.email);
+    },
+    // O e-mail precisa sobreviver até a sessão para a tela saber quem está
+    // olhando. Sem isto o token do Auth.js não o carrega por padrão.
+    jwt({ token, profile }) {
+      if (profile?.email) token.email = profile.email;
+      return token;
+    },
+    session({ session, token }) {
+      if (token.email) session.user.email = token.email;
+      return session;
     },
   },
   pages: { signIn: '/entrar' },

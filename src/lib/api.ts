@@ -11,6 +11,7 @@
  */
 import { db } from '@/db';
 import { sql } from 'drizzle-orm';
+import type { Pessoa } from './pessoas';
 import {
   arred,
   formatarData,
@@ -128,7 +129,14 @@ function paraItem(r: LinhaView) {
 // Opções
 // ---------------------------------------------------------------------------
 
-export async function getOpcoes() {
+/**
+ * `pessoa` chega de fora — a ROTA resolve a sessão e passa.
+ *
+ * Não é aqui que se chama `auth()`: este módulo também é importado por scripts
+ * que rodam fora do Next (`verificar-e2e`, `sync`, `reconcile`), e puxar
+ * NextAuth para dentro deles quebraria todos por causa de um campo.
+ */
+export async function getOpcoes(pessoa: Pessoa | null = null) {
   const grupos = await db.execute<{ nome: string; tipo_padrao: string | null }>(
     sql`select nome, tipo_padrao from plano_de_contas order by ordem`,
   );
@@ -152,6 +160,16 @@ export async function getOpcoes() {
     classesInvestimento: ['Reserva', 'Renda fixa', 'Ações/FII', 'Previdência', 'Cripto', 'Outros'],
     pctIrwinRenda: Number(conf?.pct_irwin_renda ?? 0.4947),
     hoje: formatarData(hoje),
+
+    /**
+     * Quem está olhando a tela — 'Irwin', 'Maria' ou null.
+     *
+     * A lista usa isto para mostrar só o lado de quem entrou no efeito de cada
+     * lançamento sobre o acerto, e a tela de Lançar para já abrir marcada em
+     * quem pagou. `null` quando a sessão não identifica a pessoa: aí a tela
+     * volta ao formato antigo, com os dois lados.
+     */
+    eu: pessoa,
   };
 }
 
