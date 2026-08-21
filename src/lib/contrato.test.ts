@@ -45,7 +45,7 @@ test('coletarLanc: todos os campos que a API consome estão presentes', () => {
   // renomear qualquer um, o efeito é silencioso — o campo chega undefined.
   for (const campo of [
     'data', 'valor', 'descricao', 'grupo', 'tipo', 'fonte', 'quemPagou',
-    'pagoIrwin', 'divisao', 'pctIrwinCustom',
+    'gastoDe', 'pagoIrwin', 'divisao', 'pctIrwinCustom',
     'parcelas', 'tipoValor', 'repetir', 'freqRec', 'fimRec', 'semFimRec',
   ]) {
     assert.ok(chaves.has(campo), `o front deixou de mandar \`${campo}\``);

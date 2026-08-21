@@ -149,6 +149,22 @@ input.valor-grande{font-size:20px;font-weight:500;letter-spacing:.2px}
 .chip{border:none;border-radius:8px;padding:9px 13px;font-size:15px;font-weight:500;cursor:pointer;
       font-family:inherit;color:var(--texto);background:var(--chip-neutro)}
 .chip.seg{flex:1;text-align:center}
+/* Foto dentro do chip de pagador: reconhecer uma cara é mais rápido que ler um
+   nome, e as fotos já estão no app. */
+.chip-foto{width:20px;height:20px;border-radius:999px;object-fit:cover;flex:0 0 20px;margin-right:-2px}
+.chip{display:inline-flex;align-items:center;gap:7px}
+/* O botão que marca o gasto como do André, ao lado da descrição.
+   Apagado e sem cor quando é gasto de todos; a foto acesa e emoldurada quando é
+   dele. Não precisa de rótulo — a cara dele é o rótulo, e é a mesma foto que
+   aparece na lista. */
+.linha-desc{display:flex;gap:9px;align-items:stretch}
+.linha-desc input{flex:1;min-width:0}
+.btn-andre{flex:0 0 46px;border:1px solid var(--borda-input);border-radius:8px;background:var(--bg);
+      display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;transition:.15s}
+.btn-andre img{width:28px;height:28px;border-radius:999px;object-fit:cover;
+      filter:grayscale(1);opacity:.4;transition:.15s}
+.btn-andre.on{border-color:var(--andre);background:var(--andre-l)}
+.btn-andre.on img{filter:none;opacity:1}
 .tile{border-radius:8px;padding:10px 12px}
 .tile .rotulo{font-size:11px;opacity:.85}
 .tile .valor{font-size:15px;font-weight:500;margin-top:2px}
@@ -441,11 +457,20 @@ select#classeInvest{margin-top:0}
         <div class="msg-erro" id="erroLanc"></div>
         <button class="btn-importar" id="btnImportar">↥ Importar extrato do cartão</button>
         <div class="card">
-          <div class="campo"><label>Data</label><input type="date" id="fData"></div>
-          <div class="campo"><label>Valor</label>
-            <div class="valor-wrap"><span class="prefixo">R$</span><input type="text" id="fValor" class="valor-grande" inputmode="decimal" placeholder="0,00"></div>
+          <div class="row">
+            <div class="campo"><label>Data</label><input type="date" id="fData"></div>
+            <div class="campo"><label>Valor</label>
+              <div class="valor-wrap"><span class="prefixo">R$</span><input type="text" id="fValor" class="valor-grande" inputmode="decimal" placeholder="0,00"></div>
+            </div>
           </div>
-          <div class="campo"><label>Descrição</label><input type="text" id="fDescricao" placeholder="Ex.: Supermercado"></div>
+          <div class="campo"><label>Descrição</label>
+            <div class="linha-desc">
+              <input type="text" id="fDescricao" placeholder="Ex.: Supermercado">
+              <button type="button" class="btn-andre" id="btnAndre" aria-pressed="false" title="Gasto do André">
+                <img id="imgBtnAndre" alt="André">
+              </button>
+            </div>
+          </div>
           <div class="campo"><label>Categoria</label><div class="chips" id="chipsCategoria"></div></div>
           <div class="campo" id="campoTipo" style="margin-bottom:0"><label>Tipo</label><div class="chips" id="chipsTipo"></div></div>
         </div>
@@ -685,9 +710,17 @@ $('avatarHeaderIrwin').src = AVATAR_IRWIN;
 $('avatarHeaderMaria').src = AVATAR_MARIA;
 $('avatarHeaderAndre').src = AVATAR_ANDRE;
 
-function chip(container, label, ativo, corForte, corClara, onClick){
+function chip(container, label, ativo, corForte, corClara, onClick, srcFoto){
   const b = document.createElement('button');
-  b.type = 'button'; b.className = 'chip'; b.textContent = label;
+  b.type = 'button'; b.className = 'chip';
+  if (srcFoto){
+    const img = document.createElement('img');
+    img.className = 'chip-foto'; img.src = srcFoto; img.alt = '';
+    b.appendChild(img);
+    b.appendChild(document.createTextNode(label));
+  } else {
+    b.textContent = label;
+  }
   if (ativo){ b.style.background = corForte; b.style.color = '#fff'; }
   else {
     b.style.background = corClara;
@@ -732,6 +765,9 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', fun
 /* ---------------- boot ---------------- */
 google.script.run.withSuccessHandler(function(o){
   OPC = o;
+  // `LF` foi criado antes desta resposta, quando ainda não se sabia quem estava
+  // olhando — refazer agora é o que faz "Quem pagou" nascer marcado.
+  LF = lfVazio();
   montarForm();
   montarInvest();
   resetarDataHoje();
@@ -870,6 +906,11 @@ function renderAcerto(){
     $('btnQuitar').style.display = quite ? 'none' : 'block';
   }
 }
+
+$('btnAndre').onclick = function(){
+  LF.gastoDe = LF.gastoDe ? '' : 'André';
+  montarForm();
+};
 
 $('btnQuitar').onclick = function(){
   if (!ACERTO || !OPC || Math.abs(ACERTO.mesAtual.saldo) < 0.005) return;
@@ -1084,7 +1125,22 @@ function escapeHtml(s){
 /* ---------------- Lançar ---------------- */
 // Rótulo de cada frequência na frase "um a cada ___" da prévia.
 const ROTULO_FREQ = { mensal:'mês', quinzenal:'15 dias', semanal:'semana' };
-let LF = { categoria:'', tipo:'', origem:'Cartão', pagador:'', divisao:'50/50', pctCustom:50, parcelado:false, nParcelas:2, tipoValor:'total', repetir:false, freqRec:'mensal', fimRec:'', semFimRec:false };
+/* O estado inicial do formulário vivia escrito por extenso em CINCO lugares.
+   Acrescentar um campo exigia lembrar dos cinco, e esquecer um daria um defeito
+   que só aparece por um caminho específico de navegação. */
+function lfVazio(){
+  return {
+    categoria:'', tipo:'', origem:'Cartão',
+    /* Já vem marcado quem está usando o app: é o pagador mais provável e
+       economiza um toque em quase todo lançamento. Sem sessão identificada fica
+       vazio — e o pagador continua obrigatório, na tela e no servidor. */
+    pagador: (OPC && (OPC.eu === 'Irwin' || OPC.eu === 'Maria')) ? OPC.eu : '',
+    gastoDe:'',
+    divisao:'50/50', pctCustom:50, parcelado:false, nParcelas:2,
+    tipoValor:'total', repetir:false, freqRec:'mensal', fimRec:'', semFimRec:false
+  };
+}
+let LF = lfVazio();
 let debounceParc = null;
 let EDITANDO = null; // { linha } quando editando um lançamento existente; null = lançamento novo
 
@@ -1103,6 +1159,7 @@ function abrirEdicao(linha){
   google.script.run.withSuccessHandler(function(d){
     EDITANDO = { linha: d.linha, assinatura: d.assinatura };
     LF = {
+      gastoDe: d.gastoDe || '',
       categoria: d.categoria, tipo: d.tipo, origem: d.fonte || 'Cartão',
       pagador: d.quemPagou, divisao: d.divisao || '50/50', pctCustom: d.pctCustom || 50,
       parcelado: false, nParcelas: 2, tipoValor: 'total',
@@ -1131,7 +1188,7 @@ function abrirEdicao(linha){
 
 function cancelarEdicao(){
   EDITANDO = null;
-  LF = { categoria:'', tipo:'', origem:'Cartão', pagador:'', divisao:'50/50', pctCustom:50, parcelado:false, nParcelas:2, tipoValor:'total', repetir:false, freqRec:'mensal', fimRec:'', semFimRec:false };
+  LF = lfVazio();
   $('fValor').value = ''; $('fDescricao').value = ''; $('fParcelado').checked = false; $('fRepetir').checked = false;
   $('fSemFimRec').checked = false; $('campoFimRec').style.display = 'block';
   $('cardParcelar').style.display = '';
@@ -1174,9 +1231,19 @@ function montarForm(){
   });
 
   const cPag = $('chipsPagador'); cPag.innerHTML = '';
+  const FOTO_PAGADOR = { Irwin: AVATAR_IRWIN, Maria: AVATAR_MARIA, Ambos: '/avatar-ambos-192.png' };
   OPC.pagadoresLancar.forEach(function(p){
-    chip(cPag, p, p === LF.pagador, PESSOA[p].forte, PESSOA[p].clara, function(){ LF.pagador = p; montarForm(); validarLanc(); });
+    chip(cPag, p, p === LF.pagador, PESSOA[p].forte, PESSOA[p].clara,
+         function(){ LF.pagador = p; montarForm(); validarLanc(); }, FOTO_PAGADOR[p]);
   });
+
+  /* Botão do André. `gastoDe` é texto e não booleano no banco, para uma segunda
+     pessoa não exigir migração — aqui ele guarda o nome ou string vazia. */
+  const btnA = $('btnAndre');
+  $('imgBtnAndre').src = AVATAR_ANDRE;
+  btnA.classList.toggle('on', !!LF.gastoDe);
+  btnA.setAttribute('aria-pressed', LF.gastoDe ? 'true' : 'false');
+  btnA.title = LF.gastoDe ? 'Gasto do André — toque para desmarcar' : 'Marcar como gasto do André';
   $('boxRateio').style.display = (LF.pagador === 'Ambos') ? 'block' : 'none';
   if (LF.pagador === 'Ambos') sincronizarRateio();
 
@@ -1335,6 +1402,7 @@ function coletarLanc(){
   return {
     data: $('fData').value, valor: lerValor('fValor'), descricao: $('fDescricao').value.trim(),
     grupo: LF.categoria, tipo: LF.tipo, fonte: LF.origem, quemPagou: LF.pagador,
+    gastoDe: LF.gastoDe || null,
     pagoIrwin: LF.pagador === 'Ambos' ? lerValor('fPagoIrwin') : null,
     divisao: LF.divisao, pctIrwinCustom: LF.pctCustom,
     parcelas: LF.parcelado ? LF.nParcelas : 1, tipoValor: LF.tipoValor,
@@ -1405,7 +1473,7 @@ $('btnSalvarLanc').onclick = function(){
     google.script.run.withSuccessHandler(function(){
       mostrarSucesso('Lançamento atualizado', escapeHtml(d.descricao) + ' — ' + brl(d.valor));
       EDITANDO = null;
-      LF = { categoria:'', tipo:'', origem:'Cartão', pagador:'', divisao:'50/50', pctCustom:50, parcelado:false, nParcelas:2, tipoValor:'total', repetir:false, freqRec:'mensal', fimRec:'', semFimRec:false };
+      LF = lfVazio();
       $('fValor').value = ''; $('fDescricao').value = '';
       $('cardParcelar').style.display = ''; $('cardRepetir').style.display = ''; $('btnExcluirLanc').style.display = 'none';
       b.textContent = 'Salvar';
@@ -1424,7 +1492,7 @@ $('btnSalvarLanc').onclick = function(){
     b.textContent = 'Salvar';
     const rotuloQtd = LF.repetir ? (r.qtd > 1 ? ' lançamentos' : ' lançamento') : (r.qtd > 1 ? ' parcelas' : ' lançamento');
     mostrarSucesso('Lançamento salvo', r.qtd + rotuloQtd + ' — ' + brl(r.total));
-    LF = { categoria:'', tipo:'', origem:'Cartão', pagador:'', divisao:'50/50', pctCustom:50, parcelado:false, nParcelas:2, tipoValor:'total', repetir:false, freqRec:'mensal', fimRec:'', semFimRec:false };
+    LF = lfVazio();
     $('fValor').value = ''; $('fDescricao').value = ''; $('fParcelado').checked = false; $('boxParcelas').style.display = 'none';
     $('fRepetir').checked = false; $('boxRepetir').style.display = 'none';
     $('fSemFimRec').checked = false; $('campoFimRec').style.display = 'block';
@@ -1445,7 +1513,7 @@ $('btnExcluirLanc').onclick = function(){
   google.script.run.withSuccessHandler(function(){
     mostrarSucesso('Lançamento excluído', '');
     EDITANDO = null;
-    LF = { categoria:'', tipo:'', origem:'Cartão', pagador:'', divisao:'50/50', pctCustom:50, parcelado:false, nParcelas:2, tipoValor:'total', repetir:false, freqRec:'mensal', fimRec:'', semFimRec:false };
+    LF = lfVazio();
     $('fValor').value = ''; $('fDescricao').value = '';
     $('cardParcelar').style.display = ''; $('cardRepetir').style.display = ''; b.style.display = 'none'; b.disabled = false; b.textContent = 'Excluir lançamento';
     bS.textContent = 'Salvar';

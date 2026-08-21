@@ -144,6 +144,21 @@ desabilitado, e o clique cai no vazio — sem erro e sem sucesso. Já produziu u
 minuto inteiro de "a correção não funcionou" quando ela tinha funcionado.
 
 Clicar nos chips e digitar nos campos é o que exercita o caminho completo.
+`elemento.click()` serve: passa pelo mesmo handler que o toque. O que não serve
+é atribuir ao estado interno direto.
+
+**Duas armadilhas de leitura, as duas já custaram diagnóstico errado:**
+
+`getComputedStyle` logo depois de mexer no DOM, na MESMA chamada de
+`javascript_tool`, devolve valores do frame anterior. Chega a reportar
+`blur(2px)` depois de o estilo ter sido limpo. Para conferir CSS, monte os dois
+estados numa chamada e leia na chamada seguinte — ou melhor, crie um elemento de
+cada estado lado a lado e compare os dois na mesma leitura.
+
+E ao testar um controle que ALTERNA, clique até chegar ao estado desejado em vez
+de assumir o inicial: `if (!btn.classList.contains('on')) btn.click()`. Um teste
+que supõe o ponto de partida falha quando outra verificação deixou o botão no
+outro estado, e o sintoma parece defeito do app.
 
 ## Como ler o resultado
 
