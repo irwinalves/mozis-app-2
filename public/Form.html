@@ -202,6 +202,19 @@ input.valor-grande{font-size:20px;font-weight:500;letter-spacing:.2px}
 .acerto-box{border:1px solid var(--borda-card);border-radius:12px;padding:10px 6px;text-align:center}
 .acerto-box-titulo{font-size:12px;font-weight:700;margin-bottom:8px}
 .acerto-box-comparacao{display:flex;align-items:center;justify-content:center;gap:5px;margin-bottom:8px}
+/* Desenho compacto do acerto: 73px contra os 160 das três caixas.
+   O par de fotos aparece UMA vez, e a direção dos dois cortes de apoio vem do
+   sinal e da cor — a mesma linguagem da lista. Isso só é possível porque o app
+   sabe quem está olhando; sem isso, o card volta às três caixas.
+   Medido no histórico: em 35 dos 114 meses os três cortes apontam para lados
+   DIFERENTES, então mostrar a direção de cada um não é detalhe. */
+.acerto-linha{display:flex;align-items:center;gap:8px}
+.acerto-frase{flex:1;min-width:0;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acerto-frase b{font-weight:700;font-size:17px;font-variant-numeric:tabular-nums}
+.acerto-proj{font-size:12.5px;color:var(--texto3);margin-top:7px;font-variant-numeric:tabular-nums}
+.acerto-proj .pos{color:var(--pos);font-weight:700}
+.acerto-proj .neg{color:var(--neg);font-weight:700}
+.acerto-linha .avatar-acerto{width:22px;height:22px;flex:0 0 22px}
 .avatar-acerto{width:26px;height:26px;border-radius:999px;object-fit:cover;flex:0 0 26px;
       border:1.5px solid #fff;box-shadow:0 0 0 1px var(--borda-card)}
 .acerto-sinal{font-size:15px;font-weight:800;color:var(--texto2);flex:0 0 auto}
@@ -371,11 +384,18 @@ select#classeInvest{margin-top:0}
     <div class="screen" id="screen-home">
       <div class="pad">
         <div class="card card-acerto" id="cardAcerto">
-          <div class="acerto-titulo-linha">
+          <div class="acerto-linha" id="acertoCompacto" style="display:none">
+            <img class="avatar-acerto" id="acAv1" alt="">
+            <span class="acerto-sinal" id="acSeta">→</span>
+            <img class="avatar-acerto" id="acAv2" alt="">
+            <div class="acerto-frase" id="acFrase">—</div>
+          </div>
+          <div class="acerto-proj" id="acProj" style="display:none"></div>
+          <div class="acerto-titulo-linha" id="acertoTituloLinha">
             <div class="rotulo">Acerto de contas</div>
             <button class="btn-quitar" id="btnQuitar" style="display:none">Quitar</button>
           </div>
-          <div class="acerto-grid">
+          <div class="acerto-grid" id="acertoGrid">
             <div class="acerto-box">
               <div class="acerto-box-titulo" id="rotuloAcertoMes">Mês</div>
               <div class="acerto-box-comparacao">
@@ -718,6 +738,15 @@ google.script.run.withSuccessHandler(function(o){
   resetarDataInvestHoje();
   $('boot').style.display = 'none';
   $('app').style.display = 'flex';
+  /* As chamadas do boot são PARALELAS: acerto, lista e dashboard partem junto
+     com esta e podem chegar antes. Quem depende de `OPC.eu` — o lado do acerto
+     que cada um vê — teria desenhado sem saber quem está olhando, e o resultado
+     dependeria de qual resposta chegasse primeiro. Redesenhar aqui o que já
+     veio custa nada e elimina a intermitência, que é o pior tipo de defeito:
+     some quando se vai procurar.
+     Serializar as chamadas também resolveria, ao preço de somar as latências. */
+  if (ACERTO) renderAcerto();
+  if (ULTIMOS) renderUltimos();
 }).withFailureHandler(function(e){
   $('boot').textContent = 'Erro ao carregar: ' + e.message;
 }).getOpcoes();
@@ -766,21 +795,80 @@ function preencherAcertoBox(prefixo, saldo){
   $('sinal' + prefixo).textContent = quite ? '=' : '→';
   $('valor' + prefixo).textContent = quite ? 'Quites' : 'R$ ' + formatarValorMascara(Math.abs(saldo));
 }
+/* Quanto ESTE corte mexe com quem está olhando, com sinal e cor.
+   Positivo é a receber, negativo é a pagar — igual à lista de lançamentos, para
+   não haver duas linguagens de sinal no mesmo app. */
+function projecaoDoCorte(rotulo, saldoIrwin, eu){
+  const s = eu === 'Irwin' ? saldoIrwin : -saldoIrwin;
+  if (Math.abs(s) < 0.005) return rotulo + ' <b>quites</b>';
+  const cls = s > 0 ? 'pos' : 'neg';
+  return rotulo + ' <span class="' + cls + '">' + (s > 0 ? '+' : '−') +
+         'R$ ' + formatarValorMascara(Math.abs(s)) + '</span>';
+}
+
+/* O card tem DOIS desenhos.
+   Compacto (73px) quando o app sabe quem está olhando: uma linha com o par de
+   fotos e a frase do total, mais uma linha de apoio com os dois cortes futuros
+   por sinal e cor.
+   Três caixas (160px) quando não sabe — aí cada corte precisa do próprio par de
+   fotos para dizer a direção, e é isso que custa o tamanho. */
 function carregarAcerto(){
   google.script.run.withSuccessHandler(function(a){
     ACERTO = a;
-    const nomesMes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-    const hoje = new Date();
-    $('rotuloAcertoMes').textContent = nomesMes[hoje.getMonth()];
-    $('rotuloAcertoProxMes').textContent = nomesMes[(hoje.getMonth() + 1) % 12];
-    preencherAcertoBox('AcertoMes', a.mesAtual.saldo);
-    preencherAcertoBox('AcertoProxMes', a.mesSeguinte.saldo);
-    preencherAcertoBox('AcertoTotal', a.total.saldo);
-    const quite = Math.abs(a.mesAtual.saldo) < 0.005;
-    $('btnQuitar').style.display = quite ? 'none' : 'block';
+    renderAcerto();
   }).withFailureHandler(function(){
     $('btnQuitar').style.display = 'none';
   }).getAcertoContas();
+}
+
+function renderAcerto(){
+  {
+    const a = ACERTO;
+    if (!a) return;
+    const nomesMes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const hoje = new Date();
+    const eu = OPC && OPC.eu;
+    const compacto = (eu === 'Irwin' || eu === 'Maria');
+
+    $('acertoCompacto').style.display  = compacto ? 'flex' : 'none';
+    $('acProj').style.display          = compacto ? 'block' : 'none';
+    $('acertoTituloLinha').style.display = compacto ? 'none' : 'flex';
+    $('acertoGrid').style.display      = compacto ? 'none' : 'grid';
+
+    if (compacto){
+      const t = a.total.saldo;
+      const quiteTotal = Math.abs(t) < 0.005;
+      const devedor = quiteTotal ? null : (t > 0 ? 'Maria' : 'Irwin');
+      $('acAv1').src = quiteTotal ? AVATAR_IRWIN : (devedor === 'Irwin' ? AVATAR_IRWIN : AVATAR_MARIA);
+      $('acAv2').src = quiteTotal ? AVATAR_MARIA : (devedor === 'Irwin' ? AVATAR_MARIA : AVATAR_IRWIN);
+      $('acAv1').alt = quiteTotal ? 'Irwin' : devedor;
+      $('acAv2').alt = quiteTotal ? 'Maria' : (devedor === 'Irwin' ? 'Maria' : 'Irwin');
+      $('acSeta').textContent = quiteTotal ? '=' : '→';
+      // 'Você deve' quando o devedor é quem está olhando: falar na segunda
+      // pessoa evita a tradução mental de ler o próprio nome na tela.
+      $('acFrase').innerHTML = quiteTotal
+        ? 'Vocês estão <b>quites</b>'
+        : (devedor === eu ? 'Você deve ' : escapeHtml(devedor) + ' deve ') +
+          '<b>R$ ' + formatarValorMascara(Math.abs(t)) + '</b>';
+      $('acProj').innerHTML =
+        projecaoDoCorte('Fechando ' + nomesMes[hoje.getMonth()].toLowerCase(), a.mesAtual.saldo, eu) +
+        ' · ' +
+        projecaoDoCorte(nomesMes[(hoje.getMonth() + 1) % 12].toLowerCase(), a.mesSeguinte.saldo, eu);
+      // Move o botão para a linha do saldo. Mover no DOM preserva o onclick já
+      // ligado — recriar o elemento o perderia.
+      $('acertoCompacto').appendChild($('btnQuitar'));
+    } else {
+      $('rotuloAcertoMes').textContent = nomesMes[hoje.getMonth()];
+      $('rotuloAcertoProxMes').textContent = nomesMes[(hoje.getMonth() + 1) % 12];
+      preencherAcertoBox('AcertoMes', a.mesAtual.saldo);
+      preencherAcertoBox('AcertoProxMes', a.mesSeguinte.saldo);
+      preencherAcertoBox('AcertoTotal', a.total.saldo);
+      $('acertoTituloLinha').appendChild($('btnQuitar'));
+    }
+
+    const quite = Math.abs(a.mesAtual.saldo) < 0.005;
+    $('btnQuitar').style.display = quite ? 'none' : 'block';
+  }
 }
 
 $('btnQuitar').onclick = function(){
