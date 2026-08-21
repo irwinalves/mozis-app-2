@@ -225,8 +225,12 @@ input.valor-grande{font-size:20px;font-weight:500;letter-spacing:.2px}
    Medido no histórico: em 35 dos 114 meses os três cortes apontam para lados
    DIFERENTES, então mostrar a direção de cada um não é detalhe. */
 .acerto-linha{display:flex;align-items:center;gap:8px}
-.acerto-frase{flex:1;min-width:0;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.acerto-frase b{font-weight:700;font-size:17px;font-variant-numeric:tabular-nums}
+/* O VALOR nunca trunca; quem encolhe é o texto ao lado.
+   Cortar "R$ 5.204,..." é pior que cortar "Maria de...", porque o par de fotos
+   ao lado já diz quem deve a quem — o número não tem substituto. */
+.acerto-frase{flex:1;min-width:0;display:flex;align-items:baseline;gap:5px;font-size:15px}
+.acerto-frase .quem{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acerto-frase b{flex:0 0 auto;font-weight:700;font-size:17px;font-variant-numeric:tabular-nums}
 .acerto-proj{font-size:12.5px;color:var(--texto3);margin-top:7px;font-variant-numeric:tabular-nums}
 .acerto-proj .pos{color:var(--pos);font-weight:700}
 .acerto-proj .neg{color:var(--neg);font-weight:700}
@@ -235,7 +239,10 @@ input.valor-grande{font-size:20px;font-weight:500;letter-spacing:.2px}
       border:1.5px solid #fff;box-shadow:0 0 0 1px var(--borda-card)}
 .acerto-sinal{font-size:15px;font-weight:800;color:var(--texto2);flex:0 0 auto}
 .acerto-box-valor{font-size:12px;font-weight:700;white-space:nowrap}
-.btn-quitar{flex:0 0 auto;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;
+/* 12px e não 14: no desenho compacto do acerto faltavam exatamente 2px para
+   "Maria deve" caber ao lado do valor. O botão não perde área de toque — a
+   altura, que é o que importa no dedo, continua a mesma. */
+.btn-quitar{flex:0 0 auto;border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:700;
       color:#fff;background:var(--verde);cursor:pointer;font-family:inherit}
 
 /* link para a planilha */
@@ -300,6 +307,28 @@ input.valor-grande{font-size:20px;font-weight:500;letter-spacing:.2px}
 
 /* busca de lançamentos */
 .busca-lanc{margin-bottom:9px}
+/* Filtros numa faixa que rola na horizontal, sempre visível: filtro escondido
+   atrás de menu é filtro esquecido. */
+.filtros{display:flex;gap:7px;overflow-x:auto;padding:1px 0 9px;
+      -webkit-overflow-scrolling:touch;scrollbar-width:none}
+.filtros::-webkit-scrollbar{display:none}
+.fchip{position:relative;flex:0 0 auto;border:1px solid var(--borda-input);background:var(--bg);
+      color:var(--texto2);border-radius:999px;padding:6px 11px;font-size:12.5px;font-weight:500;
+      display:inline-flex;align-items:center;gap:5px;white-space:nowrap;cursor:pointer;
+      font-family:inherit;line-height:1.4}
+.fchip.on{background:var(--verde);border-color:var(--verde);color:#fff}
+.fchip.on-andre{background:var(--andre);border-color:var(--andre);color:#fff}
+.fchip img{width:16px;height:16px;border-radius:999px;object-fit:cover}
+.fchip .x{opacity:.75;font-weight:400}
+/* O <select> fica invisível POR CIMA do chip: o toque abre o seletor nativo do
+   celular, que é melhor que qualquer menu improvisado — e vem com rolagem,
+   busca e acessibilidade de graça.
+   16px pelo mesmo motivo dos outros campos: abaixo disso o iPhone dá zoom. */
+.fchip select{position:absolute;inset:0;width:100%;height:100%;opacity:0;
+      border:none;padding:0;font-size:16px;cursor:pointer}
+.filtro-resumo{font-size:11.5px;color:var(--texto3);padding:0 0 9px}
+.filtro-resumo b{color:var(--texto2);font-weight:500}
+.filtro-resumo .limpar{color:var(--verde);font-weight:500;cursor:pointer}
 .btn-vermais{width:100%;border:none;background:none;color:var(--verde);font-weight:500;font-size:13px;
       padding:10px 0 0;cursor:pointer;font-family:inherit}
 /* Rateio do pagamento ("Ambos"). Espelha as tiles de Parte Irwin / Parte Maria:
@@ -443,7 +472,9 @@ select#classeInvest{margin-top:0}
         </div>
         <div class="card">
           <label style="display:block;font-size:12px;color:var(--texto2);margin-bottom:8px">Lançamentos recentes</label>
-          <input type="text" id="buscaLanc" class="busca-lanc" placeholder="Buscar por nome ou data">
+          <input type="text" id="buscaLanc" class="busca-lanc" placeholder="Buscar por nome, data ou valor">
+          <div class="filtros" id="filtrosLanc"></div>
+          <div class="filtro-resumo" id="filtroResumo" style="display:none"></div>
           <button class="btn-futuros" id="btnFuturos" style="display:none"></button>
           <div id="listaUltimos"><div class="vazio">Carregando…</div></div>
           <button class="btn-vermais" id="btnVerMais" style="display:none">Ver mais</button>
@@ -667,6 +698,14 @@ const AVATAR_ANDRE = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQABLAEsAAD/4QNiRXh
 })();
 
 let OPC = null, DASH = null, ULTIMOS = null;
+/* Os filtros da lista. Vazio = sem filtro; combinam entre si com E.
+   O backend recebe este objeto como está — `clausulasDe` em src/lib/api.ts.
+
+   Fica AQUI, e não junto de `montarFiltros`, por causa da zona morta temporal:
+   `function` é içada e `let` não, então `carregarUltimos` — chamada no boot,
+   centenas de linhas acima — quebrava com "Cannot access 'FILTROS' before
+   initialization". A sintaxe estava correta; só a execução mostrou. */
+let FILTROS = {};
 let FILTRO_DASH = { granularidade: 'anual', dataIni: '', dataFim: '' };
 let tabAtiva = 'home', telaAtual = 'home';
 const QTD_RECENTES = 50;
@@ -783,6 +822,7 @@ google.script.run.withSuccessHandler(function(o){
      Serializar as chamadas também resolveria, ao preço de somar as latências. */
   if (ACERTO) renderAcerto();
   if (ULTIMOS) renderUltimos();
+  montarFiltros();
 }).withFailureHandler(function(e){
   $('boot').textContent = 'Erro ao carregar: ' + e.message;
 }).getOpcoes();
@@ -883,8 +923,8 @@ function renderAcerto(){
       // 'Você deve' quando o devedor é quem está olhando: falar na segunda
       // pessoa evita a tradução mental de ler o próprio nome na tela.
       $('acFrase').innerHTML = quiteTotal
-        ? 'Vocês estão <b>quites</b>'
-        : (devedor === eu ? 'Você deve ' : escapeHtml(devedor) + ' deve ') +
+        ? '<span class="quem">Vocês estão</span><b>quites</b>'
+        : '<span class="quem">' + (devedor === eu ? 'Você deve' : escapeHtml(devedor) + ' deve') + '</span>' +
           '<b>R$ ' + formatarValorMascara(Math.abs(t)) + '</b>';
       $('acProj').innerHTML =
         projecaoDoCorte('Fechando ' + nomesMes[hoje.getMonth()].toLowerCase(), a.mesAtual.saldo, eu) +
@@ -953,11 +993,101 @@ function atualizarBotoesLista(){
  * quem chama depois de salvar/editar/excluir não deve jogar a lista pro topo.
  * Só o boot passa {reset:true}.
  */
+function temFiltro(){
+  return Object.keys(FILTROS).some(function(k){ return FILTROS[k]; });
+}
+
+/** Chip de liga/desliga. */
+function fchip(container, rotulo, ligado, classeExtra, srcFoto, onClick){
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'fchip' + (ligado ? ' ' + (classeExtra || 'on') : '');
+  if (srcFoto){
+    const img = document.createElement('img'); img.src = srcFoto; img.alt = '';
+    b.appendChild(img);
+  }
+  b.appendChild(document.createTextNode(rotulo));
+  if (ligado){
+    const x = document.createElement('span');
+    x.className = 'x'; x.textContent = '✕';
+    b.appendChild(x);
+  }
+  b.onclick = onClick;
+  container.appendChild(b);
+}
+
+/** Chip que abre o seletor nativo do celular. */
+function fchipSelect(container, rotulo, valor, opcoes, onChange){
+  const l = document.createElement('label');
+  l.className = 'fchip' + (valor ? ' on' : '');
+  // Com valor escolhido o chip mostra O QUE está valendo, não o nome do campo:
+  // "2 Carro" informa, "Categoria" repete o que já se sabe.
+  l.appendChild(document.createTextNode(valor || rotulo));
+  const seta = document.createElement('span');
+  seta.className = 'x'; seta.textContent = valor ? '✕' : '▾';
+  l.appendChild(seta);
+  const sel = document.createElement('select');
+  const vazio = document.createElement('option');
+  vazio.value = ''; vazio.textContent = rotulo + ' — todas';
+  sel.appendChild(vazio);
+  opcoes.forEach(function(o){
+    const op = document.createElement('option');
+    op.value = o; op.textContent = o;
+    if (o === valor) op.selected = true;
+    sel.appendChild(op);
+  });
+  sel.onchange = function(){ onChange(sel.value); };
+  l.appendChild(sel);
+  container.appendChild(l);
+}
+
+function montarFiltros(){
+  const c = $('filtrosLanc');
+  if (!c) return;
+  c.innerHTML = '';
+  const alterna = function(campo, valor){
+    return function(){ FILTROS[campo] = FILTROS[campo] ? '' : valor; aplicarFiltros(); };
+  };
+  fchip(c, 'André', !!FILTROS.gastoDe, 'on-andre', AVATAR_ANDRE, alterna('gastoDe', 'André'));
+  fchip(c, 'Parceladas', !!FILTROS.parcelado, 'on', null, alterna('parcelado', true));
+  fchip(c, 'Recorrentes', !!FILTROS.recorrente, 'on', null, alterna('recorrente', true));
+  if (OPC){
+    fchipSelect(c, 'Categoria', FILTROS.categoria || '',
+      OPC.grupos.map(function(g){ return g.nome; }),
+      function(v){ FILTROS.categoria = v; aplicarFiltros(); });
+    fchipSelect(c, 'Quem pagou', FILTROS.quemPagou || '', OPC.pagadores,
+      function(v){ FILTROS.quemPagou = v; aplicarFiltros(); });
+  }
+}
+
+/** Com filtro ativo, "quantos e quanto somam" costuma ser a pergunta por trás dele. */
+function mostrarResumo(resumo){
+  const el = $('filtroResumo');
+  if (!resumo || !temFiltro()){ el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.innerHTML = '<b>' + resumo.qtd + '</b> ' + (resumo.qtd === 1 ? 'lançamento' : 'lançamentos') +
+                 ' · <b>' + brl(resumo.soma) + '</b> · ' +
+                 '<span class="limpar" id="limparFiltros">limpar</span>';
+  $('limparFiltros').onclick = function(){ FILTROS = {}; aplicarFiltros(); };
+}
+
+/* Reaplica os filtros no caminho certo: se há busca em curso, refiltra o
+   resultado dela; senão recarrega a lista. Sem isto, filtrar durante uma busca
+   jogaria o usuário de volta para a lista inteira sem aviso. */
+function aplicarFiltros(){
+  montarFiltros();
+  const termo = $('buscaLanc').value.trim();
+  if (termo){ buscaAtiva = true; buscarLanc(termo); }
+  else { carregarUltimos({ reset: true }); }
+}
+
 function carregarUltimos(opts){
   opts = opts || {};
   if (opts.reset){ profundidadeLista = QTD_RECENTES; }
   buscaAtiva = false;
-  $('buscaLanc').value = '';
+  // Não apaga a busca quando a recarga vem de um filtro: `aplicarFiltros` já
+  // decidiu que não havia termo.
+  if (!opts.manterBusca) $('buscaLanc').value = '';
   google.script.run.withSuccessHandler(function(r){
     ULTIMOS = r.itens;
     temMaisUltimos = r.temMais;
@@ -965,7 +1095,8 @@ function carregarUltimos(opts){
     profundidadeLista = Math.max(QTD_RECENTES, ULTIMOS.length);
     renderUltimos();
     atualizarBotoesLista();
-  }).withFailureHandler(function(){ $('listaUltimos').innerHTML = '<div class="vazio">Erro ao carregar.</div>'; }).ultimosLancamentos(profundidadeLista, 0, mostrarFuturos);
+    mostrarResumo(r.resumo);
+  }).withFailureHandler(function(){ $('listaUltimos').innerHTML = '<div class="vazio">Erro ao carregar.</div>'; }).ultimosLancamentos(profundidadeLista, 0, mostrarFuturos, FILTROS);
 }
 
 function carregarMaisUltimos(){
@@ -995,7 +1126,10 @@ function buscarLanc(termo){
   google.script.run.withSuccessHandler(function(lista){
     ULTIMOS = lista;
     renderUltimos();
-  }).withFailureHandler(function(){ $('listaUltimos').innerHTML = '<div class="vazio">Erro na busca.</div>'; }).buscarLancamentos(termo);
+    // A busca tem teto de 60 resultados, então somar aqui responderia outra
+    // pergunta. O resumo é da lista filtrada, não da busca.
+    $('filtroResumo').style.display = 'none';
+  }).withFailureHandler(function(){ $('listaUltimos').innerHTML = '<div class="vazio">Erro na busca.</div>'; }).buscarLancamentos(termo, FILTROS);
 }
 
 $('buscaLanc').addEventListener('input', function(){
