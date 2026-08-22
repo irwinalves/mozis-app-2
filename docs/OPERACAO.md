@@ -132,3 +132,36 @@ publicar o código: conexões vivas de antes seguem com o schema velho.
 
 **Ordem segura:** aplicar a migração e a view, e só então publicar o código que
 lê a coluna nova.
+
+## Publicar não é chegar: o atalho da tela inicial guarda o HTML
+
+**Sintoma:** uma correção sobe, o deploy fica `Ready`, e o defeito continua no
+celular — exatamente igual. Você mede tudo no navegador, tudo está certo, e o
+aparelho insiste em mostrar o comportamento antigo.
+
+**Causa:** o app é usado como **atalho na tela inicial** (`display: standalone`
+no manifest). Nesse modo o iOS guarda o HTML e **não oferece botão de
+recarregar**. Se a resposta não disser o contrário, ele serve a versão que tem.
+
+E a rota que serve o `Form.html` mandava só `Content-Type` — nenhuma instrução
+de cache, então quem decidia era o cliente. Isso passou despercebido porque o
+navegador de desenvolvimento revalida a cada carga.
+
+Aconteceu em 22/08/2026 e custou uma investigação inteira no lugar errado: eu
+procurava por que 16px "não bastavam" para impedir o zoom do iPhone, varri as
+cinco telas com `getComputedStyle`, testei em 320px atrás de overflow — e a
+correção já estava publicada havia um dia, sem nunca ter chegado ao aparelho.
+
+**Correção, já aplicada:** `src/app/route.ts` envia
+`Cache-Control: public, max-age=0, must-revalidate`. Não desliga o cache — mantém
+o ETag e devolve 304 quando nada mudou, custando uma ida ao servidor em vez do
+arquivo inteiro. É o mesmo cabeçalho que o Next manda nas páginas dele.
+
+**Como forçar quando precisar**, em ordem de esforço: puxar a tela para baixo;
+fechar o app no alternador (deslizar o cartão para cima) e reabrir; apagar o
+atalho e recriar pelo Safari. Só o terceiro garante, porque descarta o cache do
+web clip inteiro.
+
+**A regra que fica:** ao verificar uma correção no aparelho, confirme primeiro
+que o aparelho tem a versão nova. Um jeito barato é olhar algo inequívoco da
+mudança antes de julgar o resto.
