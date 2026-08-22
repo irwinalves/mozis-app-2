@@ -20,6 +20,7 @@ import {
   pagoIrwinDe,
   pctIrwinDe,
   fracaoPagaPeloIrwin,
+  normalizarFreq,
   type DadosParcelas,
   type DadosRecorrencia,
 } from './lancamentos';
@@ -525,6 +526,39 @@ export async function salvarLancamento(dados: DadosLancamento) {
       );
       ids.push(row.id);
     }
+
+    // A10 — recorrência indefinida é REGRA + geração incremental idempotente.
+    //
+    // Sem isto o lançamento nasce só com as ocorrências até o fim do mês
+    // corrente e MORRE ali, sem erro e sem aviso, porque o cron não tem regra
+    // para continuar. O app antigo gravava a regra (`Codigo.gs:328`,
+    // `criarRegraRecorrente`) e a migração perdeu esse passo.
+    //
+    // Não é hipótese: em 22/08/2026 havia UM órfão na base, o `Financiamento`
+    // de R$ 6.800,00/mês criado em 16/08 — o maior valor recorrente do casal,
+    // com uma única ocorrência e nenhuma regra. Sumiria em setembro.
+    //
+    // Dentro da MESMA transação das ocorrências, de propósito: regra sem
+    // ocorrência e ocorrência sem regra são os dois estados quebrados, e o
+    // segundo é justamente o que se está corrigindo aqui.
+    if (dados.repetir && dados.semFimRec) {
+      await tx.execute(
+        sql`insert into recorrencias
+              (data_inicio, descricao, categoria, fonte, valor, divisao,
+               pct_irwin_custom, quem_pagou, frequencia, ultima_geracao,
+               ativo, gasto_de)
+            values (${dados.data}, ${dados.descricao}, ${dados.grupo},
+                    ${dados.fonte ?? null},
+                    -- cada ocorrência tem o valor CHEIO (A6/A9): o valor da
+                    -- regra é o de uma ocorrência, não a soma delas
+                    ${ocorrencias[0].valor}, ${dados.divisao},
+                    ${pctCustomFracao}, ${quemPagou},
+                    ${normalizarFreq(dados.freqRec)},
+                    ${formatarData(ocorrencias[ocorrencias.length - 1].data)},
+                    true, ${dados.gastoDe || null})`,
+      );
+    }
+
     return ids;
   });
 
