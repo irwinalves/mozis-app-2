@@ -1185,7 +1185,8 @@ function renderUltimos(){
       : '';
     /* O 'N/M' sai do meio da descrição e vira marca própria, como o ⟳ do
        recorrente já era. Libera o texto e deixa a parcela legível de relance. */
-    const m = /^(.*) (\d+\/\d+)$/.exec(String(x.descricao || ''));
+    // ` N/M` (gerado pelo app) e ` (N/M)` (11 linhas antigas, à mão).
+    const m = /^(.*) \(?(\d[\d,+]*\/\d+)\)?$/.exec(String(x.descricao || ''));
     const marcaParcela = m ? '<span class="tag-parcela">' + m[2] + '</span>' : '';
     const descricaoLimpa = m ? m[1] : x.descricao;
     const tagRecorrente = x.recorrente

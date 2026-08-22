@@ -121,7 +121,7 @@ function paraItem(r: LinhaView) {
     // Derivado da descrição, não de coluna: quem numera as parcelas é
     // `montarParcelas`, sempre no formato " N/M" no fim. Não há coluna de
     // parcelamento e criar uma deixaria as 272 linhas do histórico de fora.
-    parcelado: / \d+\/\d+$/.test(String(r.descricao || '')),
+    parcelado: / \(?\d[\d,+]*\/\d+\)?$/.test(String(r.descricao || '')),
   };
 }
 
@@ -216,7 +216,16 @@ function clausulasDe(f: FiltrosLista = {}) {
   // O mesmo padrão " N/M" que `paraItem` usa — a regra de reconhecer parcela
   // vive nos dois lugares porque um é SQL e o outro é JS, mas é a MESMA regra:
   // se mudar aqui, muda lá.
-  if (f.parcelado) partes.push(sql`descricao ~ ' [0-9]+/[0-9]+$'`);
+  // Dois formatos convivem na base: ` N/M`, que o app gera, e ` (N/M)`, de 11
+  // linhas lançadas à mão antes disso. Reconhecer só o primeiro deixava a série
+  // `Vacina RH- (1/4)` inteira fora do filtro.
+  // `[(]` e não `\(`: dentro de uma template string a contrabarra é consumida
+  // pelo JavaScript antes de chegar ao Postgres, e o padrão vira ` (?...)?$`,
+  // que o Postgres recusa com "quantifier operand invalid". Classe de caractere
+  // não tem esse problema — e o typecheck não pega, porque é só uma string.
+  // `[0-9][0-9,+]*` cobre também as parcelas AGRUPADAS num lançamento só —
+  // "Fotos parto 2+3/5" e "Japaratinga 3,4,5/6" são parceladas como as outras.
+  if (f.parcelado) partes.push(sql`descricao ~ ' [(]?[0-9][0-9,+]*/[0-9]+[)]?$'`);
   if (f.gastoDe === 'casal') partes.push(sql`gasto_de is null`);
   else if (f.gastoDe) partes.push(sql`gasto_de = ${f.gastoDe}`);
   if (f.categoria) partes.push(sql`categoria = ${f.categoria}`);

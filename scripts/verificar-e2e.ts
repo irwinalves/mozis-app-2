@@ -52,17 +52,22 @@ async function main(){
   ok(tem(await buscarLancamentos('ZZTESTE')),   'busca por descrição continua funcionando');
   ok(tem(await buscarLancamentos('20/08/2026')),'busca por data continua funcionando');
 
-  const fAndre = await ultimosLancamentos(50, 0, false, { gastoDe: 'André' });
-  ok(fAndre.itens.length === 1 && fAndre.itens[0].linha === id, 'filtro gastoDe=André isola só o do André');
-  ok(fAndre.resumo?.qtd === 1, `resumo traz qtd e soma: ${fAndre.resumo?.qtd} · R$ ${fAndre.resumo?.soma}`);
+  // Asserção sobre a PROPRIEDADE do filtro, não sobre a quantidade: o histórico
+  // marcado cresce, e um teste que fixa "tem que dar 1" quebra no dia em que o
+  // dado real chega — foi o que aconteceu ao marcar os 88 do histórico.
+  const fAndre = await ultimosLancamentos(500, 0, false, { gastoDe: 'André' });
+  ok(fAndre.itens.some((x) => x.linha === id), 'o lançamento de teste aparece no filtro André');
+  ok(fAndre.itens.every((x) => x.gastoDe === 'André'), `filtro só traz do André (${fAndre.itens.length} na página)`);
+  ok((fAndre.resumo?.qtd ?? 0) >= 1, `resumo traz qtd e soma: ${fAndre.resumo?.qtd} · R$ ${fAndre.resumo?.soma}`);
   const fParc = await ultimosLancamentos(5, 0, false, { parcelado: true });
   ok(fParc.itens.length > 0 && fParc.itens.every((x) => x.parcelado), `filtro parcelado: ${fParc.resumo?.qtd} lançamentos`);
   const fRec = await ultimosLancamentos(5, 0, false, { recorrente: true });
   ok(fRec.itens.length > 0 && fRec.itens.every((x) => x.recorrente), `filtro recorrente: ${fRec.resumo?.qtd} lançamentos`);
   const fCat = await ultimosLancamentos(5, 0, false, { categoria: '2 Carro' });
   ok(fCat.itens.every((x) => x.categoria === '2 Carro'), `filtro categoria: ${fCat.resumo?.qtd} em 2 Carro`);
-  ok((await ultimosLancamentos(50,0,false,{gastoDe:'André',parcelado:true})).itens.length === 0,
-     'filtros se combinam — André + parcelado dá 0, o de teste não é parcelado');
+  const combo = await ultimosLancamentos(500, 0, false, { gastoDe: 'André', parcelado: true });
+  ok(combo.itens.every((x) => x.gastoDe === 'André' && x.parcelado) && !combo.itens.some((x) => x.linha === id),
+     `filtros se combinam — André E parcelado (${combo.resumo?.qtd}), sem o de teste, que não é parcelado`);
   ok((await ultimosLancamentos(5)).resumo === null, 'sem filtro não paga o custo do resumo');
 
   const pag = await ultimosLancamentos(400, 0, false);
