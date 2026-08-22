@@ -4,7 +4,14 @@
 <script>(function(){try{var t=localStorage.getItem('tema');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
 <base target="_top">
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- `maximum-scale=1` existe para o app NÃO se deslocar ao tocar num campo.
+     A fonte de 16px nos campos já deveria bastar — é a regra conhecida do
+     Safari — e mesmo assim o zoom continuou acontecendo no iPhone. Isto o
+     encerra por definição, não por dedução.
+     Não custa acessibilidade: desde o iOS 10 o Safari IGNORA maximum-scale e
+     user-scalable para o zoom por pinça, respeitando-os apenas para o zoom
+     automático de foco — que é exatamente o que se quer bloquear aqui. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -137,10 +144,12 @@ input[type=date]::-webkit-date-and-time-value{text-align:left}
    com a fonte do seletor base e o prefixo "R$" ao lado dele, que é um span
    fora dessa disputa, aparecia MAIOR que o próprio número. Acrescentar o
    elemento empata a especificidade, e aí a ordem decide a favor desta regra. */
-input.valor-grande{font-size:20px;font-weight:500;letter-spacing:.2px}
+input.valor-grande{font-size:16px;font-weight:700;letter-spacing:.2px}
 .valor-wrap{position:relative}
-.valor-wrap .prefixo{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--texto2);font-size:20px;font-weight:500}
-.valor-wrap input{padding-left:46px}
+/* O "R$" acompanha o campo em tamanho E peso: foi o descompasso entre os dois
+   que fazia o prefixo aparecer maior que o próprio número. */
+.valor-wrap .prefixo{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--texto2);font-size:16px;font-weight:700}
+.valor-wrap input{padding-left:40px}
 .row{display:flex;gap:10px}
 .row>*{flex:1}
 
