@@ -38,6 +38,19 @@ export async function GET() {
   const comShim = html.replace('</head>', injecao);
 
   return new Response(comShim, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      /* Sem isto a resposta ia SEM nenhuma instrução de cache, e quem decidia
+         era o cliente. O app é usado como atalho na tela inicial, onde o iOS
+         guarda o HTML de forma agressiva e não oferece botão de recarregar —
+         resultado: correções publicadas que simplesmente não chegam ao
+         aparelho, e um diagnóstico que persegue o defeito errado.
+
+         `must-revalidate` com `max-age=0` não desliga o cache: mantém o ETag e
+         devolve 304 quando nada mudou, então o custo é uma ida ao servidor, não
+         o download do arquivo inteiro. É o mesmo que o Next já manda nas
+         páginas dele — a rota é que estava fora do padrão. */
+      'Cache-Control': 'public, max-age=0, must-revalidate',
+    },
   });
 }
