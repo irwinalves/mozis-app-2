@@ -18,7 +18,8 @@
     "typecheck": "tsc --noEmit",
     "checar-form": "node scripts/checar-form.mjs",
     "db:sql": "tsx --env-file=.env scripts/aplicar-sql.ts",
-    "verificar-e2e": "tsx --env-file=.env scripts/verificar-e2e.ts"
+    "verificar-e2e": "tsx --env-file=.env scripts/verificar-e2e.ts",
+    "backfill-series": "tsx --env-file=.env scripts/backfill-series.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
