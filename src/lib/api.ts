@@ -94,6 +94,8 @@ interface LinhaView extends Record<string, unknown> {
   parte_maria: string | null;
   pago_irwin: string | null;
   saldo_irwin: string | null;
+  serie_id: number | null;
+  seq: number | null;
 }
 
 /** Converte uma linha da view no item que a lista do Início espera. */
@@ -407,6 +409,15 @@ export async function obterLancamento(id: number) {
   );
   if (!r) throw new Error('Lançamento não encontrado.');
 
+  // A série a que este lançamento pertence, se houver. É o que permite a tela
+  // de edição oferecer o caminho para a série inteira — sem isso a tela nova
+  // existe numa URL que ninguém alcança.
+  const [s] = r.serie_id
+    ? await db.execute<{ id: number; tipo: string; total: number | null; lancamentos: number }>(
+        sql`select id, tipo, total, lancamentos from v_series where id = ${r.serie_id}`,
+      )
+    : [undefined];
+
   const iso = isoDaLinha(r.data);
   return {
     linha: r.id,
@@ -423,6 +434,10 @@ export async function obterLancamento(id: number) {
     pagoIrwin: r.pago_irwin === null ? null : Number(r.pago_irwin),
     obs: r.obs,
     gastoDe: r.gasto_de ?? '',
+    serieId: s ? s.id : null,
+    serieTipo: s ? s.tipo : null,
+    serieTotal: s ? s.total : null,
+    serieLancamentos: s ? s.lancamentos : 0,
   };
 }
 
@@ -853,4 +868,104 @@ export async function lancarImportacaoLote(
   });
 
   return { ok: true, qtd: transacoes.length, total: arred(total) };
+}
+
+// ---------------------------------------------------------------------------
+// Séries
+// ---------------------------------------------------------------------------
+
+interface LinhaSerie {
+  id: number;
+  seq: number | null;
+  data: string | Date;
+  descricao: string;
+  categoria: string;
+  tipo: string;
+  fonte: string | null;
+  valor_total: string;
+  divisao: string;
+  pct_irwin_custom: string | null;
+  quem_pagou: string | null;
+  pago_irwin: string | null;
+  saldo_irwin: string | null;
+  gasto_de: string | null;
+}
+
+/**
+ * Uma série inteira, com o resumo e as linhas.
+ *
+ * `pessoa` decide de que lado o efeito no acerto é mostrado (C1) e vem da
+ * ROTA, nunca daqui — este módulo roda em scripts fora do Next.
+ *
+ * `ancora` é o lançamento de onde o usuário veio. A tela o marca para ele não
+ * perder a referência, e é a partir dele que o escopo "só esta" se define.
+ */
+export async function obterSerie(id: number, ancora?: number, pessoa: Pessoa | null = null) {
+  const [s] = await db.execute<{
+    id: number; tipo: string; descricao: string; total: number | null;
+    recorrencia_id: number | null; origem: string; lancamentos: number;
+    completa: boolean | null; primeira: string | Date | null; ultima: string | Date | null;
+    futuras: number; total_valor: string | null; saldo_irwin: string | null;
+  }>(sql`select * from v_series where id = ${id}`);
+  if (!s) throw new Error('Série não encontrada.');
+
+  const linhas = await db.execute<LinhaSerie & Record<string, unknown>>(
+    sql`select id, seq, data, descricao, categoria, tipo, fonte, valor_total, divisao,
+               pct_irwin_custom, quem_pagou, pago_irwin, saldo_irwin, gasto_de
+        from v_lancamentos where serie_id = ${id}
+        order by seq nulls last, data`,
+  );
+
+  // O corte entre passado e futuro sai do POSTGRES, não do JavaScript — regra
+  // nº 6. Comparar data em JS já escondeu 11 parcelas futuras fazendo os três
+  // cortes do acerto darem idênticos, com a suíte inteira verde.
+  const [{ hoje }] = await db.execute<{ hoje: string }>(sql`select current_date::text as hoje`);
+
+  return {
+    id: s.id,
+    tipo: s.tipo,
+    descricao: s.descricao,
+    total: s.total,
+    origem: s.origem,
+    recorrenciaId: s.recorrencia_id,
+    completa: !!s.completa,
+    lancamentos: s.lancamentos,
+    futuras: s.futuras,
+    primeira: s.primeira ? isoDaLinha(s.primeira) : null,
+    ultima: s.ultima ? isoDaLinha(s.ultima) : null,
+    totalValor: Number(s.total_valor ?? 0),
+    saldoIrwin: s.saldo_irwin === null ? null : Number(s.saldo_irwin),
+    hoje,
+    eu: pessoa,
+    ancora: ancora ?? null,
+    itens: linhas.map((l) => ({
+      id: l.id,
+      seq: l.seq,
+      total: s.total,
+      data: isoDaLinha(l.data),
+      descricao: l.descricao,
+      categoria: l.categoria,
+      tipo: l.tipo,
+      fonte: l.fonte,
+      valor: Number(l.valor_total),
+      divisao: l.divisao,
+      pctCustom: l.pct_irwin_custom === null ? null : Number(l.pct_irwin_custom) * 100,
+      quemPagou: l.quem_pagou,
+      pagoIrwin: l.pago_irwin === null ? null : Number(l.pago_irwin),
+      saldoIrwin: l.saldo_irwin === null ? null : Number(l.saldo_irwin),
+      gastoDe: l.gasto_de,
+      futura: isoDaLinha(l.data) > hoje,
+    })),
+  };
+}
+
+/**
+ * A série a que um lançamento pertence — o caminho que a lista usa ao tocar
+ * numa parcela. Devolve `null` para lançamento avulso, que é a maioria.
+ */
+export async function serieDoLancamento(idLancamento: number) {
+  const [r] = await db.execute<{ serie_id: number | null }>(
+    sql`select serie_id from lancamentos where id = ${idLancamento}`,
+  );
+  return r?.serie_id ?? null;
 }

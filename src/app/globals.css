@@ -1,40 +1,154 @@
+/* =====================================================================
+   Tokens e primitivas do Mozi's App.
+
+   Copiados do `<style>` do `Form.html`, que segue sendo a referência enquanto
+   as duas telas convivem. Nada aqui é reinterpretação: se um valor divergir do
+   arquivo antigo, é bug, não escolha.
+
+   As regras que estes tokens carregam vêm do `PARA-O-APP-2.0.md`:
+
+     C6 — cor carrega significado. Pessoa, tipo e categoria têm paletas
+          próprias e fixas, iguais em qualquer tela.
+     C2 — quem pagou se lê pela foto, e a foto vem por URL. No app antigo ela
+          era embutida em base64 em CADA linha da lista: ~6 KB × 50 linhas.
+          Aqui `/avatar-irwin.jpg` é arquivo, baixado uma vez e cacheado.
+   ===================================================================== */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --stage: #edeef0;
+  --texto: #202124;
+  --texto2: #5f6368;
+  --texto3: #9aa0a6;
+  --borda-input: #dadce0;
+  --borda-card: #ebebeb;
+  --borda-card2: #f1f1f1;
+  --chip-neutro: #edeef0;
+  --suave: #f8f9fa;
+  --verde: #2f5233;
+  /* Sinal do efeito no acerto: verde = a receber, vermelho = a pagar (C1). */
+  --pos: #1e7b4f;
+  --neg: #c0392b;
+  --irwin: #1f4e79;
+  --irwin-l: #d9e7f5;
+  --maria: #6a1b9a;
+  --maria-l: #eadcf5;
+  --conjunta: #5f6368;
+  --conjunta-l: #f1f3f4;
+  --fixa: #a63a2e;
+  --fixa-l: #f6dcd8;
+  --var: #b8860b;
+  --var-l: #fbeed0;
+  --invest: #2e6b2e;
+  --invest-l: #d8ebd8;
+  --entrada: #0f6e56;
+  --entrada-l: #d6efe6;
+  --andre: #b85c00;
+  --andre-l: #fbe3cc;
+  /* Onde a tela precisa admitir risco ou palpite (C7). */
+  --aviso: #8a6d00;
+  --aviso-bg: #fbeed0;
+  --aviso-br: #e8d49a;
+  /* Valor anterior numa comparação antes/depois. */
+  --antes: #9aa0a6;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme='light']) {
+    --bg: #1e1e1e;
+    --stage: #121212;
+    --texto: #e8eaed;
+    --texto2: #9aa0a6;
+    --texto3: #6c7075;
+    --borda-input: #4b4f54;
+    --borda-card: #333438;
+    --borda-card2: #2a2b2e;
+    --chip-neutro: #2a2a2d;
+    --suave: #232326;
+    --verde: #4caf6d;
+    --pos: #4caf6d;
+    --neg: #e38b7d;
+    --irwin: #6fa8dc;
+    --irwin-l: #16233a;
+    --maria: #c58af0;
+    --maria-l: #2a1f3d;
+    --conjunta: #9aa0a6;
+    --conjunta-l: #2a2b2e;
+    --fixa: #e38b7d;
+    --fixa-l: #3a1f1c;
+    --var: #e6bd5c;
+    --var-l: #3a2f14;
+    --invest: #7bd98a;
+    --invest-l: #1b3320;
+    --entrada: #5ce0be;
+    --entrada-l: #123027;
+    --andre: #e39a4e;
+    --andre-l: #3a2a16;
+    --aviso: #e6bd5c;
+    --aviso-bg: #3a2f14;
+    --aviso-br: #5a4a20;
+    --antes: #6c7075;
   }
 }
 
-html {
-  height: 100%;
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #1e1e1e;
+  --stage: #121212;
+  --texto: #e8eaed;
+  --texto2: #9aa0a6;
+  --texto3: #6c7075;
+  --borda-input: #4b4f54;
+  --borda-card: #333438;
+  --borda-card2: #2a2b2e;
+  --chip-neutro: #2a2a2d;
+  --suave: #232326;
+  --verde: #4caf6d;
+  --pos: #4caf6d;
+  --neg: #e38b7d;
+  --irwin: #6fa8dc;
+  --irwin-l: #16233a;
+  --maria: #c58af0;
+  --maria-l: #2a1f3d;
+  --conjunta: #9aa0a6;
+  --conjunta-l: #2a2b2e;
+  --fixa: #e38b7d;
+  --fixa-l: #3a1f1c;
+  --var: #e6bd5c;
+  --var-l: #3a2f14;
+  --invest: #7bd98a;
+  --invest-l: #1b3320;
+  --entrada: #5ce0be;
+  --entrada-l: #123027;
+  --andre: #e39a4e;
+  --andre-l: #3a2a16;
+  --aviso: #e6bd5c;
+  --aviso-bg: #3a2f14;
+  --aviso-br: #5a4a20;
+  --antes: #6c7075;
 }
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
-body {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+:root[data-theme='light'] {
+  color-scheme: light;
 }
 
 * {
   box-sizing: border-box;
-  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
   margin: 0;
+  font-family: Roboto, Arial, sans-serif;
+  background: var(--stage);
+  color: var(--texto);
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
@@ -42,8 +156,377 @@ a {
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+/* ---------------------------------------------------------------------
+   Estrutura da tela — o mesmo shell do `Form.html`.
+   --------------------------------------------------------------------- */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  max-width: 520px;
+  margin: 0 auto;
+  background: var(--bg);
+  position: relative;
+  overflow: hidden;
+}
+
+.cabecalho {
+  padding: 8px 16px 11px;
+  padding-top: calc(8px + env(safe-area-inset-top));
+  border-bottom: 1px solid var(--borda-card);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex: 0 0 auto;
+  background: var(--bg);
+  z-index: 5;
+}
+.cabecalho .titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.cabecalho h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--texto);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.voltar {
+  font-size: 22px;
+  color: var(--texto2);
+  line-height: 1;
+  padding: 2px 4px 2px 0;
+  background: none;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.conteudo {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.pad {
+  padding: 13px 13px calc(13px + env(safe-area-inset-bottom));
+}
+
+/* ---------------------------------------------------------------------
+   Cartões e campos
+   --------------------------------------------------------------------- */
+
+.card {
+  background: var(--bg);
+  border: 1px solid var(--borda-card);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.card.suave {
+  background: var(--suave);
+}
+
+.campo {
+  margin-bottom: 11px;
+}
+.campo:last-child {
+  margin-bottom: 0;
+}
+.campo > label {
+  display: block;
+  font-size: 13px;
+  color: var(--texto2);
+  margin: 0 0 5px;
+}
+
+/* 16px NÃO é escolha estética: o Safari do iPhone dá zoom automático em
+   qualquer campo com fonte MENOR que 16px, e o zoom não volta sozinho — a tela
+   fica deslocada até fechar e reabrir. Se um campo precisar parecer menor,
+   mude padding ou largura, nunca a fonte. */
+input[type='text'],
+input[type='number'],
+input[type='date'],
+select,
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 16px;
+  border: 1px solid var(--borda-input);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--texto);
+  font-family: inherit;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--verde);
+}
+input[type='date'] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.dica {
+  font-size: 11.5px;
+  color: var(--texto3);
+  margin-top: 5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.aviso {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  background: var(--aviso-bg);
+  border: 1px solid var(--aviso-br);
+  color: var(--aviso);
+  border-radius: 8px;
+  padding: 9px 11px;
+  font-size: 12.5px;
+  margin-top: 9px;
+}
+.aviso b {
+  font-weight: 700;
+}
+
+.msg-erro {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 12px;
+  background: #fbe3e1;
+  color: #8c2a1e;
+  border: 1px solid #efb8b0;
+}
+
+.vazio {
+  padding: 22px 12px;
+  text-align: center;
+  color: var(--texto3);
+  font-size: 14px;
+}
+
+/* ---------------------------------------------------------------------
+   Barra de ação
+   --------------------------------------------------------------------- */
+
+.barra-acao {
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--borda-card);
+  flex: 0 0 auto;
+  background: var(--bg);
+}
+.btn-full {
+  width: 100%;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--borda-input);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.btn-full.valido {
+  background: var(--verde);
+}
+.btn-full:disabled {
+  cursor: default;
+}
+
+/* ---------------------------------------------------------------------
+   Linha de lançamento — o desenho da lista, igual ao do `Form.html`.
+   --------------------------------------------------------------------- */
+
+.item-lanc {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--borda-card2);
+}
+.item-lanc:last-child {
+  border-bottom: none;
+}
+.item-lanc[role='button'] {
+  cursor: pointer;
+}
+
+/* Fora do escopo de uma edição em lote. */
+.item-lanc.fora {
+  opacity: 0.38;
+}
+/* A linha de onde o usuário veio. Dois sinais diferentes podem cair na mesma
+   linha — "fora do escopo" (opacidade) e "você veio daqui" (trilho) — e
+   apagá-la por completo esconderia justamente a âncora. */
+.item-lanc.ancora {
+  background: var(--suave);
+  margin: 0 -12px;
+  padding-left: 12px;
+  padding-right: 12px;
+  box-shadow: inset 3px 0 0 var(--verde);
+}
+.item-lanc.fora.ancora {
+  opacity: 0.72;
+}
+.ancora-rot {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--verde);
+  margin-top: 1px;
+}
+
+.col-data {
+  width: 32px;
+  text-align: center;
+  flex: 0 0 32px;
+}
+.col-data .dia {
+  font-size: 16px;
+  font-weight: 500;
+}
+.col-data .mes {
+  font-size: 10px;
+  color: var(--texto3);
+  text-transform: uppercase;
+}
+
+.item-info {
+  flex: 1;
+  min-width: 0;
+}
+/* 15px: a descrição é o que identifica a transação, e medir a lista mostrou
+   que ela tinha MENOS espaço que o número. */
+.item-info .desc {
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.item-info .meta {
+  font-size: 11px;
+  color: var(--texto3);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.parc {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--texto2);
+  background: var(--chip-neutro);
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-right: 5px;
+  vertical-align: 1px;
+}
+
+.item-valor {
+  text-align: right;
+  flex: 0 0 auto;
+}
+.item-valor .v {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.item-valor .partes {
+  font-size: 11.5px;
+  color: var(--texto3);
+  margin-top: 2px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+/* A foto do André à esquerda do valor, fora do fluxo da descrição. */
+.tag-andre {
+  box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 3px var(--andre);
+}
+
+/* ---------------------------------------------------------------------
+   Efeito no acerto
+   --------------------------------------------------------------------- */
+
+.efeito {
+  font-variant-numeric: tabular-nums;
+}
+.efeito .pos,
+.efeito.pos {
+  color: var(--pos);
+  font-weight: 500;
+}
+.efeito .neg,
+.efeito.neg {
+  color: var(--neg);
+  font-weight: 500;
+}
+.efeito.nulo {
+  color: var(--texto3);
+}
+.efeito .sep {
+  color: var(--texto3);
+}
+
+.avatar-vazio {
+  display: inline-block;
+  background: var(--chip-neutro);
+  border: 1px dashed var(--borda-input);
+}
+
+/* ---------------------------------------------------------------------
+   Cabeçalho de série
+   --------------------------------------------------------------------- */
+
+.serie-nome {
+  font-size: 19px;
+  font-weight: 500;
+}
+.serie-sub {
+  font-size: 12.5px;
+  color: var(--texto2);
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.serie-barra {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--chip-neutro);
+  margin: 11px 0 6px;
+  overflow: hidden;
+}
+.serie-barra i {
+  display: block;
+  height: 100%;
+  background: var(--verde);
+  border-radius: 999px;
+}
+.serie-legenda {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--texto3);
+}
+.serie-legenda .fut {
+  color: var(--verde);
+  font-weight: 700;
 }
