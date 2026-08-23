@@ -361,6 +361,82 @@ const invariantes: Invariante[] = [
       };
     },
   },
+
+  {
+    id: 'recorrencia-orfa',
+    regra: 'A10 — recorrência indefinida é regra + geração idempotente',
+    pergunta: 'Existe lançamento recorrente sem regra que o continue?',
+    checar: async () => {
+      // Um lançamento marcado recorrente sem regra correspondente é uma
+      // recorrência que MORRE no fim do mês, sem erro e sem aviso: o cron não
+      // tem o que continuar. Foi assim que o `Financiamento` de R$ 6.800/mês
+      // ficou órfão — o app novo gerava as ocorrências e não gravava a regra.
+      //
+      // A separação por `linha_origem` é a mesma do check de pagador, e pelo
+      // mesmo motivo: o histórico da planilha tem órfãos que ninguém introduziu
+      // agora, e misturar os dois faria este check gritar para sempre.
+      const novos = await sql<{ descricao: string; n: string; valor: string }[]>`
+        select l.descricao, count(*)::text as n, max(l.valor_total)::text as valor
+        from lancamentos l
+        where l.recorrente and l.linha_origem is null
+          and not exists (select 1 from recorrencias r where r.descricao = l.descricao)
+        group by l.descricao order by max(l.valor_total) desc`;
+      const antigos = await sql<{ descricao: string; n: string }[]>`
+        select l.descricao, count(*)::text as n
+        from lancamentos l
+        where l.recorrente and l.linha_origem is not null
+          and not exists (select 1 from recorrencias r where r.descricao = l.descricao)
+        group by l.descricao order by count(*) desc`;
+
+      return {
+        ok: novos.length === 0,
+        severidade: 'defeito',
+        medida:
+          `${novos.length} órfã(s) criada(s) no app novo · ` +
+          `${antigos.length} vinda(s) da planilha (${antigos.reduce((a, b) => a + Number(b.n), 0)} linhas)`,
+        exemplos: [
+          ...novos.map((o) => `NOVO  ${o.descricao} — ${o.n}× até ${brl(Number(o.valor))}`),
+          ...antigos.map((o) => `plan. ${o.descricao} — ${o.n} linha(s)`),
+        ],
+      };
+    },
+  },
+
+  {
+    id: 'regra-cumprida',
+    regra: 'A10 — `ultima_geracao` é a promessa de que já gerou',
+    pergunta: 'Toda regra ativa tem, de fato, o lançamento que ela diz ter gerado?',
+    checar: async () => {
+      // `ultima_geracao` é o único freio contra duplicar, e é usado como
+      // afirmação: "até esta data, já gerei". Se a data avançou mas o
+      // lançamento não existe, o mês foi PULADO e o cron nunca vai voltar —
+      // ele só olha para frente a partir dali.
+      //
+      // O par independente aqui é o próprio banco: a regra afirma, a tabela de
+      // lançamentos confirma ou desmente. Casar por descrição é fraco de
+      // propósito enquanto não existe `serie_id`; é exatamente essa fraqueza
+      // que a identidade de série vem substituir.
+      const quebradas = await sql<
+        { id: number; descricao: string; ultima_geracao: string }[]
+      >`
+        select r.id, r.descricao, r.ultima_geracao::text as ultima_geracao
+        from recorrencias r
+        where r.ativo and r.ultima_geracao is not null
+          and not exists (
+            select 1 from lancamentos l
+            where l.descricao = r.descricao and l.data = r.ultima_geracao)
+        order by r.ultima_geracao`;
+      const [{ n: ativas }] = await sql<{ n: string }[]>`
+        select count(*)::text as n from recorrencias where ativo`;
+
+      return {
+        ok: quebradas.length === 0,
+        severidade: 'defeito',
+        medida: `${quebradas.length} de ${ativas} regra(s) ativa(s) sem o lançamento que ultima_geracao promete`,
+        exemplos: quebradas.map((r) => `#${r.id} ${r.descricao} — diz ter gerado ${r.ultima_geracao}`),
+      };
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
