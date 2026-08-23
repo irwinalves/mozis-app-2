@@ -165,3 +165,40 @@ web clip inteiro.
 **A regra que fica:** ao verificar uma correção no aparelho, confirme primeiro
 que o aparelho tem a versão nova. Um jeito barato é olhar algo inequívoco da
 mudança antes de julgar o resto.
+
+## A branch de teste (Neon + git)
+
+Desde 22/08/2026 o trabalho de produto não sai direto para produção. São três
+isolamentos, e os três precisam estar alinhados:
+
+| Camada | Produção | Teste |
+|---|---|---|
+| git | `main` | `teste` |
+| banco | Neon branch `main` | Neon branch `teste` |
+| env | `.env` | `.env.teste` |
+
+A branch do Neon é cópia-na-escrita: nasce com os lançamentos reais e só ocupa
+espaço no que muda. Foi criada com **auto-delete `Never`** — o padrão de 1 dia é
+curto demais para uma migração de semanas.
+
+**A senha do papel `neondb_owner` é herdada da branch pai.** O `.env.teste` é o
+`.env` com o host trocado, e nada mais:
+
+```
+ep-XXXXXXXX-pooler…   ← main (produção)
+ep-YYYYYYYY-pooler…    ← teste
+```
+
+Os comandos com sufixo `:teste` apontam para lá:
+
+```bash
+npm run db:migrate:teste && npm run db:views:teste && npm run invariantes:teste
+```
+
+> ⚠️ Sem o sufixo, o comando fala com **produção**. `npm run invariantes` é só
+> leitura e pode rodar em qualquer um; `backfill-series --aplicar` e
+> `verificar-e2e` escrevem, e aí o sufixo é a diferença entre um ensaio e um
+> incidente.
+
+**Para jogar a branch fora e recomeçar:** apagar no console do Neon e criar de
+novo a partir de `main`. É o jeito de voltar ao estado limpo depois de uma fase.
