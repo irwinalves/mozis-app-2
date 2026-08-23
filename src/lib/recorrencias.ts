@@ -12,7 +12,9 @@ import {
   ehQuitacaoDe,
 } from './api';
 import {
+  arred,
   fimDoMes,
+  pagoIrwinDe,
   pctIrwinDe,
   formatarData,
   gerarDatasRecorrencia,
@@ -91,6 +93,23 @@ export async function gerarRecorrenciasPendentes() {
         if (Number(existe.n) > 0) continue;
         inseridas.push(formatarData(data));
 
+        // Regra 3 — uma implementação, nunca duas.
+        //
+        // Aqui havia um ternário próprio para o desembolso:
+        //   quem_pagou === 'Irwin' ? valor : quem_pagou === 'Maria' ? 0 : null
+        //
+        // Ele concorda com `pagoIrwinDe` em 'Irwin' e 'Maria' e DISCORDA em
+        // 'Ambos', onde grava NULL. Pela A4, NULL é 'sem pagador': a linha sai
+        // do acerto sem aviso nenhum. A função certa devolve a parte do Irwin
+        // — cada um pôs a própria parte, não gera dívida.
+        //
+        // Estava latente porque nenhuma regra ativa era 'Ambos'. A do
+        // `Financiamento` (R$ 6.800/mês, 50/50, Ambos) seria a primeira, e o
+        // defeito só apareceria em setembro, num valor de R$ 3.400.
+        const valorOc = Number(r.valor);
+        const pctOc = pctIrwinDe(r.divisao, Number(r.pct_irwin_custom) * 100, pctRenda);
+        const pagoOc = pagoIrwinDe(r.quem_pagou as never, valorOc, arred(valorOc * pctOc));
+
         await tx.execute(
           sql`insert into lancamentos
                 (data, descricao, categoria, tipo, fonte, valor_total, divisao,
@@ -98,10 +117,9 @@ export async function gerarRecorrenciasPendentes() {
                  pago_irwin, recorrente, gasto_de)
               values (${formatarData(data)}, ${r.descricao}, ${r.categoria}, 'Fixa',
                       ${r.fonte}, ${r.valor}, ${r.divisao}, ${r.pct_irwin_custom},
-                      ${pctIrwinDe(r.divisao, Number(r.pct_irwin_custom) * 100, pctRenda)},
+                      ${pctOc},
                       ${ehQuitacaoDe(r.categoria)}, ${r.quem_pagou},
-                      -- mesmo mapa de pagamento de um lançamento comum
-                      ${r.quem_pagou === 'Irwin' ? Number(r.valor) : r.quem_pagou === 'Maria' ? 0 : null},
+                      ${pagoOc},
                       -- a tag da regra desce para cada ocorrência gerada: uma
                       -- recorrência do André gera lançamentos do André
                       true, ${r.gasto_de ?? null})`,
