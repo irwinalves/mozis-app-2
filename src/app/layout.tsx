@@ -34,9 +34,34 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
+/**
+ * O tema escolhido vive no `localStorage`, e quem o grava é o botão do
+ * `Form.html`. Sem ler isso aqui, a tela React cai no
+ * `prefers-color-scheme` — e quem escolheu escuro num sistema claro vê a
+ * tela nova acender na cara. Foi o primeiro defeito que apareceu no uso real.
+ *
+ * Roda ANTES da pintura, no `<head>`: aplicar depois da hidratação daria um
+ * flash de tema errado a cada navegação.
+ *
+ * É o MESMO one-liner da linha 4 do `Form.html`, copiado como está. Quando o
+ * front antigo sair, este vira o único; até lá, dois lugares com a mesma
+ * lógica é o preço de as duas telas conviverem — e copiar verbatim é o que
+ * impede que divirjam.
+ */
+const APLICAR_TEMA =
+  "(function(){try{var t=localStorage.getItem('tema');" +
+  "if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" className={roboto.className}>
+    // `suppressHydrationWarning`: o script acima escreve `data-theme` no
+    // <html> ANTES da hidratação, então o HTML do servidor e o do cliente
+    // divergem nesse atributo de propósito. É o único ponto onde divergir é o
+    // comportamento certo — sem o script haveria flash de tema errado.
+    <html lang="pt-BR" className={roboto.className} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: APLICAR_TEMA }} />
+      </head>
       <body>{children}</body>
     </html>
   );

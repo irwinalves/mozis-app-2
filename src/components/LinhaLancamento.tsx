@@ -31,6 +31,8 @@ export function LinhaLancamento({
   eu,
   /** Apagada por estar fora do escopo de uma edição em lote. */
   fora = false,
+  /** Já aconteceu. Diferente de `fora`: é estado do mundo, não da edição. */
+  passada = false,
   /** A linha de onde o usuário veio — ganha trilho e rótulo. */
   ancora = false,
   meta,
@@ -39,6 +41,7 @@ export function LinhaLancamento({
   item: ItemLancamento;
   eu: Pessoa | null;
   fora?: boolean;
+  passada?: boolean;
   ancora?: boolean;
   /** Substitui a linha de metadados padrão (tipo · fonte). */
   meta?: string;
@@ -49,7 +52,9 @@ export function LinhaLancamento({
 
   return (
     <div
-      className={`item-lanc${fora ? ' fora' : ''}${ancora ? ' ancora' : ''}`}
+      className={
+        `item-lanc${fora ? ' fora' : ''}${passada ? ' passada' : ''}${ancora ? ' ancora' : ''}`
+      }
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}

@@ -9,6 +9,7 @@
  * A edição ainda não está aqui — de propósito. Esta tela existe para provar a
  * junta inteira: identidade de série no banco → view → API → React → tela.
  */
+import { Fragment } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { obterSerie } from '@/lib/api';
@@ -16,7 +17,7 @@ import { quemEsta } from '@/lib/sessao';
 import { LinhaLancamento } from '@/components/LinhaLancamento';
 import { Avatar } from '@/components/Avatar';
 import { EfeitoNoAcerto } from '@/components/EfeitoNoAcerto';
-import { brl, mesAno } from '@/lib/formato';
+import { brl, dataBR, mesAno } from '@/lib/formato';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,8 +25,15 @@ export const dynamic = 'force-dynamic';
  * Tira o ` N/M ` da descrição, deixando a raiz e o que vier depois dela.
  * Não altera o dado — é só apresentação, e o dado é o `seq`.
  */
+const RE_PARCELA = /^(.*?)\s[(]?\d[\d,+]*\/\d+[)]?(\s|$)/;
+
 function semParcela(descricao: string, raiz: string): string {
-  const resto = descricao.replace(/^.*?\s[(]?\d[\d,+]*\/\d+[)]?(\s|$)/, '').trim();
+  // Sem `N/M` não há o que tirar — é o caso de toda recorrência. Devolver
+  // `raiz + descricao` aqui produzia "Clube Livelo Clube Livelo" nas 36
+  // ocorrências.
+  const m = RE_PARCELA.exec(descricao);
+  if (!m) return descricao;
+  const resto = descricao.slice(m[0].length).trim();
   return resto ? `${raiz} ${resto}` : raiz;
 }
 
@@ -140,9 +148,16 @@ export default async function PaginaSerie({
             {serie.itens.length === 0 ? (
               <div className="vazio">Nenhuma ocorrência ligada a esta série ainda.</div>
             ) : (
-              serie.itens.map((it) => (
+              serie.itens.map((it, i) => (
+                <Fragment key={it.id}>
+                  {/* O marco entra ANTES da primeira futura. Sem ele uma lista
+                      de 12 parcelas iguais não diz onde a pessoa está — foi a
+                      dúvida do primeiro uso: "estava numerando certo?". A
+                      numeração estava; faltava o ponto de referência. */}
+                  {it.futura && !serie.itens[i - 1]?.futura && (
+                    <div className="marco-hoje">hoje · {dataBR(serie.hoje).slice(0, 5)}</div>
+                  )}
                 <LinhaLancamento
-                  key={it.id}
                   // A pílula já mostra a posição; repetir ` 3/12` no texto gasta
                   // a largura que a descrição tem de sobra em outras telas e
                   // aqui não tem. O que sobra depois da fração — como o
@@ -150,10 +165,12 @@ export default async function PaginaSerie({
                   item={{ ...it, descricao: semParcela(it.descricao, serie.descricao) }}
                   eu={eu}
                   ancora={serie.ancora === it.id}
+                  passada={!it.futura}
                   meta={[it.categoria.replace(/^\d+\s/, ''), it.tipo, it.fonte]
                     .filter(Boolean)
                     .join(' · ')}
                 />
+                </Fragment>
               ))
             )}
           </div>

@@ -530,3 +530,42 @@ input[type='date'] {
   color: var(--verde);
   font-weight: 700;
 }
+
+/* Já aconteceu. Diferente de `.fora`, que é "não entra nesta edição": aqui é
+   estado do mundo. Por isso o apagamento é mais leve — a linha continua para
+   ser lida, só não é mais o que está por vir. */
+.item-lanc.passada {
+  opacity: 0.62;
+}
+.item-lanc.passada .col-data .dia {
+  font-weight: 400;
+}
+/* A linha do futuro ganha o peso, não a do passado: é nela que se pode mexer. */
+.item-lanc:not(.passada) .col-data .dia {
+  color: var(--verde);
+}
+
+/* O marco do hoje. Sem ele, uma lista de 12 parcelas iguais não diz onde a
+   pessoa está — e foi exatamente essa a dúvida no primeiro uso: "estava
+   numerando certo?". A numeração estava; faltava o ponto de referência. */
+.marco-hoje {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--verde);
+}
+.marco-hoje:before,
+.marco-hoje:after {
+  content: '';
+  height: 1px;
+  background: var(--borda-card);
+  flex: 1;
+}
+.marco-hoje:before {
+  flex: 0 0 24px;
+}
