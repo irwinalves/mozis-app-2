@@ -202,3 +202,50 @@ npm run db:migrate:teste && npm run db:views:teste && npm run invariantes:teste
 
 **Para jogar a branch fora e recomeçar:** apagar no console do Neon e criar de
 novo a partir de `main`. É o jeito de voltar ao estado limpo depois de uma fase.
+
+## O preview da branch `teste`
+
+```
+https://mozis-app-2-git-teste-mozi5.vercel.app
+```
+
+A URL é **estável por branch** — não muda a cada deploy, e é por isso que ela
+pôde ser registrada uma vez no OAuth do Google. Deploys novos saem de qualquer
+push para `teste`.
+
+**Três camadas antes de o app abrir**, e as três são de propósito:
+
+| Porta | O que é | Quem passa |
+|---|---|---|
+| SSO da Vercel | proteção de deployment | quem está logado na conta Vercel |
+| `/entrar` | o Auth.js do próprio app | Irwin e Maria, pelo Google |
+| `EMAILS_PERMITIDOS` | a allowlist de dois e-mails | os mesmos dois |
+
+**O banco do preview é a branch `teste` do Neon**, não produção. Foi trocado
+pela CLI, porque a variável é *sensitive* e não se lê de volta pela interface:
+
+```bash
+npx vercel env rm DATABASE_URL preview --yes
+grep '^DATABASE_URL=' .env.teste | cut -d= -f2- | tr -d '\n' | npx vercel env add DATABASE_URL preview
+```
+
+> ⚠️ Variável de ambiente **não entra em build já feito**. Trocar a
+> `DATABASE_URL` e não redeployar deixa o preview falando com produção — que é
+> exatamente o que a branch existe para evitar. Depois de trocar, empurre um
+> commit.
+
+**Como saber, sem logar, em qual banco o preview está:** a tabela `series` só
+existe na branch `teste`. Se a tela de série abre, é a `teste`. Se fosse
+produção, a consulta falharia — e essa é também a rede de segurança: a
+funcionalidade de séries não tem como tocar produção enquanto a migração não
+for aplicada lá.
+
+**OAuth do Google.** O redirect do preview foi acrescentado ao cliente
+`Mozi's App` (projeto `formal-hybrid-443104-s3`):
+
+```
+https://mozis-app-2-git-teste-mozi5.vercel.app/api/auth/callback/google
+```
+
+São três agora — localhost, produção e o preview. O Google avisa que a
+propagação leva de cinco minutos a algumas horas.
