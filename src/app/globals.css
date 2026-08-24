@@ -360,8 +360,17 @@ input[type='date'] {
 .item-lanc:last-child {
   border-bottom: none;
 }
-.item-lanc[role='button'] {
+.item-lanc[role='button'],
+a.item-lanc {
   cursor: pointer;
+}
+a.item-lanc {
+  color: inherit;
+  text-decoration: none;
+}
+/* A foto de quem pagou, ao lado da data. */
+.quem-pagou {
+  border: none;
 }
 
 /* Fora do escopo de uma edição em lote. */
@@ -452,10 +461,6 @@ input[type='date'] {
   color: var(--texto3);
   margin-top: 2px;
   white-space: nowrap;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  justify-content: flex-end;
 }
 
 /* A foto do André à esquerda do valor, fora do fluxo da descrição. */
@@ -494,24 +499,95 @@ input[type='date'] {
 }
 
 /* ---------------------------------------------------------------------
-   Cabeçalho de série
+   Cabeçalho de série — forma fixa nos dois tipos.
+
+     1ª  nome, com `Editar ›` no canto
+     2ª  valor unitário (16px negrito) · quantas · valor total
+     3ª  período · cadência
+     4ª  classificação
+
+   Quem paga NÃO se repete aqui: já está no topo da tela. E o cartão inteiro é
+   tocável — o botão sozinho seria afordância pequena demais, e só o cartão
+   seria afordância invisível.
    --------------------------------------------------------------------- */
 
-.serie-nome {
+.serie-cab {
+  position: relative;
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.serie-cab .nome {
   font-size: 19px;
   font-weight: 500;
+  padding-right: 62px;
 }
-.serie-sub {
+.serie-cab .editar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--verde);
+}
+/* O valor unitário é o número que se procura, então tem o mesmo peso do valor
+   na lista: 16px negrito. */
+.serie-l2 {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--texto2);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.serie-l2 .unit {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--texto);
+}
+.serie-l3 {
+  font-size: 12.5px;
+  color: var(--texto3);
+  margin-top: 3px;
+}
+.serie-l3 b {
+  color: var(--texto2);
+  font-weight: 700;
+}
+.serie-l4 {
   font-size: 12.5px;
   color: var(--texto2);
-  margin-top: 3px;
-  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
+}
+.ponto {
+  color: var(--texto3);
+}
+/* C7 — o cabeçalho mostra um valor por campo; onde o campo varia entre as
+   linhas ele avisa, em vez de escolher um e calar. */
+.serie-varia {
+  font-size: 11.5px;
+  color: var(--aviso);
+  margin-top: 6px;
+}
+.serie-prox {
+  font-size: 12.5px;
+  color: var(--texto3);
+  margin-top: 6px;
+}
+.serie-prox b {
+  color: var(--verde);
+  font-weight: 700;
 }
 .serie-barra {
   height: 5px;
   border-radius: 999px;
   background: var(--chip-neutro);
-  margin: 11px 0 6px;
+  margin: 9px 0 5px;
   overflow: hidden;
 }
 .serie-barra i {
@@ -520,20 +596,225 @@ input[type='date'] {
   background: var(--verde);
   border-radius: 999px;
 }
-.serie-legenda {
+.serie-linha {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
   color: var(--texto3);
 }
-.serie-legenda .fut {
+.serie-linha .fut {
   color: var(--verde);
   font-weight: 700;
 }
 
-/* Já aconteceu. Diferente de `.fora`, que é "não entra nesta edição": aqui é
-   estado do mundo. Por isso o apagamento é mais leve — a linha continua para
-   ser lida, só não é mais o que está por vir. */
+/* Cabeçalho curto da edição vinda de uma linha: nome e data, valor e posição.
+   Categoria, tipo e origem não se repetem — estão logo abaixo, para editar. */
+.de-onde .qual {
+  font-size: 17px;
+  font-weight: 500;
+}
+.de-onde .val {
+  font-size: 13px;
+  color: var(--texto2);
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.de-onde .val b {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--texto);
+}
+
+.titulo-lista {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 2px 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto2);
+}
+.ver-mais {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px dashed var(--borda-input);
+  border-radius: 8px;
+  background: none;
+  color: var(--texto2);
+  font-size: 13px;
+  font-family: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------------
+   Escopo, campos e prévia da edição
+   --------------------------------------------------------------------- */
+
+.seg {
+  display: flex;
+  gap: 7px;
+}
+.seg button {
+  flex: 1;
+  text-align: center;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 4px;
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: inherit;
+  background: var(--chip-neutro);
+  color: var(--texto);
+  cursor: pointer;
+}
+.seg button b {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+.seg button.on {
+  background: var(--verde);
+  color: #fff;
+}
+
+.grade {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  align-items: start;
+}
+.grade .campo {
+  margin-bottom: 0;
+}
+
+/* Alternador valor da parcela ⇄ total. Só no parcelamento: numa recorrência
+   cada ocorrência tem o valor cheio e não há fim previsto, então um total
+   seria número inventado. */
+.rot-alt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 4px;
+}
+.rot-alt label {
+  margin: 0;
+}
+.alt {
+  display: inline-flex;
+  border: 1px solid var(--borda-input);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.alt button {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border: none;
+  background: none;
+  color: var(--texto2);
+  font-family: inherit;
+  cursor: pointer;
+}
+.alt button.on {
+  background: var(--verde);
+  color: #fff;
+}
+
+.mudado {
+  border-color: var(--verde) !important;
+  box-shadow: 0 0 0 1px var(--verde);
+}
+.nota-regra {
+  font-size: 12px;
+  color: var(--texto3);
+  margin-top: 8px;
+}
+.nota-regra b {
+  color: var(--texto2);
+}
+
+.prev {
+  margin-top: 10px;
+  background: var(--suave);
+  border: 1px solid var(--borda-card);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.prev h4 {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--texto2);
+  border-bottom: 1px solid var(--borda-card);
+}
+.prev .rolo {
+  max-height: 190px;
+  overflow-y: auto;
+}
+.prev .ln {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--borda-card2);
+}
+.prev .ln > span {
+  color: var(--texto2);
+}
+.prev .par {
+  display: flex;
+  gap: 7px;
+  align-items: baseline;
+  min-width: 0;
+}
+.prev .de {
+  color: var(--antes);
+  text-decoration: line-through;
+  font-size: 12px;
+}
+.prev .ln b {
+  font-variant-numeric: tabular-nums;
+}
+.prev .fim {
+  background: var(--bg);
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+.prev .fim .num {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--texto2);
+}
+.prev .fim .num.pos {
+  color: var(--pos);
+}
+.prev .fim .num.neg {
+  color: var(--neg);
+}
+
+/* ---------------------------------------------------------------------
+   Passado, futuro e o marco do hoje.
+
+   Duas classes distintas de propósito: `.fora` é "não entra nesta edição",
+   `.passada` é "já aconteceu" — estado da edição contra estado do mundo. Por
+   isso o apagamento é mais leve na segunda: a linha continua para ser lida.
+   --------------------------------------------------------------------- */
+
 .item-lanc.passada {
   opacity: 0.62;
 }
@@ -545,9 +826,9 @@ input[type='date'] {
   color: var(--verde);
 }
 
-/* O marco do hoje. Sem ele, uma lista de 12 parcelas iguais não diz onde a
-   pessoa está — e foi exatamente essa a dúvida no primeiro uso: "estava
-   numerando certo?". A numeração estava; faltava o ponto de referência. */
+/* Sem ele, uma lista de 12 linhas iguais não diz onde a pessoa está — e foi
+   exatamente essa a dúvida no primeiro uso: "estava numerando certo?". A
+   numeração estava; faltava o ponto de referência. */
 .marco-hoje {
   display: flex;
   align-items: center;

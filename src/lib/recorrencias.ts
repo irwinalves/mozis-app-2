@@ -33,6 +33,8 @@ interface Regra {
   quem_pagou: string | null;
   frequencia: string;
   ultima_geracao: Date | string | null;
+  /** Vigência. NULL = indefinidamente. */
+  data_fim: Date | string | null;
   data_inicio: Date | string;
   gasto_de: string | null;
 }
@@ -57,11 +59,19 @@ export async function gerarRecorrenciasPendentes() {
   );
   const pctRenda = Number(conf?.pct_irwin_renda ?? 0.4947);
 
-  const limite = fimDoMes(new Date());
+  const fimDoMesCorrente = fimDoMes(new Date());
   const geradas: { regra: string; datas: string[] }[] = [];
 
   for (const r of regras) {
     const freq = normalizarFreq(r.frequencia);
+    // A vigência da regra encurta o limite: uma recorrência que termina em
+    // 15/09 não deve gerar a ocorrência de 30/09 só porque o mês ainda não
+    // acabou.
+    const limite =
+      r.data_fim && comoData(r.data_fim).getTime() < fimDoMesCorrente.getTime()
+        ? comoData(r.data_fim)
+        : fimDoMesCorrente;
+
     const base = comoData(r.ultima_geracao ?? r.data_inicio);
     const proxima = ocorrenciaFreq(base, freq, 1);
     if (proxima.getTime() > limite.getTime()) continue; // nada pendente ainda

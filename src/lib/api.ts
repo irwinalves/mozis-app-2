@@ -21,6 +21,7 @@ import {
   pctIrwinDe,
   fracaoPagaPeloIrwin,
   normalizarFreq,
+  ocorrenciaFreq,
   type DadosParcelas,
   type DadosRecorrencia,
 } from './lancamentos';
@@ -556,11 +557,15 @@ export async function salvarLancamento(dados: DadosLancamento) {
     // Dentro da MESMA transação das ocorrências, de propósito: regra sem
     // ocorrência e ocorrência sem regra são os dois estados quebrados, e o
     // segundo é justamente o que se está corrigindo aqui.
-    if (dados.repetir && dados.semFimRec) {
+    // Antes: só `semFimRec`. Uma recorrência COM data fim gerava as ocorrências
+    // e não criava regra — então não havia onde guardar a vigência, a série
+    // nascia órfã, e não dava para editar "até quando". Agora as duas criam
+    // regra; o que muda é `data_fim`, que o cron respeita.
+    if (dados.repetir) {
       await tx.execute(
         sql`insert into recorrencias
               (data_inicio, descricao, categoria, fonte, valor, divisao,
-               pct_irwin_custom, quem_pagou, frequencia, ultima_geracao,
+               pct_irwin_custom, quem_pagou, frequencia, data_fim, ultima_geracao,
                ativo, gasto_de)
             values (${dados.data}, ${dados.descricao}, ${dados.grupo},
                     ${dados.fonte ?? null},
@@ -569,6 +574,7 @@ export async function salvarLancamento(dados: DadosLancamento) {
                     ${ocorrencias[0].valor}, ${dados.divisao},
                     ${pctCustomFracao}, ${quemPagou},
                     ${normalizarFreq(dados.freqRec)},
+                    ${dados.semFimRec ? null : (dados.fimRec ?? null)},
                     ${formatarData(ocorrencias[ocorrencias.length - 1].data)},
                     true, ${dados.gastoDe || null})`,
       );
@@ -891,14 +897,72 @@ interface LinhaSerie {
   gasto_de: string | null;
 }
 
+/** O valor que mais se repete. É o que a tela mostra como “o valor da série”. */
+function maisComum<T>(valores: T[]): T | null {
+  const conta = new Map<T, number>();
+  for (const v of valores) conta.set(v, (conta.get(v) ?? 0) + 1);
+  let melhor: T | null = null;
+  let max = 0;
+  for (const [v, n] of conta) if (n > max) { max = n; melhor = v; }
+  return melhor;
+}
+
 /**
- * Uma série inteira, com o resumo e as linhas.
+ * Quais campos DIVERGEM dentro de um conjunto de linhas.
+ *
+ * Existe por C7: o cabeçalho mostra um valor por campo, e se o campo varia
+ * entre as linhas ele precisa dizer isso em vez de escolher um e calar. Nas
+ * duas séries reais que motivaram a tela — `Seguro Carro` e `Clube Livelo` —
+ * três campos variam, porque as duas foram reclassificadas à mão, linha a
+ * linha, indo para frente.
+ */
+const CAMPOS_CLASSIF = [
+  ['categoria', 'Categoria'],
+  ['tipo', 'Tipo'],
+  ['fonte', 'Origem'],
+  ['divisao', 'Como dividir'],
+  ['quem_pagou', 'Quem paga'],
+  ['valor_total', 'Valor'],
+] as const;
+
+function camposQueVariam(linhas: LinhaSerie[]) {
+  return CAMPOS_CLASSIF.filter(([campo]) => {
+    const vistos = new Set(linhas.map((l) => String(l[campo] ?? '')));
+    return vistos.size > 1;
+  }).map(([campo, rotulo]) => {
+    const vistos = new Map<string, number>();
+    for (const l of linhas) {
+      const v = String(l[campo] ?? '');
+      vistos.set(v, (vistos.get(v) ?? 0) + 1);
+    }
+    return {
+      campo,
+      rotulo,
+      valores: [...vistos]
+        .sort((a, b) => b[1] - a[1])
+        .map(([valor, qtd]) => ({ valor, qtd })),
+    };
+  });
+}
+
+interface Regra {
+  id: number;
+  frequencia: string;
+  data_inicio: string | Date;
+  data_fim: string | Date | null;
+  ultima_geracao: string | Date | null;
+  ativo: boolean;
+  valor: string;
+}
+
+/**
+ * Uma série inteira: o resumo do cabeçalho, a regra quando houver, e as linhas.
  *
  * `pessoa` decide de que lado o efeito no acerto é mostrado (C1) e vem da
  * ROTA, nunca daqui — este módulo roda em scripts fora do Next.
  *
- * `ancora` é o lançamento de onde o usuário veio. A tela o marca para ele não
- * perder a referência, e é a partir dele que o escopo "só esta" se define.
+ * `ancora` é o lançamento de onde o usuário veio; a tela o marca, e é dele que
+ * o escopo “esta e as seguintes” parte.
  */
 export async function obterSerie(id: number, ancora?: number, pessoa: Pessoa | null = null) {
   const [s] = await db.execute<{
@@ -913,13 +977,55 @@ export async function obterSerie(id: number, ancora?: number, pessoa: Pessoa | n
     sql`select id, seq, data, descricao, categoria, tipo, fonte, valor_total, divisao,
                pct_irwin_custom, quem_pagou, pago_irwin, saldo_irwin, gasto_de
         from v_lancamentos where serie_id = ${id}
-        order by seq nulls last, data`,
+        order by data, id`,
   );
 
   // O corte entre passado e futuro sai do POSTGRES, não do JavaScript — regra
   // nº 6. Comparar data em JS já escondeu 11 parcelas futuras fazendo os três
   // cortes do acerto darem idênticos, com a suíte inteira verde.
   const [{ hoje }] = await db.execute<{ hoje: string }>(sql`select current_date::text as hoje`);
+
+  const [regra] = s.recorrencia_id
+    ? await db.execute<Regra & Record<string, unknown>>(
+        sql`select id, frequencia, data_inicio, data_fim, ultima_geracao, ativo, valor
+            from recorrencias where id = ${s.recorrencia_id}`,
+      )
+    : [undefined];
+
+  const itens = linhas.map((l, i) => ({
+    id: l.id,
+    seq: l.seq,
+    total: s.total,
+    // A posição de uma ocorrência de recorrência é a ordem cronológica: a
+    // recorrência não tem total, então `36/36` viraria mentira no mês seguinte.
+    posicao: s.tipo === 'recorrencia' ? i + 1 : l.seq,
+    data: isoDaLinha(l.data),
+    descricao: l.descricao,
+    categoria: l.categoria,
+    tipo: l.tipo,
+    fonte: l.fonte,
+    valor: Number(l.valor_total),
+    divisao: l.divisao,
+    pctCustom: l.pct_irwin_custom === null ? null : Number(l.pct_irwin_custom) * 100,
+    quemPagou: l.quem_pagou,
+    pagoIrwin: l.pago_irwin === null ? null : Number(l.pago_irwin),
+    saldoIrwin: l.saldo_irwin === null ? null : Number(l.saldo_irwin),
+    gastoDe: l.gasto_de,
+    futura: isoDaLinha(l.data) > hoje,
+  }));
+
+  // A mais recente, que é o estado atual da série.
+  const atual = linhas.length ? linhas[linhas.length - 1] : null;
+
+  const proxima = regra
+    ? formatarData(
+        ocorrenciaFreq(
+          dataLocal(isoDaLinha(regra.ultima_geracao ?? regra.data_inicio)),
+          normalizarFreq(regra.frequencia),
+          1,
+        ),
+      )
+    : null;
 
   return {
     id: s.id,
@@ -935,27 +1041,47 @@ export async function obterSerie(id: number, ancora?: number, pessoa: Pessoa | n
     ultima: s.ultima ? isoDaLinha(s.ultima) : null,
     totalValor: Number(s.total_valor ?? 0),
     saldoIrwin: s.saldo_irwin === null ? null : Number(s.saldo_irwin),
+    /**
+     * O valor de UMA parcela — o mais COMUM, não o mais recente: a última
+     * parcela absorve o arredondamento de propósito (A7), então ela é a que
+     * tem mais chance de ser a diferente.
+     */
+    valorUnitario: linhas.length ? Number(maisComum(linhas.map((l) => l.valor_total))) : 0,
+    /**
+     * A classificação da linha MAIS RECENTE — a série como ela é hoje, não a
+     * média do histórico. A diferença importa porque este é o valor que a tela
+     * de edição pré-preenche: com o atual, abrir a edição não propõe mudança
+     * nenhuma e o botão nasce apagado; com o mais comum, abrir já proporia
+     * reverter a reclassificação mais nova.
+     *
+     * `variam` é o que impede isso de virar meia-verdade.
+     */
+    classificacao: atual
+      ? {
+          categoria: atual.categoria,
+          tipo: atual.tipo,
+          fonte: atual.fonte,
+          divisao: atual.divisao,
+          quemPagou: atual.quem_pagou,
+        }
+      : { categoria: '', tipo: '', fonte: null, divisao: '50/50', quemPagou: null },
+    variam: camposQueVariam(linhas),
+    regra: regra
+      ? {
+          id: regra.id,
+          frequencia: regra.frequencia,
+          ativo: regra.ativo,
+          dataInicio: isoDaLinha(regra.data_inicio),
+          dataFim: regra.data_fim ? isoDaLinha(regra.data_fim) : null,
+          ultimaGeracao: regra.ultima_geracao ? isoDaLinha(regra.ultima_geracao) : null,
+          proxima,
+          valor: Number(regra.valor),
+        }
+      : null,
     hoje,
     eu: pessoa,
     ancora: ancora ?? null,
-    itens: linhas.map((l) => ({
-      id: l.id,
-      seq: l.seq,
-      total: s.total,
-      data: isoDaLinha(l.data),
-      descricao: l.descricao,
-      categoria: l.categoria,
-      tipo: l.tipo,
-      fonte: l.fonte,
-      valor: Number(l.valor_total),
-      divisao: l.divisao,
-      pctCustom: l.pct_irwin_custom === null ? null : Number(l.pct_irwin_custom) * 100,
-      quemPagou: l.quem_pagou,
-      pagoIrwin: l.pago_irwin === null ? null : Number(l.pago_irwin),
-      saldoIrwin: l.saldo_irwin === null ? null : Number(l.saldo_irwin),
-      gastoDe: l.gasto_de,
-      futura: isoDaLinha(l.data) > hoje,
-    })),
+    itens,
   };
 }
 
@@ -968,4 +1094,330 @@ export async function serieDoLancamento(idLancamento: number) {
     sql`select serie_id from lancamentos where id = ${idLancamento}`,
   );
   return r?.serie_id ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Editar uma série
+// ---------------------------------------------------------------------------
+
+/**
+ * Os quatro escopos, dois por porta de entrada.
+ *
+ * Pelo CABEÇALHO, quando não se veio de nenhuma linha:
+ *   `daAtual`  — o que ainda não passou (e, na recorrência, a regra)
+ *   `todas`    — tudo, inclusive o que já foi lançado
+ *
+ * Por uma LINHA:
+ *   `soEsta`          — só ela
+ *   `estaEseguintes`  — dela para frente, mesmo que ela já tenha passado
+ *
+ * A assimetria é deliberada e foi decidida em 23/08/2026: pelo cabeçalho o
+ * passado exige escolher `todas`; por uma linha o passado entra junto quando é
+ * dali que a mudança começa a valer — com o aviso dizendo quantas já lançadas.
+ */
+export type EscopoSerie = 'daAtual' | 'todas' | 'soEsta' | 'estaEseguintes';
+
+export interface MudancasSerie {
+  descricao?: string;
+  grupo?: string;
+  tipo?: string;
+  fonte?: string | null;
+  divisao?: string;
+  pctIrwinCustom?: number | string | null;
+  quemPagou?: string | null;
+  gastoDe?: string | null;
+  /** Valor de UMA parcela/ocorrência. */
+  valor?: number | string;
+  /**
+   * Valor TOTAL do escopo. Exclusivo com `valor`: aqui a divisão entre as
+   * linhas é recalculada e a ÚLTIMA absorve o arredondamento (A7).
+   */
+  valorTotal?: number | string;
+  /** Só recorrência. `null` = indefinidamente. */
+  dataFim?: string | null;
+  ativo?: boolean;
+}
+
+/** As linhas que um escopo alcança, e se ele chega no que ainda será gerado. */
+async function linhasDoEscopo(serieId: number, escopo: EscopoSerie, ancoraId?: number) {
+  const [{ hoje }] = await db.execute<{ hoje: string }>(sql`select current_date::text as hoje`);
+
+  const todas = await db.execute<LinhaSerie & Record<string, unknown>>(
+    sql`select id, seq, data, descricao, categoria, tipo, fonte, valor_total, divisao,
+               pct_irwin_custom, quem_pagou, pago_irwin, saldo_irwin, gasto_de
+        from v_lancamentos where serie_id = ${serieId} order by data, id`,
+  );
+
+  const iso = (l: LinhaSerie) => isoDaLinha(l.data);
+  let alvo: (LinhaSerie & Record<string, unknown>)[];
+
+  if (escopo === 'todas') {
+    alvo = todas;
+  } else if (escopo === 'daAtual') {
+    alvo = todas.filter((l) => iso(l) > hoje);
+  } else {
+    const ancora = todas.find((l) => l.id === ancoraId);
+    if (!ancora) throw new Error('A parcela de onde a edição partiu não está nesta série.');
+    alvo =
+      escopo === 'soEsta'
+        ? todas.filter((l) => l.id === ancoraId)
+        : todas.filter((l) => iso(l) >= iso(ancora));
+  }
+
+  return {
+    hoje,
+    alvo,
+    jaLancadas: alvo.filter((l) => iso(l) <= hoje).length,
+    // Só `soEsta` não alcança o futuro. Nos outros a regra tem que mudar
+    // junto, senão a próxima ocorrência nasce com o valor velho.
+    alcancaFuturo: escopo !== 'soEsta',
+  };
+}
+
+/** Aplica as mudanças a uma linha e devolve os campos finais. */
+function aplicarMudancas(
+  l: LinhaSerie,
+  m: MudancasSerie,
+  valorDaLinha: number,
+  pctRenda: number,
+) {
+  const divisao = m.divisao ?? l.divisao;
+  const pctCustomPct =
+    m.pctIrwinCustom !== undefined
+      ? Number(m.pctIrwinCustom)
+      : l.pct_irwin_custom === null
+        ? null
+        : Number(l.pct_irwin_custom) * 100;
+  const pct = pctIrwinDe(divisao, pctCustomPct, pctRenda);
+  const quemPagou = exigirPagador(m.quemPagou ?? l.quem_pagou);
+  const parteIrwin = arred(valorDaLinha * pct);
+
+  // O desembolso é recalculado por `pagoIrwinDe`, nunca por um mapa próprio —
+  // regra nº 3. Um ternário paralelo aqui foi exatamente o defeito que fazia o
+  // cron gravar NULL para 'Ambos' e tirar a linha do acerto em silêncio.
+  const pagoIrwin = pagoIrwinDe(quemPagou as never, valorDaLinha, parteIrwin, null);
+
+  return {
+    data: isoDaLinha(l.data),
+    descricao: m.descricao ? trocarRaiz(l.descricao, m.descricao) : l.descricao,
+    categoria: m.grupo ?? l.categoria,
+    tipo: m.tipo ?? l.tipo,
+    fonte: m.fonte !== undefined ? m.fonte : l.fonte,
+    valor: valorDaLinha,
+    divisao,
+    pctCustomFracao: divisao === 'Custom' ? (pctCustomPct ?? 0) / 100 : null,
+    pct,
+    quemPagou,
+    pagoIrwin,
+    gastoDe: m.gastoDe !== undefined ? m.gastoDe || null : l.gasto_de,
+    saldoIrwin: (pagoIrwin ?? 0) - valorDaLinha * pct,
+  };
+}
+
+/** Troca a raiz preservando o sufixo `N/M` e o que vier depois dele. */
+function trocarRaiz(descricao: string, novaRaiz: string): string {
+  const m = /^(.*?)(\s[(]?\d[\d,+]*\/\d+[)]?(?:\s|$).*)$/.exec(descricao);
+  return m ? novaRaiz + m[2] : novaRaiz;
+}
+
+/**
+ * Como o valor se distribui pelas linhas do escopo.
+ *
+ * Com `valorTotal`, a ÚLTIMA linha absorve o arredondamento — a mesma regra de
+ * quando o parcelamento é criado (A7), e por isso ela não é reescrita aqui:
+ * quem divide 100,00 em 3 tem 33,33 · 33,33 · 33,34, nunca três de 33,33 e um
+ * centavo perdido.
+ */
+function valoresPorLinha(qtd: number, m: MudancasSerie, atuais: number[]): number[] {
+  if (m.valorTotal !== undefined && m.valorTotal !== null && m.valorTotal !== '') {
+    const total = arred(Number(m.valorTotal));
+    const base = arred(total / qtd);
+    const v = Array(qtd).fill(base);
+    v[qtd - 1] = arred(total - base * (qtd - 1));
+    return v;
+  }
+  if (m.valor !== undefined && m.valor !== null && m.valor !== '') {
+    return Array(qtd).fill(arred(Number(m.valor)));
+  }
+  return atuais;
+}
+
+async function pctDaRenda() {
+  const [conf] = await db.execute<{ pct_irwin_renda: string }>(
+    sql`select pct_irwin_renda from config where id = 1`,
+  );
+  return Number(conf?.pct_irwin_renda ?? 0.4947);
+}
+
+/**
+ * O que a gravação vai fazer, sem fazer.
+ *
+ * Devolve linha a linha o antes e o depois, e o **delta no acerto** — que é o
+ * número que separa esta tela de uma armadilha: mexer em divisão ou pagador de
+ * 10 parcelas move dinheiro entre os dois, e ver quanto antes de confirmar é a
+ * diferença entre editar e descobrir depois.
+ */
+export async function previewEdicaoSerie(
+  serieId: number,
+  escopo: EscopoSerie,
+  ancoraId: number | null,
+  mudancas: MudancasSerie,
+) {
+  const { alvo, jaLancadas, alcancaFuturo, hoje } = await linhasDoEscopo(
+    serieId,
+    escopo,
+    ancoraId ?? undefined,
+  );
+  if (!alvo.length) return { qtd: 0, jaLancadas: 0, linhas: [], deltaAcerto: 0, mudaRegra: false, hoje };
+
+  const pctRenda = await pctDaRenda();
+  const valores = valoresPorLinha(
+    alvo.length,
+    mudancas,
+    alvo.map((l) => Number(l.valor_total)),
+  );
+
+  const linhas = alvo.map((l, i) => {
+    const depois = aplicarMudancas(l, mudancas, valores[i], pctRenda);
+    const antes = {
+      data: isoDaLinha(l.data),
+      descricao: l.descricao,
+      categoria: l.categoria,
+      tipo: l.tipo,
+      fonte: l.fonte,
+      valor: Number(l.valor_total),
+      divisao: l.divisao,
+      quemPagou: l.quem_pagou,
+      gastoDe: l.gasto_de,
+      saldoIrwin: l.saldo_irwin === null ? null : Number(l.saldo_irwin),
+    };
+    return {
+      id: l.id,
+      antes,
+      depois,
+      mudou:
+        antes.descricao !== depois.descricao ||
+        antes.categoria !== depois.categoria ||
+        antes.tipo !== depois.tipo ||
+        (antes.fonte ?? '') !== (depois.fonte ?? '') ||
+        Math.abs(antes.valor - depois.valor) >= 0.005 ||
+        antes.divisao !== depois.divisao ||
+        (antes.quemPagou ?? '') !== (depois.quemPagou ?? '') ||
+        (antes.gastoDe ?? '') !== (depois.gastoDe ?? ''),
+    };
+  });
+
+  // O delta é calculado NO POSTGRES, não aqui.
+  //
+  // Somar em JavaScript e arredondar no fim erra por um centavo, e não por
+  // descuido: o delta real desta edição é R$ 15,345, e `Math.round(15.345*100)`
+  // devolve 1534 porque o float mais próximo de 15,345 é 15,34499999999998. A
+  // gravação, feita em `numeric` exato, move o acerto em R$ 15,35 — e a prévia
+  // prometia 15,34.
+  //
+  // Um centavo é pouco; uma prévia que não bate com o que acontece é o
+  // problema. `saldo_irwin` chega da view como texto e é aqui que ele deve
+  // continuar exato.
+  // Via JSON, e não array: interpolar um array de JS no `sql` do Drizzle vira
+  // uma TUPLA — `($1, $2, $3)` — e o Postgres recusa com "cannot cast type
+  // record to integer[]".
+  const pares = JSON.stringify(
+    linhas.map((l) => ({ id: l.id, novo: String(l.depois.saldoIrwin) })),
+  );
+  const [{ delta }] = await db.execute<{ delta: string }>(
+    sql`select coalesce(round(sum(n.novo - l.saldo_irwin)::numeric, 2), 0)::text as delta
+        from jsonb_to_recordset(${pares}::jsonb) as n(id int, novo numeric)
+        join v_lancamentos l on l.id = n.id`,
+  );
+  const deltaAcerto = Number(delta);
+
+  const [s] = await db.execute<{ recorrencia_id: number | null }>(
+    sql`select recorrencia_id from series where id = ${serieId}`,
+  );
+
+  return {
+    qtd: linhas.length,
+    jaLancadas,
+    linhas,
+    deltaAcerto,
+    /** A regra só muda quando o escopo alcança o que ainda vai ser gerado. */
+    mudaRegra: alcancaFuturo && !!s?.recorrencia_id,
+    hoje,
+  };
+}
+
+/**
+ * Grava. Uma transação só: ou tudo, ou nada.
+ *
+ * A regra da recorrência é atualizada JUNTO quando o escopo alcança o futuro.
+ * Deixá-la para trás recria o defeito silencioso — a próxima ocorrência nasce
+ * com o valor velho e ninguém vê.
+ */
+export async function atualizarSerie(
+  serieId: number,
+  escopo: EscopoSerie,
+  ancoraId: number | null,
+  mudancas: MudancasSerie,
+) {
+  const { alvo, alcancaFuturo } = await linhasDoEscopo(serieId, escopo, ancoraId ?? undefined);
+  if (!alvo.length) throw new Error('Nenhuma linha no escopo escolhido.');
+
+  const pctRenda = await pctDaRenda();
+  const valores = valoresPorLinha(
+    alvo.length,
+    mudancas,
+    alvo.map((l) => Number(l.valor_total)),
+  );
+
+  const [s] = await db.execute<{ recorrencia_id: number | null; descricao: string }>(
+    sql`select recorrencia_id, descricao from series where id = ${serieId}`,
+  );
+
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < alvo.length; i++) {
+      const d = aplicarMudancas(alvo[i], mudancas, valores[i], pctRenda);
+      await tx.execute(
+        sql`update lancamentos set
+              descricao = ${d.descricao}, categoria = ${d.categoria}, tipo = ${d.tipo},
+              fonte = ${d.fonte}, valor_total = ${d.valor}, divisao = ${d.divisao},
+              pct_irwin_custom = ${d.pctCustomFracao}, pct_irwin = ${d.pct},
+              eh_quitacao = ${ehQuitacaoDe(d.categoria)},
+              quem_pagou = ${d.quemPagou}, pago_irwin = ${d.pagoIrwin},
+              gasto_de = ${d.gastoDe}
+            where id = ${alvo[i].id}`,
+      );
+    }
+
+    if (mudancas.descricao) {
+      await tx.execute(
+        sql`update series set descricao = ${mudancas.descricao} where id = ${serieId}`,
+      );
+    }
+
+    if (alcancaFuturo && s?.recorrencia_id) {
+      const pctCustomFracao =
+        mudancas.divisao === 'Custom'
+          ? (Number(mudancas.pctIrwinCustom) || 0) / 100
+          : mudancas.divisao
+            ? null
+            : undefined;
+      await tx.execute(
+        sql`update recorrencias set
+              ${mudancas.descricao ? sql`descricao = ${mudancas.descricao},` : sql``}
+              ${mudancas.grupo ? sql`categoria = ${mudancas.grupo},` : sql``}
+              ${mudancas.fonte !== undefined ? sql`fonte = ${mudancas.fonte},` : sql``}
+              ${mudancas.valor !== undefined ? sql`valor = ${arred(Number(mudancas.valor))},` : sql``}
+              ${mudancas.divisao ? sql`divisao = ${mudancas.divisao},` : sql``}
+              ${pctCustomFracao !== undefined ? sql`pct_irwin_custom = ${pctCustomFracao},` : sql``}
+              ${mudancas.quemPagou ? sql`quem_pagou = ${mudancas.quemPagou},` : sql``}
+              ${mudancas.gastoDe !== undefined ? sql`gasto_de = ${mudancas.gastoDe || null},` : sql``}
+              ${mudancas.dataFim !== undefined ? sql`data_fim = ${mudancas.dataFim},` : sql``}
+              ${mudancas.ativo !== undefined ? sql`ativo = ${mudancas.ativo},` : sql``}
+              id = id
+            where id = ${s.recorrencia_id}`,
+      );
+    }
+  });
+
+  return { ok: true, qtd: alvo.length, mudouRegra: alcancaFuturo && !!s?.recorrencia_id };
 }

@@ -226,6 +226,15 @@ export const recorrencias = pgTable('recorrencias', {
   quemPagou: text('quem_pagou'),
   /** mensal · quinzenal (+14 dias) · semanal. */
   frequencia: text('frequencia').notNull().default('mensal'),
+  /**
+   * Até quando a recorrência vale. NULL = indefinidamente.
+   *
+   * Antes disto, marcar "repetir até 31/12" gerava as ocorrências de uma vez e
+   * NÃO criava regra nenhuma — então não havia onde guardar a vigência, nem
+   * como editá-la, e a série nascia órfã. Era o mesmo buraco que deixou o
+   * `Financiamento` sem regra, de outro ângulo.
+   */
+  dataFim: date('data_fim'),
   ultimaGeracao: date('ultima_geracao'),
   ativo: boolean('ativo').notNull().default(true),
   /** Propagado para cada lançamento gerado — ver `lancamentos.gastoDe`. */

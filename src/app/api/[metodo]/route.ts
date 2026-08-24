@@ -18,6 +18,8 @@ const METODOS = {
   getPatrimonio: api.getPatrimonio,
   obterSerie: api.obterSerie,
   serieDoLancamento: api.serieDoLancamento,
+  previewEdicaoSerie: api.previewEdicaoSerie,
+  atualizarSerie: api.atualizarSerie,
   salvarLancamento: api.salvarLancamento,
   obterLancamento: api.obterLancamento,
   atualizarLancamento: api.atualizarLancamento,

@@ -1,0 +1,1 @@
+ALTER TABLE "recorrencias" ADD COLUMN "data_fim" date;
