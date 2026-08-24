@@ -10,10 +10,19 @@
  *     3ª  período · cadência
  *     4ª  classificação
  *
- * Quem paga não aparece aqui — já está no topo da tela.
+ * À direita, sob o `Editar`, a foto de **quem paga a série hoje**.
+ *
+ * Ela precisou existir por um engano meu: eu tinha tirado quem paga daqui
+ * dizendo que já estava no topo da tela — mas o avatar do topo é de **quem
+ * entrou**, não de quem paga. Eram informações diferentes com a mesma cara, e
+ * a tela de série ficou sem dizer de quem é o gasto.
+ *
+ * Foto e não texto, pela C2: reconhecer uma cara é mais rápido que ler um
+ * nome, e aqui ela ainda economiza a linha que o nome gastaria.
  */
 import Link from 'next/link';
 import { brl, mesAno, dataBR } from '@/lib/formato';
+import { Avatar } from './Avatar';
 import { EfeitoNoAcerto } from './EfeitoNoAcerto';
 import type { Pessoa } from '@/lib/pessoas';
 
@@ -88,32 +97,47 @@ export function CabecalhoSerie({
 
   const miolo = (
     <>
-      <div className="nome">{serie.descricao}</div>
-      {href && <span className="editar">Editar ›</span>}
+      <div className="serie-topo">
+        <div className="serie-corpo">
+          <div className="nome">{serie.descricao}</div>
 
-      <div className="serie-l2">
-        <b className="unit">{brl(serie.valorUnitario)}</b>
-        <span className="ponto">·</span>
-        {quantas}
-        <span className="ponto">·</span>
-        {brl(serie.totalValor)}
-      </div>
+          <div className="serie-l2">
+            <b className="unit">{brl(serie.valorUnitario)}</b>
+            <span className="ponto">·</span>
+            {quantas}
+            <span className="ponto">·</span>
+            {brl(serie.totalValor)}
+          </div>
 
-      <div className="serie-l3">
-        {periodo} <span className="ponto">·</span> {cadencia(serie)}
-        {serie.tipo === 'recorrencia' && (
-          <>
-            {' '}
-            <span className="ponto">·</span>{' '}
-            <b>{serie.regra?.dataFim ? `até ${dataBR(serie.regra.dataFim)}` : 'indefinidamente'}</b>
-          </>
-        )}
-      </div>
+          <div className="serie-l3">
+            {periodo} <span className="ponto">·</span> {cadencia(serie)}
+            {serie.tipo === 'recorrencia' && (
+              <>
+                {' '}
+                <span className="ponto">·</span>{' '}
+                <b>
+                  {serie.regra?.dataFim
+                    ? `até ${dataBR(serie.regra.dataFim)}`
+                    : 'indefinidamente'}
+                </b>
+              </>
+            )}
+          </div>
 
-      <div className="serie-l4">
-        {[c.categoria.replace(/^\d+\s/, ''), c.tipo, c.fonte, c.divisao]
-          .filter(Boolean)
-          .join(' · ')}
+          <div className="serie-l4">
+            {[c.categoria.replace(/^\d+\s/, ''), c.tipo, c.fonte, c.divisao]
+              .filter(Boolean)
+              .join(' · ')}
+          </div>
+        </div>
+
+        {/* Quem paga hoje. Quando o pagador varia entre as linhas, esta é a
+            mais recente — e o aviso de campos que variam já diz que é
+            simplificação. */}
+        <div className="serie-lado">
+          {href && <span className="editar">Editar ›</span>}
+          <Avatar quem={c.quemPagou as never} tamanho={38} className="serie-pagador" />
+        </div>
       </div>
 
       {variamClassif.length > 0 && (

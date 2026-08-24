@@ -520,18 +520,40 @@ a.item-lanc {
   color: inherit;
   cursor: pointer;
 }
+/* Duas colunas: o texto à esquerda, e à direita o `Editar` com a foto de quem
+   paga logo abaixo, alinhados entre si. Sem posicionamento absoluto — com ele,
+   as linhas de texto passariam por baixo da foto, e a conta de padding para
+   evitar isso quebraria a cada mudança de tamanho. */
+.serie-topo {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.serie-corpo {
+  flex: 1;
+  min-width: 0;
+}
+.serie-lado {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 9px;
+}
 .serie-cab .nome {
   font-size: 19px;
   font-weight: 500;
-  padding-right: 62px;
 }
 .serie-cab .editar {
-  position: absolute;
-  top: 0;
-  right: 0;
   font-size: 13px;
   font-weight: 700;
   color: var(--verde);
+  white-space: nowrap;
+}
+/* Maior que a da lista: aqui ela responde "de quem é esta série", que é
+   pergunta de cabeçalho, não de linha. */
+.serie-pagador {
+  box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 3px var(--borda-card);
 }
 /* O valor unitário é o número que se procura, então tem o mesmo peso do valor
    na lista: 16px negrito. */
