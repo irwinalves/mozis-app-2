@@ -19,6 +19,7 @@ import {
   numeric,
   boolean,
   index,
+  timestamp,
 } from 'drizzle-orm/pg-core';
 
 /**
@@ -42,6 +43,40 @@ export const planoDeContas = pgTable('plano_de_contas', {
   palavrasChave: text('palavras_chave'),
   tipoPadrao: text('tipo_padrao'),
   ordem: integer('ordem').notNull(),
+});
+
+/**
+ * A identidade que o app nunca teve: o que liga as parcelas de uma compra, e
+ * os lançamentos de uma regra de recorrência, uns aos outros.
+ *
+ * Antes disto o único vínculo entre parcelas era o sufixo da descrição
+ * (`" 3/12"`), e agrupar por texto é adivinhação. A base prova: `Seguro Carro`
+ * são DUAS séries — 10x de R$ 407,52 em 2025 e 12x de R$ 199,77 a partir de
+ * dez/25 — com a mesma raiz de descrição. Agrupadas por texto virariam uma
+ * série só, de 22 parcelas, e editar uma editaria a outra.
+ *
+ * `total` é quantas parcelas a série declara ter, não quantas existem: 40 das
+ * 85 séries do histórico têm parcela faltando, porque nem toda compra foi
+ * lançada inteira. Faltar parcela é história, não ambiguidade — a série
+ * continua sendo uma só, e `completa` é atributo, não condição de existir.
+ */
+export const series = pgTable('series', {
+  id: serial('id').primaryKey(),
+  /** parcelamento · recorrencia. São modelos diferentes (A6) e não se misturam. */
+  tipo: text('tipo').notNull(),
+  /** A descrição SEM o sufixo `N/M`. O sufixo é apresentação, `seq` é o dado. */
+  descricao: text('descricao').notNull(),
+  /** Nº de parcelas declarado. NULL para recorrência, que não tem fim previsto. */
+  total: integer('total'),
+  recorrenciaId: integer('recorrencia_id'),
+  /**
+   * Como esta série foi identificada. Existe por causa da C7 — honestidade
+   * sobre a qualidade do dado: uma série reconstruída por heurística no
+   * backfill não é a mesma coisa que uma criada pelo app, e a tela precisa
+   * poder dizer isso.
+   */
+  origem: text('origem').notNull().default('app'),
+  criadaEm: timestamp('criada_em', { withTimezone: true }).notNull().defaultNow(),
 });
 
 /**
@@ -143,6 +178,22 @@ export const lancamentos = pgTable(
      */
     ehQuitacao: boolean('eh_quitacao').notNull().default(false),
 
+    /** A série a que este lançamento pertence. NULL = lançamento avulso. */
+    serieId: integer('serie_id'),
+    /**
+     * A posição na série — o `3` de `3/12`. É o DADO; o texto da descrição é
+     * apresentação e continua carregando o sufixo, porque é o que a lista
+     * mostra e o que a busca encontra.
+     */
+    seq: integer('seq'),
+
+    /**
+     * Desempate de mesma data, que o `PARA-O-APP-2.0.md` deixou em aberto: sem
+     * carimbo de criação, dois lançamentos do mesmo dia não têm ordem estável.
+     * O `id desc` da ordenação fazia esse papel por acaso; aqui fica explícito.
+     */
+    criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+
     linhaOrigem: integer('linha_origem'),
   },
   (t) => [
@@ -153,6 +204,8 @@ export const lancamentos = pgTable(
     // O relatório por pessoa filtra por esta coluna, e a esmagadora maioria das
     // linhas é NULL — um índice parcial cobre as que interessam a custo baixo.
     index('idx_lancamentos_gasto_de').on(t.gastoDe),
+    // A tela de série carrega todas as linhas de uma série de uma vez.
+    index('idx_lancamentos_serie').on(t.serieId, t.seq),
   ],
 );
 
@@ -173,6 +226,15 @@ export const recorrencias = pgTable('recorrencias', {
   quemPagou: text('quem_pagou'),
   /** mensal · quinzenal (+14 dias) · semanal. */
   frequencia: text('frequencia').notNull().default('mensal'),
+  /**
+   * Até quando a recorrência vale. NULL = indefinidamente.
+   *
+   * Antes disto, marcar "repetir até 31/12" gerava as ocorrências de uma vez e
+   * NÃO criava regra nenhuma — então não havia onde guardar a vigência, nem
+   * como editá-la, e a série nascia órfã. Era o mesmo buraco que deixou o
+   * `Financiamento` sem regra, de outro ângulo.
+   */
+  dataFim: date('data_fim'),
   ultimaGeracao: date('ultima_geracao'),
   ativo: boolean('ativo').notNull().default(true),
   /** Propagado para cada lançamento gerado — ver `lancamentos.gastoDe`. */

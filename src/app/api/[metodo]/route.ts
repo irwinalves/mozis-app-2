@@ -7,8 +7,7 @@
  */
 import { NextResponse } from 'next/server';
 import * as api from '@/lib/api';
-import { auth } from '@/auth';
-import { elencoDoAmbiente, pessoaDoEmail } from '@/lib/pessoas';
+import { quemEsta } from '@/lib/sessao';
 
 const METODOS = {
   getOpcoes: api.getOpcoes,
@@ -17,6 +16,10 @@ const METODOS = {
   getAcertoContas: api.getAcertoContas,
   getDashboard: api.getDashboard,
   getPatrimonio: api.getPatrimonio,
+  obterSerie: api.obterSerie,
+  serieDoLancamento: api.serieDoLancamento,
+  previewEdicaoSerie: api.previewEdicaoSerie,
+  atualizarSerie: api.atualizarSerie,
   salvarLancamento: api.salvarLancamento,
   obterLancamento: api.obterLancamento,
   atualizarLancamento: api.atualizarLancamento,
@@ -38,32 +41,7 @@ type Metodo = keyof typeof METODOS;
  * módulo também roda em scripts fora do Next — importar NextAuth lá dentro
  * quebraria `verificar-e2e`, `sync` e `reconcile` de uma vez.
  */
-const PRECISAM_DA_PESSOA = new Set<string>(['getOpcoes']);
-
-/**
- * Fingir ser uma pessoa, só em desenvolvimento. TRAVA DUPLA, igual à do
- * middleware: fora de produção E com a variável ligada. Na Vercel `NODE_ENV` é
- * sempre 'production', então isto não tem como virar porta aberta no deploy.
- *
- * Existe por um motivo concreto: a Maria ainda não entrou no app, e sem isto o
- * lado dela na tela não teria como ser exercitado antes do primeiro login dela.
- */
-const PESSOA_FINGIDA =
-  process.env.NODE_ENV !== 'production' && process.env.AUTH_BYPASS_DEV === 'sim'
-    ? (process.env.BYPASS_PESSOA as 'Irwin' | 'Maria' | undefined)
-    : undefined;
-
-async function quemEsta(): Promise<'Irwin' | 'Maria' | null> {
-  if (PESSOA_FINGIDA === 'Irwin' || PESSOA_FINGIDA === 'Maria') return PESSOA_FINGIDA;
-  try {
-    const sessao = await auth();
-    return pessoaDoEmail(elencoDoAmbiente(), sessao?.user?.email);
-  } catch {
-    // Sessão indisponível não é erro: a tela apenas volta a mostrar os dois
-    // lados do acerto.
-    return null;
-  }
-}
+const PRECISAM_DA_PESSOA = new Set<string>(['getOpcoes', 'obterSerie']);
 
 export async function POST(
   req: Request,

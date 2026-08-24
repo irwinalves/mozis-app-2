@@ -214,6 +214,14 @@ input.valor-grande{font-size:16px;font-weight:700;letter-spacing:.2px}
 .btn-full.invest{background:var(--borda-input)}
 .btn-full.invest.valido{background:var(--invest)}
 
+/* Caminho para a tela de série. Aparece só quando o lançamento pertence a uma
+   — a esmagadora maioria é avulsa e não deve ganhar botão nenhum. */
+.btn-serie{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;
+      margin-top:8px;padding:13px 14px;border:1px solid var(--borda-input);border-radius:8px;
+      background:var(--bg);color:var(--texto);font-size:14px;font-weight:500;
+      text-decoration:none;box-sizing:border-box}
+.btn-serie .seta{color:var(--texto3);font-size:16px}
+
 /* mensagens */
 .msg-erro{padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:12px;background:#FBE3E1;color:#8C2A1E;
       border:1px solid #EFB8B0;display:none}
@@ -580,6 +588,7 @@ select#classeInvest{margin-top:0}
       </div>
       <div class="barra-acao">
         <button class="btn-full" id="btnSalvarLanc" disabled>Salvar</button>
+        <a class="btn-serie" id="linkSerie" style="display:none"><span id="linkSerieTxt"></span><span class="seta">→</span></a>
         <button class="btn-full" id="btnExcluirLanc" style="display:none;margin-top:8px;background:#8C2A1E">Excluir lançamento</button>
       </div>
     </div>
@@ -1323,6 +1332,16 @@ function abrirEdicao(linha){
     $('cardRepetir').style.display = 'none';
     $('btnSalvarLanc').textContent = 'Salvar alterações';
     $('btnExcluirLanc').style.display = 'block';
+    if (d.serieId){
+      var qtd = d.serieTotal || d.serieLancamentos;
+      $('linkSerieTxt').textContent = d.serieTipo === 'recorrencia'
+        ? 'Ver a recorrência inteira'
+        : 'Ver as ' + qtd + ' parcelas desta compra';
+      $('linkSerie').href = '/serie/' + d.serieId + '?de=' + d.linha;
+      $('linkSerie').style.display = 'flex';
+    } else {
+      $('linkSerie').style.display = 'none';
+    }
     atualizarPartes();
     validarLanc();
   }).withFailureHandler(function(e){
@@ -1340,6 +1359,7 @@ function cancelarEdicao(){
   $('boxParcelas').style.display = 'none';
   $('boxRepetir').style.display = 'none';
   $('btnExcluirLanc').style.display = 'none';
+  $('linkSerie').style.display = 'none';
   $('btnSalvarLanc').textContent = 'Salvar';
   $('erroLanc').classList.remove('on');
   montarForm();

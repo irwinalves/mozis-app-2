@@ -437,6 +437,97 @@ const invariantes: Invariante[] = [
       };
     },
   },
+
+  {
+    id: 'serie-identidade',
+    regra: 'Fase 0.2 — série tem id, não sufixo de texto',
+    pergunta: 'Toda parcela pertence a uma série identificada?',
+    checar: async () => {
+      // Sem isto a tela de edição volta a agrupar por texto, e agrupar por
+      // texto funde séries diferentes: `Seguro Carro` são duas compras, 10x de
+      // R$ 407,52 e 12x de R$ 199,77, com a mesma raiz de descrição.
+      const soltas = await sql<{ id: number; data: string; descricao: string }[]>`
+        select id, data::text as data, descricao from lancamentos
+        where descricao ~ ' [(]?[0-9][0-9,+]*/[0-9]+[)]?' and serie_id is null
+        order by data desc limit 8`;
+      const [{ n: total }] = await sql<{ n: string }[]>`
+        select count(*)::text as n from lancamentos
+        where descricao ~ ' [(]?[0-9][0-9,+]*/[0-9]+[)]?'`;
+      const [{ n: series }] = await sql<{ n: string }[]>`
+        select count(*)::text as n from series where tipo = 'parcelamento'`;
+
+      return {
+        ok: soltas.length === 0,
+        severidade: 'defeito',
+        medida: `${Number(total) - soltas.length} de ${total} parcelas em ${series} séries · ${soltas.length} sem identidade`,
+        exemplos: soltas.map((l) => `#${l.id} ${l.data} — ${l.descricao}`),
+      };
+    },
+  },
+
+  {
+    id: 'serie-numeracao',
+    regra: 'Fase 0.2 — uma posição, um lançamento',
+    pergunta: 'Alguma série tem duas linhas disputando a mesma parcela?',
+    checar: async () => {
+      // Posição repetida é o sintoma de duas séries fundidas — o erro que a
+      // identidade existe para impedir. Diferente de faltar parcela, que é
+      // história: 40 das 86 séries estão incompletas e isso está certo.
+      const colisoes = await sql<{ descricao: string; seq: number; n: string }[]>`
+        select s.descricao, l.seq, count(*)::text as n
+        from lancamentos l join series s on s.id = l.serie_id
+        where s.tipo = 'parcelamento'
+        group by s.id, s.descricao, l.seq having count(*) > 1
+        order by count(*) desc limit 8`;
+      const foraDaFaixa = await sql<{ descricao: string; seq: number; total: number }[]>`
+        select s.descricao, l.seq, s.total
+        from lancamentos l join series s on s.id = l.serie_id
+        where s.total is not null and (l.seq < 1 or l.seq > s.total) limit 8`;
+      const [{ n: incompletas }] = await sql<{ n: string }[]>`
+        select count(*)::text as n from v_series
+        where tipo = 'parcelamento' and not completa`;
+
+      return {
+        ok: colisoes.length === 0 && foraDaFaixa.length === 0,
+        severidade: 'defeito',
+        medida: `${colisoes.length} posição(ões) repetida(s) · ${foraDaFaixa.length} fora da faixa 1..total · ${incompletas} séries incompletas (história, não defeito)`,
+        exemplos: [
+          ...colisoes.map((c) => `repetida: ${c.descricao} posição ${c.seq} ×${c.n}`),
+          ...foraDaFaixa.map((c) => `fora: ${c.descricao} posição ${c.seq} de ${c.total}`),
+        ],
+      };
+    },
+  },
+
+  {
+    id: 'serie-rotulo',
+    regra: 'C7 — o texto e o dado têm que concordar',
+    pergunta: 'O `N/M` da descrição bate com o `seq` e o `total` gravados?',
+    checar: async () => {
+      // O sufixo é apresentação e `seq` é o dado — mas se os dois divergirem, a
+      // pessoa lê uma coisa na lista e a tela de série opera outra. Foi assim
+      // que o `Seguro Casa` chegou aqui: nove linhas rotuladas `01/10` por uma
+      // célula arrastada, com a numeração real perdida.
+      const divergentes = await sql<{ id: number; descricao: string; seq: number; total: number }[]>`
+        select l.id, l.descricao, l.seq, s.total
+        from lancamentos l join series s on s.id = l.serie_id
+        where s.tipo = 'parcelamento'
+          -- Duas formas legítimas que um regex ingênuo acusa por engano:
+          -- o parêntese de Vacina RH- (4/4) e a parcela agrupada de
+          -- Japaratinga 3,4,5/6, onde o seq é o PRIMEIRO número.
+          and l.descricao !~ ('(^|[ (])0*' || l.seq || '([,+][0-9,+]*)?/0*' || s.total || '([ )]|$)')
+        order by l.data desc limit 8`;
+      const [{ n: reconstruidas }] = await sql<{ n: string }[]>`
+        select count(*)::text as n from series where origem = 'reconstruida'`;
+
+      return {
+        ok: divergentes.length === 0,
+        severidade: 'defeito',
+        medida: `${divergentes.length} descrição(ões) em desacordo com o dado · ${reconstruidas} série(s) com numeração reconstruída por heurística`,
+        exemplos: divergentes.map((d) => `#${d.id} "${d.descricao}" mas seq=${d.seq} de ${d.total}`),
+      };
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------

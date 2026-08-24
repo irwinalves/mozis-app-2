@@ -1,40 +1,154 @@
+/* =====================================================================
+   Tokens e primitivas do Mozi's App.
+
+   Copiados do `<style>` do `Form.html`, que segue sendo a referência enquanto
+   as duas telas convivem. Nada aqui é reinterpretação: se um valor divergir do
+   arquivo antigo, é bug, não escolha.
+
+   As regras que estes tokens carregam vêm do `PARA-O-APP-2.0.md`:
+
+     C6 — cor carrega significado. Pessoa, tipo e categoria têm paletas
+          próprias e fixas, iguais em qualquer tela.
+     C2 — quem pagou se lê pela foto, e a foto vem por URL. No app antigo ela
+          era embutida em base64 em CADA linha da lista: ~6 KB × 50 linhas.
+          Aqui `/avatar-irwin.jpg` é arquivo, baixado uma vez e cacheado.
+   ===================================================================== */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --stage: #edeef0;
+  --texto: #202124;
+  --texto2: #5f6368;
+  --texto3: #9aa0a6;
+  --borda-input: #dadce0;
+  --borda-card: #ebebeb;
+  --borda-card2: #f1f1f1;
+  --chip-neutro: #edeef0;
+  --suave: #f8f9fa;
+  --verde: #2f5233;
+  /* Sinal do efeito no acerto: verde = a receber, vermelho = a pagar (C1). */
+  --pos: #1e7b4f;
+  --neg: #c0392b;
+  --irwin: #1f4e79;
+  --irwin-l: #d9e7f5;
+  --maria: #6a1b9a;
+  --maria-l: #eadcf5;
+  --conjunta: #5f6368;
+  --conjunta-l: #f1f3f4;
+  --fixa: #a63a2e;
+  --fixa-l: #f6dcd8;
+  --var: #b8860b;
+  --var-l: #fbeed0;
+  --invest: #2e6b2e;
+  --invest-l: #d8ebd8;
+  --entrada: #0f6e56;
+  --entrada-l: #d6efe6;
+  --andre: #b85c00;
+  --andre-l: #fbe3cc;
+  /* Onde a tela precisa admitir risco ou palpite (C7). */
+  --aviso: #8a6d00;
+  --aviso-bg: #fbeed0;
+  --aviso-br: #e8d49a;
+  /* Valor anterior numa comparação antes/depois. */
+  --antes: #9aa0a6;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme='light']) {
+    --bg: #1e1e1e;
+    --stage: #121212;
+    --texto: #e8eaed;
+    --texto2: #9aa0a6;
+    --texto3: #6c7075;
+    --borda-input: #4b4f54;
+    --borda-card: #333438;
+    --borda-card2: #2a2b2e;
+    --chip-neutro: #2a2a2d;
+    --suave: #232326;
+    --verde: #4caf6d;
+    --pos: #4caf6d;
+    --neg: #e38b7d;
+    --irwin: #6fa8dc;
+    --irwin-l: #16233a;
+    --maria: #c58af0;
+    --maria-l: #2a1f3d;
+    --conjunta: #9aa0a6;
+    --conjunta-l: #2a2b2e;
+    --fixa: #e38b7d;
+    --fixa-l: #3a1f1c;
+    --var: #e6bd5c;
+    --var-l: #3a2f14;
+    --invest: #7bd98a;
+    --invest-l: #1b3320;
+    --entrada: #5ce0be;
+    --entrada-l: #123027;
+    --andre: #e39a4e;
+    --andre-l: #3a2a16;
+    --aviso: #e6bd5c;
+    --aviso-bg: #3a2f14;
+    --aviso-br: #5a4a20;
+    --antes: #6c7075;
   }
 }
 
-html {
-  height: 100%;
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #1e1e1e;
+  --stage: #121212;
+  --texto: #e8eaed;
+  --texto2: #9aa0a6;
+  --texto3: #6c7075;
+  --borda-input: #4b4f54;
+  --borda-card: #333438;
+  --borda-card2: #2a2b2e;
+  --chip-neutro: #2a2a2d;
+  --suave: #232326;
+  --verde: #4caf6d;
+  --pos: #4caf6d;
+  --neg: #e38b7d;
+  --irwin: #6fa8dc;
+  --irwin-l: #16233a;
+  --maria: #c58af0;
+  --maria-l: #2a1f3d;
+  --conjunta: #9aa0a6;
+  --conjunta-l: #2a2b2e;
+  --fixa: #e38b7d;
+  --fixa-l: #3a1f1c;
+  --var: #e6bd5c;
+  --var-l: #3a2f14;
+  --invest: #7bd98a;
+  --invest-l: #1b3320;
+  --entrada: #5ce0be;
+  --entrada-l: #123027;
+  --andre: #e39a4e;
+  --andre-l: #3a2a16;
+  --aviso: #e6bd5c;
+  --aviso-bg: #3a2f14;
+  --aviso-br: #5a4a20;
+  --antes: #6c7075;
 }
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
-body {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+:root[data-theme='light'] {
+  color-scheme: light;
 }
 
 * {
   box-sizing: border-box;
-  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
   margin: 0;
+  font-family: Roboto, Arial, sans-serif;
+  background: var(--stage);
+  color: var(--texto);
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
@@ -42,8 +156,719 @@ a {
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+/* ---------------------------------------------------------------------
+   Estrutura da tela — o mesmo shell do `Form.html`.
+   --------------------------------------------------------------------- */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  max-width: 520px;
+  margin: 0 auto;
+  background: var(--bg);
+  position: relative;
+  overflow: hidden;
+}
+
+.cabecalho {
+  padding: 8px 16px 11px;
+  padding-top: calc(8px + env(safe-area-inset-top));
+  border-bottom: 1px solid var(--borda-card);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex: 0 0 auto;
+  background: var(--bg);
+  z-index: 5;
+}
+.cabecalho .titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.cabecalho h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--texto);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.voltar {
+  font-size: 22px;
+  color: var(--texto2);
+  line-height: 1;
+  padding: 2px 4px 2px 0;
+  background: none;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.conteudo {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.pad {
+  padding: 13px 13px calc(13px + env(safe-area-inset-bottom));
+}
+
+/* ---------------------------------------------------------------------
+   Cartões e campos
+   --------------------------------------------------------------------- */
+
+.card {
+  background: var(--bg);
+  border: 1px solid var(--borda-card);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.card.suave {
+  background: var(--suave);
+}
+
+.campo {
+  margin-bottom: 11px;
+}
+.campo:last-child {
+  margin-bottom: 0;
+}
+.campo > label {
+  display: block;
+  font-size: 13px;
+  color: var(--texto2);
+  margin: 0 0 5px;
+}
+
+/* 16px NÃO é escolha estética: o Safari do iPhone dá zoom automático em
+   qualquer campo com fonte MENOR que 16px, e o zoom não volta sozinho — a tela
+   fica deslocada até fechar e reabrir. Se um campo precisar parecer menor,
+   mude padding ou largura, nunca a fonte. */
+input[type='text'],
+input[type='number'],
+input[type='date'],
+select,
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 16px;
+  border: 1px solid var(--borda-input);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--texto);
+  font-family: inherit;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--verde);
+}
+input[type='date'] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.dica {
+  font-size: 11.5px;
+  color: var(--texto3);
+  margin-top: 5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.aviso {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  background: var(--aviso-bg);
+  border: 1px solid var(--aviso-br);
+  color: var(--aviso);
+  border-radius: 8px;
+  padding: 9px 11px;
+  font-size: 12.5px;
+  margin-top: 9px;
+}
+.aviso b {
+  font-weight: 700;
+}
+
+.msg-erro {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 12px;
+  background: #fbe3e1;
+  color: #8c2a1e;
+  border: 1px solid #efb8b0;
+}
+
+.vazio {
+  padding: 22px 12px;
+  text-align: center;
+  color: var(--texto3);
+  font-size: 14px;
+}
+
+/* ---------------------------------------------------------------------
+   Barra de ação
+   --------------------------------------------------------------------- */
+
+.barra-acao {
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--borda-card);
+  flex: 0 0 auto;
+  background: var(--bg);
+}
+.btn-full {
+  width: 100%;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--borda-input);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.btn-full.valido {
+  background: var(--verde);
+}
+.btn-full:disabled {
+  cursor: default;
+}
+
+/* ---------------------------------------------------------------------
+   Linha de lançamento — o desenho da lista, igual ao do `Form.html`.
+   --------------------------------------------------------------------- */
+
+.item-lanc {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--borda-card2);
+}
+.item-lanc:last-child {
+  border-bottom: none;
+}
+.item-lanc[role='button'],
+a.item-lanc {
+  cursor: pointer;
+}
+a.item-lanc {
+  color: inherit;
+  text-decoration: none;
+}
+/* A foto de quem pagou, ao lado da data. */
+.quem-pagou {
+  border: none;
+}
+
+/* Fora do escopo de uma edição em lote. */
+.item-lanc.fora {
+  opacity: 0.38;
+}
+/* A linha de onde o usuário veio. Dois sinais diferentes podem cair na mesma
+   linha — "fora do escopo" (opacidade) e "você veio daqui" (trilho) — e
+   apagá-la por completo esconderia justamente a âncora. */
+.item-lanc.ancora {
+  background: var(--suave);
+  margin: 0 -12px;
+  padding-left: 12px;
+  padding-right: 12px;
+  box-shadow: inset 3px 0 0 var(--verde);
+}
+.item-lanc.fora.ancora {
+  opacity: 0.72;
+}
+.ancora-rot {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--verde);
+  margin-top: 1px;
+}
+
+.col-data {
+  width: 32px;
+  text-align: center;
+  flex: 0 0 32px;
+}
+.col-data .dia {
+  font-size: 16px;
+  font-weight: 500;
+}
+.col-data .mes {
+  font-size: 10px;
+  color: var(--texto3);
+  text-transform: uppercase;
+}
+
+.item-info {
+  flex: 1;
+  min-width: 0;
+}
+/* 15px: a descrição é o que identifica a transação, e medir a lista mostrou
+   que ela tinha MENOS espaço que o número. */
+.item-info .desc {
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.item-info .meta {
+  font-size: 11px;
+  color: var(--texto3);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.parc {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--texto2);
+  background: var(--chip-neutro);
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-right: 5px;
+  vertical-align: 1px;
+}
+
+.item-valor {
+  text-align: right;
+  flex: 0 0 auto;
+}
+.item-valor .v {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.item-valor .partes {
+  font-size: 11.5px;
+  color: var(--texto3);
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+/* A foto do André à esquerda do valor, fora do fluxo da descrição. */
+.tag-andre {
+  box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 3px var(--andre);
+}
+
+/* ---------------------------------------------------------------------
+   Efeito no acerto
+   --------------------------------------------------------------------- */
+
+.efeito {
+  font-variant-numeric: tabular-nums;
+}
+.efeito .pos,
+.efeito.pos {
+  color: var(--pos);
+  font-weight: 500;
+}
+.efeito .neg,
+.efeito.neg {
+  color: var(--neg);
+  font-weight: 500;
+}
+.efeito.nulo {
+  color: var(--texto3);
+}
+.efeito .sep {
+  color: var(--texto3);
+}
+
+.avatar-vazio {
+  display: inline-block;
+  background: var(--chip-neutro);
+  border: 1px dashed var(--borda-input);
+}
+
+/* ---------------------------------------------------------------------
+   Cabeçalho de série — forma fixa nos dois tipos.
+
+     1ª  nome, com `Editar ›` no canto
+     2ª  valor unitário (16px negrito) · quantas · valor total
+     3ª  período · cadência
+     4ª  classificação
+
+   Quem paga NÃO se repete aqui: já está no topo da tela. E o cartão inteiro é
+   tocável — o botão sozinho seria afordância pequena demais, e só o cartão
+   seria afordância invisível.
+   --------------------------------------------------------------------- */
+
+.serie-cab {
+  position: relative;
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+/* Duas colunas: o texto à esquerda, e à direita o `Editar` com a foto de quem
+   paga logo abaixo, alinhados entre si. Sem posicionamento absoluto — com ele,
+   as linhas de texto passariam por baixo da foto, e a conta de padding para
+   evitar isso quebraria a cada mudança de tamanho. */
+.serie-topo {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.serie-corpo {
+  flex: 1;
+  min-width: 0;
+}
+.serie-lado {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 9px;
+}
+.serie-cab .nome {
+  font-size: 19px;
+  font-weight: 500;
+}
+.serie-cab .editar {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--verde);
+  white-space: nowrap;
+}
+/* Maior que a da lista: aqui ela responde "de quem é esta série", que é
+   pergunta de cabeçalho, não de linha. */
+.serie-pagador {
+  box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 3px var(--borda-card);
+}
+/* O valor unitário é o número que se procura, então tem o mesmo peso do valor
+   na lista: 16px negrito. */
+.serie-l2 {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--texto2);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.serie-l2 .unit {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--texto);
+}
+.serie-l3 {
+  font-size: 12.5px;
+  color: var(--texto3);
+  margin-top: 3px;
+}
+.serie-l3 b {
+  color: var(--texto2);
+  font-weight: 700;
+}
+.serie-l4 {
+  font-size: 12.5px;
+  color: var(--texto2);
+  margin-top: 4px;
+}
+.ponto {
+  color: var(--texto3);
+}
+/* C7 — o cabeçalho mostra um valor por campo; onde o campo varia entre as
+   linhas ele avisa, em vez de escolher um e calar. */
+.serie-varia {
+  font-size: 11.5px;
+  color: var(--aviso);
+  margin-top: 6px;
+}
+.serie-prox {
+  font-size: 12.5px;
+  color: var(--texto3);
+  margin-top: 6px;
+}
+.serie-prox b {
+  color: var(--verde);
+  font-weight: 700;
+}
+.serie-barra {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--chip-neutro);
+  margin: 9px 0 5px;
+  overflow: hidden;
+}
+.serie-barra i {
+  display: block;
+  height: 100%;
+  background: var(--verde);
+  border-radius: 999px;
+}
+.serie-linha {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--texto3);
+}
+.serie-linha .fut {
+  color: var(--verde);
+  font-weight: 700;
+}
+
+/* Cabeçalho curto da edição vinda de uma linha: nome e data, valor e posição.
+   Categoria, tipo e origem não se repetem — estão logo abaixo, para editar. */
+.de-onde .qual {
+  font-size: 17px;
+  font-weight: 500;
+}
+.de-onde .val {
+  font-size: 13px;
+  color: var(--texto2);
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.de-onde .val b {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--texto);
+}
+
+.titulo-lista {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 2px 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto2);
+}
+.ver-mais {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px dashed var(--borda-input);
+  border-radius: 8px;
+  background: none;
+  color: var(--texto2);
+  font-size: 13px;
+  font-family: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------------
+   Escopo, campos e prévia da edição
+   --------------------------------------------------------------------- */
+
+.seg {
+  display: flex;
+  gap: 7px;
+}
+.seg button {
+  flex: 1;
+  text-align: center;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 4px;
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: inherit;
+  background: var(--chip-neutro);
+  color: var(--texto);
+  cursor: pointer;
+}
+.seg button b {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+.seg button.on {
+  background: var(--verde);
+  color: #fff;
+}
+
+.grade {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  align-items: start;
+}
+.grade .campo {
+  margin-bottom: 0;
+}
+
+/* Alternador valor da parcela ⇄ total. Só no parcelamento: numa recorrência
+   cada ocorrência tem o valor cheio e não há fim previsto, então um total
+   seria número inventado. */
+.rot-alt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 4px;
+}
+.rot-alt label {
+  margin: 0;
+}
+.alt {
+  display: inline-flex;
+  border: 1px solid var(--borda-input);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.alt button {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border: none;
+  background: none;
+  color: var(--texto2);
+  font-family: inherit;
+  cursor: pointer;
+}
+.alt button.on {
+  background: var(--verde);
+  color: #fff;
+}
+
+.mudado {
+  border-color: var(--verde) !important;
+  box-shadow: 0 0 0 1px var(--verde);
+}
+.nota-regra {
+  font-size: 12px;
+  color: var(--texto3);
+  margin-top: 8px;
+}
+.nota-regra b {
+  color: var(--texto2);
+}
+
+.prev {
+  margin-top: 10px;
+  background: var(--suave);
+  border: 1px solid var(--borda-card);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.prev h4 {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--texto2);
+  border-bottom: 1px solid var(--borda-card);
+}
+.prev .rolo {
+  max-height: 190px;
+  overflow-y: auto;
+}
+.prev .ln {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--borda-card2);
+}
+.prev .ln > span {
+  color: var(--texto2);
+}
+.prev .par {
+  display: flex;
+  gap: 7px;
+  align-items: baseline;
+  min-width: 0;
+}
+.prev .de {
+  color: var(--antes);
+  text-decoration: line-through;
+  font-size: 12px;
+}
+.prev .ln b {
+  font-variant-numeric: tabular-nums;
+}
+.prev .fim {
+  background: var(--bg);
+  padding: 10px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+.prev .fim .num {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--texto2);
+}
+.prev .fim .num.pos {
+  color: var(--pos);
+}
+.prev .fim .num.neg {
+  color: var(--neg);
+}
+
+/* ---------------------------------------------------------------------
+   Passado, futuro e o marco do hoje.
+
+   Duas classes distintas de propósito: `.fora` é "não entra nesta edição",
+   `.passada` é "já aconteceu" — estado da edição contra estado do mundo. Por
+   isso o apagamento é mais leve na segunda: a linha continua para ser lida.
+   --------------------------------------------------------------------- */
+
+.item-lanc.passada {
+  opacity: 0.62;
+}
+.item-lanc.passada .col-data .dia {
+  font-weight: 400;
+}
+/* A linha do futuro ganha o peso, não a do passado: é nela que se pode mexer. */
+.item-lanc:not(.passada) .col-data .dia {
+  color: var(--verde);
+}
+
+/* Sem ele, uma lista de 12 linhas iguais não diz onde a pessoa está — e foi
+   exatamente essa a dúvida no primeiro uso: "estava numerando certo?". A
+   numeração estava; faltava o ponto de referência. */
+.marco-hoje {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--verde);
+}
+.marco-hoje:before,
+.marco-hoje:after {
+  content: '';
+  height: 1px;
+  background: var(--borda-card);
+  flex: 1;
+}
+.marco-hoje:before {
+  flex: 0 0 24px;
 }
