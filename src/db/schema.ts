@@ -181,6 +181,11 @@ export const lancamentos = pgTable(
     /** A série a que este lançamento pertence. NULL = lançamento avulso. */
     serieId: integer('serie_id'),
     /**
+     * O lote de importação que criou esta linha. NULL = lançado à mão.
+     * É o que permite desfazer o lote inteiro e o que dá o selo na lista.
+     */
+    importacaoId: integer('importacao_id'),
+    /**
      * A posição na série — o `3` de `3/12`. É o DADO; o texto da descrição é
      * apresentação e continua carregando o sufixo, porque é o que a lista
      * mostra e o que a busca encontra.
@@ -208,6 +213,32 @@ export const lancamentos = pgTable(
     index('idx_lancamentos_serie').on(t.serieId, t.seq),
   ],
 );
+
+/**
+ * Um lote de importação.
+ *
+ * Existe por causa do DESFAZER, que não é enfeite: sem ele o primeiro erro
+ * custa limpar 120 linhas à mão, e o medo disso é o que faz a importação não
+ * ser usada — que é literalmente o estado de hoje, com zero linhas importadas
+ * em 3.544.
+ *
+ * E existe também para o lote poder ser VISTO. Uma importação é um evento: num
+ * dia entraram 120 gastos de uma fatura. Sem o lote, essa informação se dissolve
+ * em 120 linhas soltas e ninguém consegue mais responder o que entrou no dia.
+ */
+export const importacoes = pgTable('importacoes', {
+  id: serial('id').primaryKey(),
+  /** fatura · extrato. O sinal do valor é OPOSTO entre os dois. */
+  tipo: text('tipo').notNull(),
+  /** O que a tela mostra, por exemplo Cartão Itaú · Agosto/2026. */
+  titulo: text('titulo').notNull(),
+  arquivo: text('arquivo'),
+  criadaEm: timestamp('criada_em', { withTimezone: true }).notNull().defaultNow(),
+  /** Quem importou. Não é quem pagou — a fatura traz um pagador por linha. */
+  criadaPor: text('criada_por'),
+  qtd: integer('qtd').notNull().default(0),
+  total: numeric('total', { precision: 12, scale: 2 }).notNull().default('0'),
+});
 
 /**
  * Aba `Recorrências`: regras de gasto recorrente indefinido.

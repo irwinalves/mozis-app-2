@@ -872,3 +872,231 @@ a.item-lanc {
 .marco-hoje:before {
   flex: 0 0 24px;
 }
+
+/* ---------------------------------------------------------------------
+   Importação — abas, linha da fatura, conciliação
+   --------------------------------------------------------------------- */
+
+/* O `.seg` normal é uma fila; aqui são quatro opções de divisão e numa tela de
+   360px elas não cabem lado a lado sem virar sopa de letras. */
+.seg-quebra {
+  flex-wrap: wrap;
+}
+.seg-quebra button {
+  flex: 1 1 calc(50% - 4px);
+}
+
+.resumo-fat {
+  padding: 11px 13px;
+  margin-bottom: 10px;
+}
+.resumo-fat .nome {
+  font-size: 12px;
+  color: var(--texto3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resumo-fat .l2 {
+  font-size: 13px;
+  color: var(--texto2);
+  margin-top: 2px;
+}
+.resumo-fat .l2 b {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--texto);
+  font-variant-numeric: tabular-nums;
+}
+.resumo-fat .l3 {
+  font-size: 11.5px;
+  color: var(--texto3);
+  margin-top: 4px;
+}
+
+.abas {
+  display: flex;
+  gap: 7px;
+  margin-bottom: 9px;
+}
+.abas button {
+  flex: 1;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 4px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  background: var(--chip-neutro);
+  color: var(--texto);
+  cursor: pointer;
+}
+.abas button b {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  margin-top: 1px;
+}
+.abas button.on {
+  background: var(--verde);
+  color: #fff;
+}
+
+.dica-aba {
+  margin: 0 2px 9px;
+}
+
+.acoes-lista {
+  display: inline-flex;
+  gap: 10px;
+}
+.acoes-lista button {
+  border: none;
+  background: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--verde);
+  cursor: pointer;
+}
+
+/* A linha da fatura reaproveita o desenho da lista — data, foto, descrição,
+   valor — com a caixa de marcação na frente. Repetir o desenho é o ponto: a
+   pessoa já sabe ler esta linha. */
+.linha-fat {
+  border-bottom: 1px solid var(--borda-card2);
+}
+.linha-fat:last-child {
+  border-bottom: none;
+}
+.linha-fat > .topo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 2px;
+  cursor: pointer;
+}
+.linha-fat > .topo > input[type='checkbox'] {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--verde);
+  cursor: pointer;
+}
+/* Desmarcada é uma escolha, não um defeito: fica discreta, mas legível. */
+.linha-fat:not(.marcada) > .topo {
+  opacity: 0.55;
+}
+
+.corpo-fat {
+  padding: 2px 2px 12px 29px;
+}
+
+/* De onde veio o número: o lado da fatura em tom de observação. */
+.da-fatura {
+  font-size: 11.5px;
+  color: var(--texto3);
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: var(--suave);
+  margin-bottom: 9px;
+}
+
+.no-app {
+  border: 1px solid var(--borda-card);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.no-app .rot {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto3);
+  margin-bottom: 4px;
+}
+.no-app .ln {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+  padding: 2px 0;
+}
+.no-app .ln .q {
+  color: var(--texto3);
+  flex: 0 0 auto;
+}
+.no-app .ln b {
+  font-weight: 600;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-linha {
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px;
+  border: 1px solid var(--borda-input);
+  border-radius: 8px;
+  background: none;
+  color: var(--texto2);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.btn-linha.forte {
+  background: var(--verde);
+  border-color: var(--verde);
+  color: #fff;
+  font-weight: 700;
+}
+.btn-linha:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.btn-perigo {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--neg);
+  border-radius: 8px;
+  background: none;
+  color: var(--neg);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+.btn-perigo.forte {
+  background: var(--neg);
+  color: #fff;
+  margin-top: 10px;
+}
+.btn-perigo:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* O botão de lançar carrega duas informações: quantas linhas a pessoa marcou e
+   quantos lançamentos isso vira. Os dois números diferem por causa das
+   parcelas futuras, e a diferença surpreende se não estiver escrita. */
+.btn-full b {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 400;
+  opacity: 0.85;
+  margin-top: 2px;
+}
+
+.prev .fim s {
+  color: var(--antes);
+  font-weight: 400;
+  margin-right: 5px;
+}

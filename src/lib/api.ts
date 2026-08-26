@@ -30,6 +30,12 @@ import {
   sugerirCategoria,
   type CategoriaKw,
 } from './importacao';
+import { lerFaturaXlsx } from './faturaArquivo';
+import {
+  cruzar,
+  type ParcelaExistente,
+  type LancamentoExistente,
+} from './cruzamento';
 
 const MESES_PT = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -97,6 +103,7 @@ interface LinhaView extends Record<string, unknown> {
   saldo_irwin: string | null;
   serie_id: number | null;
   seq: number | null;
+  importacao_id: number | null;
 }
 
 /** Converte uma linha da view no item que a lista do Início espera. */
@@ -126,6 +133,8 @@ function paraItem(r: LinhaView) {
     // `montarParcelas`, sempre no formato " N/M" no fim. Não há coluna de
     // parcelamento e criar uma deixaria as 272 linhas do histórico de fora.
     parcelado: / \(?\d[\d,+]*\/\d+\)?$/.test(String(r.descricao || '')),
+    // Quando veio de um lote: a lista mostra o selo e o selo abre o lote.
+    importacaoId: r.importacao_id ?? null,
   };
 }
 
@@ -208,6 +217,10 @@ export interface FiltrosLista {
   recorrente?: boolean;
   /** Só parceladas. */
   parcelado?: boolean;
+  /** Só o que veio de um lote de importação. */
+  importado?: boolean;
+  /** Só as quitações do acerto. */
+  quitacao?: boolean;
   /** 'André' — ou 'casal' para o que NÃO tem dono. */
   gastoDe?: string;
   categoria?: string;
@@ -230,6 +243,9 @@ function clausulasDe(f: FiltrosLista = {}) {
   // `[0-9][0-9,+]*` cobre também as parcelas AGRUPADAS num lançamento só —
   // "Fotos parto 2+3/5" e "Japaratinga 3,4,5/6" são parceladas como as outras.
   if (f.parcelado) partes.push(sql`descricao ~ ' [(]?[0-9][0-9,+]*/[0-9]+[)]?$'`);
+  if (f.importado) partes.push(sql`importacao_id is not null`);
+  // A mesma regra do `ehQuitacaoDe`, do lado do SQL: categoria do grupo 9.
+  if (f.quitacao) partes.push(sql`categoria ~ '^9 '`);
   if (f.gastoDe === 'casal') partes.push(sql`gasto_de is null`);
   else if (f.gastoDe) partes.push(sql`gasto_de = ${f.gastoDe}`);
   if (f.categoria) partes.push(sql`categoria = ${f.categoria}`);
@@ -272,7 +288,43 @@ export async function ultimosLancamentos(
   }
 
   const temMais = linhas.length > qtd;
-  return { itens: linhas.slice(0, qtd).map(paraItem), temMais, qtdFuturos, resumo };
+  const itens = linhas.slice(0, qtd).map(paraItem);
+
+  /**
+   * As importações que a lista deve mostrar como EVENTO.
+   *
+   * Um lote não é um lançamento e não pode virar um: seria uma linha a mais no
+   * resultado do mês. Vem em separado e a lista o encaixa pela data — do mesmo
+   * jeito que uma quitação aparece entre os gastos sem ser gasto.
+   *
+   * Aparece SEMPRE, mesmo com efeito zero no acerto: o app não serve só para o
+   * acerto, serve para saber como andam os gastos, e uma fatura inteira que
+   * entrou de uma vez é a informação mais volumosa do mês.
+   */
+  const eventos = await eventosDeImportacao(itens.length ? itens[itens.length - 1].data : null);
+
+  return { itens, temMais, qtdFuturos, resumo, eventos };
+}
+
+async function eventosDeImportacao(dataMaisAntiga: string | null) {
+  if (!dataMaisAntiga) return [];
+  const linhas = await db.execute<{
+    id: number; titulo: string; criada_em: string | Date; qtd: number;
+    total: string; saldo: string | null;
+  }>(sql`select i.id, i.titulo, i.criada_em, i.qtd, i.total,
+                (select round(sum(l.saldo_irwin)::numeric, 2)::text
+                   from v_lancamentos l where l.importacao_id = i.id) as saldo
+         from importacoes i
+         where i.criada_em::date >= ${dataMaisAntiga}
+         order by i.criada_em desc limit 24`);
+  return linhas.map((i) => ({
+    id: i.id,
+    data: isoDaLinha(i.criada_em),
+    titulo: i.titulo,
+    qtd: i.qtd,
+    total: Number(i.total),
+    efeitoNoAcerto: Number(i.saldo ?? 0),
+  }));
 }
 
 /**
@@ -1420,4 +1472,350 @@ export async function atualizarSerie(
   });
 
   return { ok: true, qtd: alvo.length, mudouRegra: alcancaFuturo && !!s?.recorrencia_id };
+}
+
+// ---------------------------------------------------------------------------
+// Importação de fatura
+// ---------------------------------------------------------------------------
+
+/**
+ * Lê a fatura e cruza com o que já existe. NÃO grava nada.
+ *
+ * O arquivo chega em base64 porque a rota de RPC fala JSON — e a fatura real
+ * tem 15 KB, então não vale inventar um segundo transporte para ela.
+ */
+export async function analisarFatura(arquivoB64: string, nomeArquivo: string) {
+  const buffer = Buffer.from(arquivoB64, 'base64');
+  const r = await lerFaturaXlsx(buffer);
+  if (!r.linhas.length) {
+    throw new Error('Nenhum lançamento reconhecido. Confira se o arquivo é a fatura do cartão.');
+  }
+
+  const primeira = r.linhas.map((l) => l.data).sort()[0];
+
+  // Os candidatos do cruzamento. `parcelas` é a chave forte — posição na série;
+  // `avulsos` é a fraca — valor e data próxima.
+  const parcelas = await db.execute<ParcelaExistente & Record<string, unknown>>(
+    sql`select l.id as "lancamentoId", s.id as "serieId", s.descricao as "serieDescricao",
+               l.seq, s.total, l.data::text as data, l.valor_total::float as valor
+        from lancamentos l join series s on s.id = l.serie_id
+        where s.tipo = 'parcelamento' and s.total is not null and l.seq is not null`,
+  );
+  const avulsos = await db.execute<LancamentoExistente & Record<string, unknown>>(
+    sql`select id, data::text as data, descricao, valor_total::float as valor
+        from lancamentos where data >= ${primeira}`,
+  );
+
+  const classificadas = cruzar(r.linhas, parcelas, avulsos);
+
+  // O lado do APP para as que casaram: é o que a tela de conciliação mostra
+  // ao lado do lado da fatura, e é onde aparecem as divergências de valor.
+  const ids = classificadas
+    .map((c) => ('lancamentoId' in c.situacao ? c.situacao.lancamentoId : null))
+    .filter((x): x is number => x !== null);
+  const doApp = new Map<number, Record<string, unknown>>();
+  if (ids.length) {
+    const linhas = await db.execute<{ id: number } & Record<string, unknown>>(
+      sql`select id, data::text as data, descricao, categoria, tipo, fonte,
+                 valor_total::float as valor, divisao, quem_pagou as "quemPagou",
+                 gasto_de as "gastoDe", serie_id as "serieId"
+          from lancamentos where id in ${sql`(${sql.join(ids.map((i) => sql`${i}`), sql`, `)})`}`,
+    );
+    for (const l of linhas) doApp.set(l.id, l);
+  }
+
+  const plano = await planoParaSugestao();
+
+  return {
+    arquivo: nomeArquivo,
+    total: r.total,
+    descartadas: r.descartadas,
+    linhas: classificadas.map((c, i) => {
+      const idApp = 'lancamentoId' in c.situacao ? c.situacao.lancamentoId : null;
+      const app = idApp !== null ? (doApp.get(idApp) ?? null) : null;
+      return {
+        // Índice estável para a tela referenciar a linha sem precisar de id —
+        // ela ainda não existe no banco.
+        i,
+        ...c.linha,
+        situacao: c.situacao,
+        app,
+        /**
+         * A categoria sugerida. Quando a linha CASOU, herda a de quem casou —
+         * muito melhor que adivinhar por um texto como
+         * `Ifd*dpc Culinaria Japonesbelo`. Sem casamento, cai na sugestão por
+         * palavra-chave, que erra bastante e por isso a tela deixa editar.
+         */
+        categoriaSugerida:
+          (app?.categoria as string | undefined) ?? sugerirCategoria(c.linha.descricao, plano),
+        /** Divergência de valor com o que está no app, quando houver. */
+        difValor: app ? arred(c.linha.valor - Number(app.valor)) : null,
+      };
+    }),
+  };
+}
+
+export interface LinhaParaLancar {
+  data: string;
+  descricao: string;
+  valor: number;
+  grupo: string;
+  tipo?: string;
+  quemPagou: string;
+  divisao: string;
+  pctIrwinCustom?: number | null;
+  gastoDe?: string | null;
+  /** Quando vem de `Parcela 1 de N`: cria a série inteira, não uma linha. */
+  parcelas?: number | null;
+}
+
+/**
+ * Grava o lote. Uma transação só.
+ *
+ * Uma linha marcada como `Parcela 1 de N` vira N lançamentos, um por mês, com
+ * `serie_id` — e não uma linha na data da compra. É o que faz a fatura do mês
+ * seguinte reconhecer a parcela 2 em vez de duplicar.
+ */
+export async function lancarFatura(
+  linhas: LinhaParaLancar[],
+  meta: { titulo: string; arquivo?: string; criadaPor?: string | null },
+) {
+  if (!linhas.length) throw new Error('Nada marcado para lançar.');
+  for (const l of linhas) exigirPagador(l.quemPagou);
+
+  const pctRenda = await pctDaRenda();
+
+  return db.transaction(async (tx) => {
+    const [imp] = await tx.execute<{ id: number }>(
+      sql`insert into importacoes (tipo, titulo, arquivo, criada_por, qtd, total)
+          values ('fatura', ${meta.titulo}, ${meta.arquivo ?? null},
+                  ${meta.criadaPor ?? null}, 0, 0)
+          returning id`,
+    );
+
+    let qtd = 0;
+    let total = 0;
+    const paraGravar: Record<string, string | number | boolean | null>[] = [];
+
+    for (const l of linhas) {
+      const pct = pctIrwinDe(l.divisao, l.pctIrwinCustom ?? null, pctRenda);
+      const pctCustomFracao =
+        l.divisao === 'Custom' ? (Number(l.pctIrwinCustom) || 0) / 100 : null;
+      const tipoFinal = l.tipo || (await planoTipoPadrao(l.grupo));
+
+      // Parcelada: a série inteira. `montarParcelas` é reaproveitada, não
+      // reescrita — é ela que faz a última absorver o arredondamento (A7).
+      const ocorrencias =
+        l.parcelas && l.parcelas > 1
+          ? montarParcelas({
+              data: l.data,
+              descricao: l.descricao,
+              valor: arred(l.valor * l.parcelas),
+              parcelado: true,
+              parcelas: l.parcelas,
+              tipoValor: 'total',
+            } as DadosParcelas)
+          : [{ data: dataLocal(l.data), descricao: l.descricao, valor: arred(l.valor) }];
+
+      let serieId: number | null = null;
+      if (ocorrencias.length > 1) {
+        const [s] = await tx.execute<{ id: number }>(
+          sql`insert into series (tipo, descricao, total, origem)
+              values ('parcelamento', ${l.descricao}, ${ocorrencias.length}, 'fatura')
+              returning id`,
+        );
+        serieId = s.id;
+      }
+
+      for (let k = 0; k < ocorrencias.length; k++) {
+        const o = ocorrencias[k];
+        const parteIrwin = arred(o.valor * pct);
+        const pagoIrwin = pagoIrwinDe(l.quemPagou as never, o.valor, parteIrwin, null);
+        // Os números vão como TEXTO e o Postgres os lê como `numeric`. Passar
+        // `float` aqui reintroduziria a regra nº 4 pela porta dos fundos: o
+        // JSON de um `number` é decimal binário, e 15,345 não existe nele.
+        paraGravar.push({
+          data: formatarData(o.data),
+          descricao: o.descricao,
+          categoria: l.grupo,
+          tipo: tipoFinal,
+          valor: String(o.valor),
+          divisao: l.divisao,
+          pct_custom: pctCustomFracao === null ? null : String(pctCustomFracao),
+          pct: String(pct),
+          eh_quitacao: ehQuitacaoDe(l.grupo),
+          quem_pagou: l.quemPagou,
+          pago_irwin: pagoIrwin === null ? null : String(pagoIrwin),
+          gasto_de: l.gastoDe || null,
+          serie_id: serieId,
+          seq: serieId ? k + 1 : null,
+        });
+        qtd++;
+        total += o.valor;
+      }
+    }
+
+    /**
+     * Uma inserção só, não 154.
+     *
+     * Medido em 26/08/2026: o laço linha a linha levava 10,7 s para a fatura de
+     * agosto — 70 ms de ida e volta vezes 154. Cabe no limite da função hoje,
+     * mas é o tipo de custo que cresce com o tamanho da fatura e falha no dia
+     * em que ela for maior. `jsonb_to_recordset` faz o banco receber o lote
+     * inteiro de uma vez; a regra de montagem das parcelas (A7, A8) continua
+     * exatamente onde estava, em `montarParcelas`.
+     */
+    if (paraGravar.length) {
+      await tx.execute(
+        sql`insert into lancamentos
+              (data, descricao, categoria, tipo, cat_original, fonte, valor_total,
+               divisao, pct_irwin_custom, pct_irwin, eh_quitacao, quem_pagou,
+               pago_irwin, recorrente, gasto_de, serie_id, seq, importacao_id)
+            select r.data::date, r.descricao, r.categoria, r.tipo,
+                   'Fatura do cartão', 'Cartão', r.valor::numeric, r.divisao,
+                   r.pct_custom::numeric, r.pct::numeric, r.eh_quitacao,
+                   r.quem_pagou, r.pago_irwin::numeric, false, r.gasto_de,
+                   r.serie_id, r.seq, ${imp.id}
+            from jsonb_to_recordset(${JSON.stringify(paraGravar)}::jsonb) as r(
+              data text, descricao text, categoria text, tipo text, valor text,
+              divisao text, pct_custom text, pct text, eh_quitacao boolean,
+              quem_pagou text, pago_irwin text, gasto_de text,
+              serie_id int, seq int)`,
+      );
+    }
+
+    await tx.execute(
+      sql`update importacoes set qtd = ${qtd}, total = ${arred(total)} where id = ${imp.id}`,
+    );
+    return { importacaoId: imp.id, qtd, total: arred(total) };
+  });
+}
+
+/** Um lote, com o que ele criou — a tela do evento e o desfazer. */
+export async function obterImportacao(id: number, pessoa: Pessoa | null = null) {
+  const [imp] = await db.execute<{
+    id: number; tipo: string; titulo: string; arquivo: string | null;
+    criada_em: string | Date; criada_por: string | null; qtd: number; total: string;
+  }>(sql`select * from importacoes where id = ${id}`);
+  if (!imp) throw new Error('Importação não encontrada.');
+
+  const linhas = await db.execute<LinhaView & Record<string, unknown>>(
+    sql`select * from v_lancamentos where importacao_id = ${id} order by data desc, id desc`,
+  );
+  const [ef] = await db.execute<{ saldo: string }>(
+    sql`select coalesce(round(sum(saldo_irwin)::numeric, 2), 0)::text as saldo
+        from v_lancamentos where importacao_id = ${id}`,
+  );
+  const [{ n: series }] = await db.execute<{ n: string }>(
+    sql`select count(distinct serie_id)::text as n from lancamentos
+        where importacao_id = ${id} and serie_id is not null`,
+  );
+
+  return {
+    id: imp.id,
+    tipo: imp.tipo,
+    titulo: imp.titulo,
+    arquivo: imp.arquivo,
+    criadaEm: isoDaLinha(imp.criada_em),
+    criadaPor: imp.criada_por,
+    qtd: imp.qtd,
+    total: Number(imp.total),
+    series: Number(series),
+    efeitoNoAcerto: Number(ef?.saldo ?? 0),
+    eu: pessoa,
+    itens: linhas.map(paraItem),
+  };
+}
+
+/** As importações, da mais recente para trás. */
+export async function listarImportacoes(limite = 12) {
+  const linhas = await db.execute<{
+    id: number; titulo: string; criada_em: string | Date; qtd: number; total: string;
+  }>(sql`select id, titulo, criada_em, qtd, total from importacoes
+         order by criada_em desc limit ${limite}`);
+  return linhas.map((i) => ({
+    id: i.id,
+    titulo: i.titulo,
+    criadaEm: isoDaLinha(i.criada_em),
+    qtd: i.qtd,
+    total: Number(i.total),
+  }));
+}
+
+/**
+ * Desfaz o lote inteiro.
+ *
+ * Apaga também as SÉRIES que a importação criou — uma série de 3 parcelas que
+ * nasceu aqui não deve sobreviver ao desfazer, ou vira uma série vazia que
+ * ninguém sabe de onde veio.
+ */
+export async function desfazerImportacao(id: number) {
+  return db.transaction(async (tx) => {
+    const [{ n }] = await tx.execute<{ n: string }>(
+      sql`select count(*)::text as n from lancamentos where importacao_id = ${id}`,
+    );
+    const series = await tx.execute<{ serie_id: number }>(
+      sql`select distinct serie_id from lancamentos
+          where importacao_id = ${id} and serie_id is not null`,
+    );
+    await tx.execute(sql`delete from lancamentos where importacao_id = ${id}`);
+    for (const s of series) {
+      // Só apaga a série se ela ficou vazia: uma parcela lançada à mão pode ter
+      // sido ligada à mesma série depois.
+      await tx.execute(
+        sql`delete from series where id = ${s.serie_id}
+            and not exists (select 1 from lancamentos where serie_id = ${s.serie_id})`,
+      );
+    }
+    await tx.execute(sql`delete from importacoes where id = ${id}`);
+    return { ok: true, apagados: Number(n) };
+  });
+}
+
+/**
+ * Adota o valor da fatura num lançamento que já existe.
+ *
+ * A prévia vem antes, porque mudar o valor mexe no acerto daquele mês — e a
+ * regra é a mesma da edição de série: o número aparece antes de confirmar.
+ */
+export async function previewConciliacao(idLancamento: number, novoValor: number) {
+  const [l] = await db.execute<LinhaView>(
+    sql`select * from v_lancamentos where id = ${idLancamento}`,
+  );
+  if (!l) throw new Error('Lançamento não encontrado.');
+
+  const valor = arred(novoValor);
+  const pct = Number(l.pct_irwin);
+  const parteIrwin = arred(valor * pct);
+  const pagoIrwin = pagoIrwinDe(l.quem_pagou as never, valor, parteIrwin, null);
+  const novoSaldo = (pagoIrwin ?? 0) - valor * pct;
+
+  const [{ delta }] = await db.execute<{ delta: string }>(
+    sql`select round((${String(novoSaldo)}::numeric - saldo_irwin)::numeric, 2)::text as delta
+        from v_lancamentos where id = ${idLancamento}`,
+  );
+
+  return {
+    antes: { valor: Number(l.valor_total), saldoIrwin: l.saldo_irwin === null ? null : Number(l.saldo_irwin) },
+    depois: { valor, saldoIrwin: novoSaldo },
+    deltaAcerto: Number(delta),
+  };
+}
+
+export async function conciliarValor(idLancamento: number, novoValor: number) {
+  const [l] = await db.execute<LinhaView>(
+    sql`select * from v_lancamentos where id = ${idLancamento}`,
+  );
+  if (!l) throw new Error('Lançamento não encontrado.');
+
+  const valor = arred(novoValor);
+  const pct = Number(l.pct_irwin);
+  const parteIrwin = arred(valor * pct);
+  const pagoIrwin = pagoIrwinDe(l.quem_pagou as never, valor, parteIrwin, null);
+
+  await db.execute(
+    sql`update lancamentos set valor_total = ${valor}, pago_irwin = ${pagoIrwin}
+        where id = ${idLancamento}`,
+  );
+  return { ok: true };
 }

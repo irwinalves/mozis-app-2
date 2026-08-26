@@ -318,6 +318,25 @@ input.valor-grande{font-size:16px;font-weight:700;letter-spacing:.2px}
       align-items:center;justify-content:center;font-size:9px;line-height:1}
 .vazio{color:var(--texto3);font-size:13px;padding:8px 0}
 
+/* Selo do lote: a linha diz de onde veio e o toque leva ao lote inteiro.
+   Fica no fim da descrição, não na frente, para não empurrar o texto. */
+.tag-fatura{display:inline-flex;align-items:center;font-size:10px;font-weight:700;
+      color:var(--var);background:var(--var-l);border-radius:3px;padding:0 4px;
+      margin-left:6px;vertical-align:1px;letter-spacing:.02em;cursor:pointer}
+/* O evento não é lançamento: sem coluna de data, sem foto, sem valor à direita
+   com sinal de acerto. É uma faixa que marca o dia em que algo entrou em bloco. */
+.item-evento{display:flex;align-items:center;gap:9px;padding:9px 10px;margin:6px 0;
+      border:1px dashed var(--borda-input);border-radius:8px;cursor:pointer;
+      background:var(--suave)}
+.item-evento .ic{flex:0 0 22px;height:22px;border-radius:999px;display:flex;
+      align-items:center;justify-content:center;font-size:11px;
+      background:var(--var-l);color:var(--var)}
+.item-evento .txt{flex:1;min-width:0}
+.item-evento .txt .t{font-size:13px;font-weight:600;white-space:nowrap;
+      overflow:hidden;text-overflow:ellipsis}
+.item-evento .txt .s{font-size:11px;color:var(--texto3);margin-top:1px}
+.item-evento .seta{color:var(--texto3);font-size:15px}
+
 /* botão importar */
 .btn-importar{width:100%;border:1px solid var(--borda-input);border-radius:8px;padding:12px;background:var(--bg);
       color:var(--verde);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit;margin-bottom:12px}
@@ -503,7 +522,7 @@ select#classeInvest{margin-top:0}
     <div class="screen" id="screen-new">
       <div class="pad">
         <div class="msg-erro" id="erroLanc"></div>
-        <button class="btn-importar" id="btnImportar">↥ Importar extrato do cartão</button>
+        <button class="btn-importar" id="btnImportar">↥ Importar fatura do cartão</button>
         <div class="card">
           <div class="row">
             <div class="campo"><label>Data</label><input type="date" id="fData"></div>
@@ -715,7 +734,7 @@ const AVATAR_ANDRE = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQABLAEsAAD/4QNiRXh
   document.head.appendChild(st);
 })();
 
-let OPC = null, DASH = null, ULTIMOS = null;
+let OPC = null, DASH = null, ULTIMOS = null, EVENTOS = [];
 /* Os filtros da lista. Vazio = sem filtro; combinam entre si com E.
    O backend recebe este objeto como está — `clausulasDe` em src/lib/api.ts.
 
@@ -857,7 +876,12 @@ if (!navigator.onLine) $('offline').classList.add('on');
 document.querySelectorAll('#tabbar button').forEach(function(b){
   b.onclick = function(){ tabAtiva = b.dataset.tab; irPara(b.dataset.tab); };
 });
-$('btnImportar').onclick = function(){ irPara('import'); };
+/* A fatura do cartão passou a ter tela própria em React: ela lê o `.xlsx`
+   exportado pelo banco, cruza com o que já está no app e pede validação linha a
+   linha. A tela antiga (`irPara('import')`) só lia OFX e CSV colados, e nunca
+   soube de quem era o cartão nem qual parcela era — continua no arquivo, mas
+   fora do caminho, à espera da decisão de aposentá-la na migração. */
+$('btnImportar').onclick = function(){ location.href = '/importar'; };
 $('btnVoltar').onclick = function(){ irPara('home'); };
 
 function irPara(tela){
@@ -1069,6 +1093,8 @@ function montarFiltros(){
   fchip(c, 'André', !!FILTROS.gastoDe, 'on-andre', AVATAR_ANDRE, alterna('gastoDe', 'André'));
   fchip(c, 'Parceladas', !!FILTROS.parcelado, 'on', null, alterna('parcelado', true));
   fchip(c, 'Recorrentes', !!FILTROS.recorrente, 'on', null, alterna('recorrente', true));
+  fchip(c, 'Importados', !!FILTROS.importado, 'on', null, alterna('importado', true));
+  fchip(c, 'Quitações', !!FILTROS.quitacao, 'on', null, alterna('quitacao', true));
   if (OPC){
     fchipSelect(c, 'Categoria', FILTROS.categoria || '',
       OPC.grupos.map(function(g){ return g.nome; }),
@@ -1108,6 +1134,7 @@ function carregarUltimos(opts){
   if (!opts.manterBusca) $('buscaLanc').value = '';
   google.script.run.withSuccessHandler(function(r){
     ULTIMOS = r.itens;
+    EVENTOS = r.eventos || [];
     temMaisUltimos = r.temMais;
     qtdFuturos = r.qtdFuturos || 0;
     profundidadeLista = Math.max(QTD_RECENTES, ULTIMOS.length);
@@ -1121,6 +1148,8 @@ function carregarMaisUltimos(){
   const b = $('btnVerMais'); b.textContent = 'Carregando…';
   google.script.run.withSuccessHandler(function(r){
     ULTIMOS = ULTIMOS.concat(r.itens);
+    // A janela cresceu: podem ter entrado lotes mais antigos.
+    EVENTOS = r.eventos || EVENTOS;
     temMaisUltimos = r.temMais;
     qtdFuturos = r.qtdFuturos || 0;
     profundidadeLista = ULTIMOS.length;
@@ -1143,6 +1172,9 @@ $('btnFuturos').onclick = function(){
 function buscarLanc(termo){
   google.script.run.withSuccessHandler(function(lista){
     ULTIMOS = lista;
+    // Numa busca a lista não é cronológica contínua, e um evento encaixado
+    // pela data ficaria no lugar errado. Some.
+    EVENTOS = [];
     renderUltimos();
     // A busca tem teto de 60 resultados, então somar aqui responderia outra
     // pergunta. O resumo é da lista filtrada, não da busca.
@@ -1165,6 +1197,10 @@ $('buscaLanc').addEventListener('input', function(){
 $('btnVerMais').onclick = carregarMaisUltimos;
 
 $('listaUltimos').addEventListener('click', function(e){
+  // O lote vem primeiro: o selo mora DENTRO da linha, e sem isto o clique nele
+  // abriria a edição do lançamento em vez do lote.
+  const lote = e.target.closest('[data-importacao]');
+  if (lote){ e.stopPropagation(); location.href = '/importacao/' + lote.dataset.importacao; return; }
   const item = e.target.closest('.item-lanc');
   if (!item) return;
   const linha = Number(item.dataset.linha);
@@ -1178,11 +1214,14 @@ function renderUltimos(){
   }
   let h = '';
   let mesAtual = null;
+  // Os eventos entram pela data, na mesma ordem decrescente da lista.
+  const pendentes = (EVENTOS || []).slice().sort(function(a, b){ return a.data < b.data ? 1 : -1; });
   ULTIMOS.forEach(function(x){
     if (x.mesChave && x.mesChave !== mesAtual){
       mesAtual = x.mesChave;
       h += '<div class="mes-separador">' + escapeHtml(x.mesLabel || '') + '</div>';
     }
+    while (pendentes.length && pendentes[0].data >= x.data) h += htmlEvento(pendentes.shift());
     const c = CATS[x.categoria] || {forte:'#6E6E6E'};
     const quit = ehQuitacao(x.categoria);
     const marcaCat = quit
@@ -1207,6 +1246,12 @@ function renderUltimos(){
     const m = /^(.*) \(?(\d[\d,+]*\/\d+)\)?$/.exec(String(x.descricao || ''));
     const marcaParcela = m ? '<span class="tag-parcela">' + m[2] + '</span>' : '';
     const descricaoLimpa = m ? m[1] : x.descricao;
+    /* Veio de um lote: o selo diz de onde, e leva ao lote inteiro. Vai no FIM
+       da descrição porque, ao contrário da parcela, não é o que se procura ao
+       varrer a lista — é o que se quer quando já se achou. */
+    const tagFatura = x.importacaoId
+      ? '<span class="tag-fatura" data-importacao="' + x.importacaoId + '" title="Veio de uma importação">fatura</span>'
+      : '';
     const tagRecorrente = x.recorrente
       ? '<span class="tag-recorrente" title="Gasto recorrente"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></span>'
       : '';
@@ -1214,14 +1259,32 @@ function renderUltimos(){
       '<div class="col-data"><div class="dia">' + x.dia + '</div><div class="mes">' + x.mesAbrev + '</div></div>' +
       avatarHtml +
       marcaCat +
-      '<div class="item-info"><div class="desc">' + tagRecorrente + marcaParcela + escapeHtml(descricaoLimpa) + '</div>' +
+      '<div class="item-info"><div class="desc">' + tagRecorrente + marcaParcela + escapeHtml(descricaoLimpa) + tagFatura + '</div>' +
       '<div class="meta">' + (quit ? metaQuitacao(x) : escapeHtml(x.categoria || '') + ' · ' + escapeHtml(x.tipo || '')) + '</div></div>' +
       tagAndre +
       '<div class="item-valor"><div class="v">' + brl(x.valor) + '</div>' +
       efeitoNoAcerto(x.saldoIrwin) + '</div>' +
       '</div>';
   });
+  pendentes.forEach(function(ev){ h += htmlEvento(ev); });
   $('listaUltimos').innerHTML = h;
+}
+
+/* A faixa de um lote de importação.
+
+   Mostra o que ela É — quantas linhas e quanto somam — e o que ela FEZ no
+   acerto. Os dois números são diferentes e os dois importam: uma fatura de
+   R$ 18 mil pode ter efeito zero no acerto, porque cada um pagou o próprio
+   cartão, e mesmo assim é o maior acontecimento do mês nos gastos. */
+function htmlEvento(ev){
+  const efeito = Math.abs(Number(ev.efeitoNoAcerto || 0)) < 0.005
+    ? 'sem efeito no acerto'
+    : 'no acerto: ' + efeitoNoAcertoTexto(ev.efeitoNoAcerto);
+  return '<div class="item-evento" data-importacao="' + ev.id + '">' +
+    '<span class="ic">\u21E9</span>' +
+    '<div class="txt"><div class="t">' + escapeHtml(ev.titulo || 'Importação') + '</div>' +
+    '<div class="s">' + ev.qtd + ' lançamentos · ' + brl(ev.total) + ' · ' + efeito + '</div></div>' +
+    '<span class="seta">\u203A</span></div>';
 }
 
 /* Quitação de acerto não é despesa: é o acerto sendo pago. O backend já a exclui do
@@ -1267,6 +1330,13 @@ function efeitoNoAcerto(saldoIrwin){
     '<span class="' + (s > 0 ? 'pos' : 'neg') + '">I ' + comSinal(s) + '</span> · ' +
     '<span class="' + (s > 0 ? 'neg' : 'pos') + '">M ' + comSinal(-s) + '</span>' +
     '</div>';
+}
+
+/* A mesma conta em texto puro, para onde não cabe marcação — a faixa do lote.
+   Chama a de cima e tira as tags: duas versões da regra "cada um vê só o seu
+   lado" divergiriam no dia em que uma das duas mudasse. */
+function efeitoNoAcertoTexto(saldoIrwin){
+  return efeitoNoAcerto(saldoIrwin).replace(/<[^>]+>/g, '');
 }
 
 function escapeHtml(s){
