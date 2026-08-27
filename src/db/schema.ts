@@ -20,6 +20,7 @@ import {
   boolean,
   index,
   timestamp,
+  jsonb,
 } from 'drizzle-orm/pg-core';
 
 /**
@@ -238,6 +239,16 @@ export const importacoes = pgTable('importacoes', {
   criadaPor: text('criada_por'),
   qtd: integer('qtd').notNull().default(0),
   total: numeric('total', { precision: 12, scale: 2 }).notNull().default('0'),
+  /**
+   * As DECISÕES da revisão, não o resultado dela.
+   *
+   * O lote guarda o que foi lançado; isto guarda o que foi resolvido — as
+   * linhas que ficaram DE FORA, a categoria escolhida para cada uma, o nome
+   * reescrito. Sem isso, reabrir uma importação para ajustar mostraria só o
+   * que entrou, e "desmarquei essa linha de propósito" viraria "essa linha
+   * nunca existiu". É o que torna a edição de um lote possível.
+   */
+  estado: jsonb('estado'),
 });
 
 /**

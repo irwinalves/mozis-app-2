@@ -116,7 +116,7 @@ export default async function PaginaImportacao({
             )}
           </div>
 
-          <Desfazer id={imp.id} qtd={imp.qtd} />
+          <Desfazer id={imp.id} qtd={imp.qtd} podeEditar={imp.podeEditar} />
         </div>
       </div>
     </>

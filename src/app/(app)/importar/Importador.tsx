@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * A importação da fatura, em duas etapas na mesma rota.
+ * A importação da fatura: escolher o arquivo, revisar linha a linha, lançar.
  *
- * POR QUE UMA ROTA SÓ
+ * POR QUE UMA ROTA SÓ PARA AS DUAS ETAPAS
  *
  * A análise de 154 linhas nasce de um arquivo do aparelho e não existe no
  * banco até o botão do fim. Passá-la para uma segunda rota exigiria serializar
@@ -15,10 +15,14 @@
  * Nenhuma linha é lançada nem descartada por ter casado. O que o casamento faz
  * é ORDENAR o trabalho em três abas e escolher o padrão de cada uma — e todas
  * as três aparecem, com o que casou visível, para a validação acontecer sobre
- * o conjunto inteiro. Qualquer linha pode ser tirada da aba onde caiu.
+ * o conjunto inteiro. Qualquer linha pode sair da aba onde caiu.
  *
- * A ordem das abas é a ordem do esforço: o que já está no app é conferência, o
- * que é parcelado tem consequência futura, e o que é novo é o volume.
+ * O MESMO COMPONENTE EDITA UM LOTE JÁ IMPORTADO
+ *
+ * Com `edicao`, ele abre direto na revisão, com as decisões que foram tomadas
+ * no dia — inclusive as linhas que ficaram DE FORA. Uma segunda tela de
+ * revisão "só para editar" seria a mesma tela escrita duas vezes, e a que fica
+ * para trás é sempre a que grava errado.
  */
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -71,26 +75,64 @@ const PADRAO_PAGADOR = 'pagador';
 
 interface Estado {
   marcada: boolean;
+  /** Vazio = o nome da fatura vale. A tela mostra o original apagado atrás. */
+  descricao: string;
   grupo: string;
   divisao: string;
   quemPagou: string;
   aberta: boolean;
   /** Tirada da aba onde o cruzamento a pôs: passa a valer como gasto novo. */
   forcadaNova: boolean;
+  /**
+   * A aba em que a linha está SENDO editada.
+   *
+   * Sem isto, marcar "não é o mesmo gasto" tiraria a linha de baixo do dedo:
+   * ela pularia para outra aba no mesmo toque, antes de o nome e a categoria
+   * serem ajustados. Fica presa até ser fechada.
+   */
+  abaTravada: Aba | null;
   /** O valor que o app tem agora — muda quando se adota o da fatura. */
   valorApp: number | null;
 }
 
-export function Importador({ opcoes, eu }: { opcoes: Opcoes; eu: Pessoa | null }) {
+/** O que fica guardado no lote para a edição poder reabrir a revisão. */
+export interface EstadoSalvo {
+  analise: Analise;
+  est: Record<number, Estado>;
+  padraoDivisao: string;
+}
+
+export function Importador({
+  opcoes,
+  eu,
+  edicao,
+}: {
+  opcoes: Opcoes;
+  eu: Pessoa | null;
+  /** Presente quando se está reabrindo um lote já importado. */
+  edicao?: { id: number; titulo: string; salvo: EstadoSalvo };
+}) {
   const router = useRouter();
 
   const [arquivo, setArquivo] = useState<File | null>(null);
-  const [padraoDivisao, setPadraoDivisao] = useState<string>(PADRAO_PAGADOR);
-  const [analise, setAnalise] = useState<Analise | null>(null);
-  const [est, setEst] = useState<Record<number, Estado>>({});
+  const [padraoDivisao, setPadraoDivisao] = useState<string>(
+    edicao?.salvo.padraoDivisao ?? PADRAO_PAGADOR,
+  );
+  const [analise, setAnalise] = useState<Analise | null>(edicao?.salvo.analise ?? null);
+  const [est, setEst] = useState<Record<number, Estado>>(() =>
+    edicao ? aoReabrir(edicao.salvo.est) : {},
+  );
   const [aba, setAba] = useState<Aba>('app');
   const [ocupado, setOcupado] = useState('');
   const [erro, setErro] = useState('');
+  const [confirmando, setConfirmando] = useState(false);
+
+  /** O estado do dia da importação, para saber se algo mudou desde então. */
+  const original = useMemo(
+    () => (edicao ? assinaturaDe(edicao.salvo.est) : ''),
+    [edicao],
+  );
+  const mudou = !!edicao && assinaturaDe(est) !== original;
 
   const tipoDoGrupo = useMemo(() => {
     const m = new Map<string, string>();
@@ -117,11 +159,13 @@ export function Importador({ opcoes, eu }: { opcoes: Opcoes; eu: Pessoa | null }
           // entra desmarcado — inclusive a suspeita, que é palpite (C7) e
           // marcar por palpite é como se duplica um gasto.
           marcada: l.situacao.tipo === 'nova' || l.situacao.tipo === 'novaSerie',
+          descricao: '',
           grupo: l.categoriaSugerida,
           divisao: divisaoInicial(padraoDivisao, quemPagou),
           quemPagou,
           aberta: false,
           forcadaNova: false,
+          abaTravada: null,
           valorApp: ladoApp(l.app)?.valor ?? null,
         };
       }
@@ -139,30 +183,18 @@ export function Importador({ opcoes, eu }: { opcoes: Opcoes; eu: Pessoa | null }
   // Etapa 2 — a revisão
   // -------------------------------------------------------------------------
 
-  // `est` entra na dependência porque `forcadaNova` muda a aba de uma linha.
+  // `est` entra na dependência porque `forcadaNova` e `abaTravada` mudam a aba
+  // de uma linha.
   const porAba = useMemo(() => {
     const m: Record<Aba, Linha[]> = { app: [], parc: [], novos: [] };
-    for (const l of analise?.linhas ?? []) {
-      const s = l.situacao;
-      const a: Aba = est[l.i]?.forcadaNova
-        ? 'novos'
-        : s.tipo === 'jaLancado' || s.tipo === 'suspeita'
-          ? 'app'
-          : s.tipo === 'novaSerie'
-            ? 'parc'
-            : 'novos';
-      m[a].push(l);
-    }
+    for (const l of analise?.linhas ?? []) m[abaDe(l, est[l.i])].push(l);
     return m;
   }, [analise, est]);
 
   const marcadas = (analise?.linhas ?? []).filter((l) => est[l.i]?.marcada);
 
   /** Quantos LANÇAMENTOS saem: uma parcelada marcada vira N, não uma. */
-  const quantosLancamentos = marcadas.reduce(
-    (n, l) => n + (parcelasDe(l, est[l.i]) ?? 1),
-    0,
-  );
+  const quantosLancamentos = marcadas.reduce((n, l) => n + (parcelasDe(l, est[l.i]) ?? 1), 0);
   const somaMarcadas = marcadas.reduce(
     (s, l) => s + l.valor * (parcelasDe(l, est[l.i]) ?? 1),
     0,
@@ -180,34 +212,45 @@ export function Importador({ opcoes, eu }: { opcoes: Opcoes; eu: Pessoa | null }
     });
   }
 
+  function paraLancar(): LinhaParaLancar[] {
+    return marcadas.map((l) => {
+      const e = est[l.i];
+      return {
+        data: l.data,
+        descricao: (e.descricao.trim() || l.descricao).trim(),
+        valor: l.valor,
+        grupo: e.grupo,
+        tipo: tipoDoGrupo.get(e.grupo),
+        quemPagou: e.quemPagou,
+        divisao: e.divisao,
+        parcelas: parcelasDe(l, e),
+      };
+    });
+  }
+
   async function lancar() {
     if (!analise || !marcadas.length) return;
     setErro('');
-    setOcupado('Lançando…');
+    setOcupado(edicao ? 'Regravando…' : 'Lançando…');
     try {
-      const linhas: LinhaParaLancar[] = marcadas.map((l) => {
-        const e = est[l.i];
-        return {
-          data: l.data,
-          descricao: l.descricao,
-          valor: l.valor,
-          grupo: e.grupo,
-          tipo: tipoDoGrupo.get(e.grupo),
-          quemPagou: e.quemPagou,
-          divisao: e.divisao,
-          parcelas: parcelasDe(l, e),
-        };
-      });
-      const r = await rpc('lancarFatura', linhas, {
-        titulo: tituloDa(analise),
-        arquivo: analise.arquivo,
-        criadaPor: eu,
-      });
-      router.push(`/importacao/${r.importacaoId}`);
+      const salvo: EstadoSalvo = { analise, est: aoSalvar(est), padraoDivisao };
+      if (edicao) {
+        await rpc('regravarImportacao', edicao.id, paraLancar(), { estado: salvo });
+        router.push(`/importacao/${edicao.id}`);
+      } else {
+        const r = await rpc('lancarFatura', paraLancar(), {
+          titulo: tituloDa(analise),
+          arquivo: analise.arquivo,
+          criadaPor: eu,
+          estado: salvo,
+        });
+        router.push(`/importacao/${r.importacaoId}`);
+      }
       router.refresh();
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Não consegui lançar.');
+      setErro(e instanceof Error ? e.message : 'Não consegui gravar.');
       setOcupado('');
+      setConfirmando(false);
     }
   }
 
@@ -300,7 +343,7 @@ export function Importador({ opcoes, eu }: { opcoes: Opcoes; eu: Pessoa | null }
           {erro && <div className="msg-erro">{erro}</div>}
 
           <div className="card suave resumo-fat">
-            <div className="nome">{analise.arquivo}</div>
+            <div className="nome">{edicao ? edicao.titulo : analise.arquivo}</div>
             <div className="l2">
               <b>{brl(analise.total)}</b> · {analise.linhas.length} linhas
             </div>
@@ -311,6 +354,17 @@ export function Importador({ opcoes, eu }: { opcoes: Opcoes; eu: Pessoa | null }
               </div>
             )}
           </div>
+
+          {edicao && (
+            <div className="aviso" style={{ marginTop: 0, marginBottom: 10 }}>
+              <span>⚠</span>
+              <div>
+                Você está <b>reabrindo um lote já importado</b>, com as decisões daquele dia.
+                Confirmar apaga e regrava as {quantosLancamentos} linhas deste lote — ajustes
+                feitos à mão nelas depois da importação <b>se perdem</b>.
+              </div>
+            </div>
+          )}
 
           <div className="abas">
             {ABAS.map((a) => (
@@ -340,7 +394,8 @@ export function Importador({ opcoes, eu }: { opcoes: Opcoes; eu: Pessoa | null }
           )}
           {aba === 'novos' && (
             <div className="dica dica-aba">
-              A categoria é palpite pelo texto e erra bastante — toque na linha para mudar.
+              A categoria é palpite pelo texto e erra bastante — toque na linha para mudar o nome
+              e a categoria.
             </div>
           )}
 
@@ -367,6 +422,7 @@ export function Importador({ opcoes, eu }: { opcoes: Opcoes; eu: Pessoa | null }
                   estado={est[l.i]}
                   opcoes={opcoes}
                   eu={eu}
+                  padraoDivisao={padraoDivisao}
                   onTrocar={(m) => trocar(l.i, m)}
                 />
               ))
@@ -380,22 +436,56 @@ export function Importador({ opcoes, eu }: { opcoes: Opcoes; eu: Pessoa | null }
           <div className="aviso" style={{ marginTop: 0, marginBottom: 9 }}>
             <span>⚠</span>
             <div>
-              {semPagador.length === 1 ? 'Uma linha marcada está' : `${semPagador.length} linhas marcadas estão`}{' '}
+              {semPagador.length === 1
+                ? 'Uma linha marcada está'
+                : `${semPagador.length} linhas marcadas estão`}{' '}
               <b>sem pagador ou sem divisão</b>. Sem isso a linha fica fora do acerto sem aviso
               nenhum, e o servidor recusa.
             </div>
           </div>
         )}
-        <button
-          className={`btn-full ${marcadas.length && !semPagador.length && !ocupado ? 'valido' : ''}`}
-          disabled={!marcadas.length || semPagador.length > 0 || !!ocupado}
-          onClick={lancar}
-        >
-          {ocupado || `Lançar ${marcadas.length} · ${brl(somaMarcadas)}`}
-          {!ocupado && quantosLancamentos !== marcadas.length && (
-            <b>{quantosLancamentos} lançamentos, contando as parcelas futuras</b>
-          )}
-        </button>
+
+        {edicao ? (
+          <>
+            <button
+              className={`btn-full ${mudou && !semPagador.length && !ocupado ? 'valido' : ''}`}
+              disabled={!mudou || semPagador.length > 0 || !!ocupado}
+              onClick={() => (confirmando ? lancar() : setConfirmando(true))}
+            >
+              {ocupado ||
+                (!mudou
+                  ? 'Nada mudou ainda'
+                  : confirmando
+                    ? `Confirmar — regravar ${quantosLancamentos} lançamentos`
+                    : 'Importar com ajustes')}
+              {!ocupado && mudou && !confirmando && (
+                <b>
+                  {marcadas.length} marcadas · {brl(somaMarcadas)}
+                </b>
+              )}
+            </button>
+            <button
+              type="button"
+              className="btn-linha"
+              onClick={() =>
+                confirmando ? setConfirmando(false) : router.push(`/importacao/${edicao.id}`)
+              }
+            >
+              {confirmando ? 'Voltar' : 'Cancelar edição'}
+            </button>
+          </>
+        ) : (
+          <button
+            className={`btn-full ${marcadas.length && !semPagador.length && !ocupado ? 'valido' : ''}`}
+            disabled={!marcadas.length || semPagador.length > 0 || !!ocupado}
+            onClick={lancar}
+          >
+            {ocupado || `Lançar ${marcadas.length} · ${brl(somaMarcadas)}`}
+            {!ocupado && quantosLancamentos !== marcadas.length && (
+              <b>{quantosLancamentos} lançamentos, contando as parcelas futuras</b>
+            )}
+          </button>
+        )}
       </div>
     </>
   );
@@ -410,12 +500,14 @@ function LinhaFatura({
   estado: e,
   opcoes,
   eu,
+  padraoDivisao,
   onTrocar,
 }: {
   linha: Linha;
   estado: Estado;
   opcoes: Opcoes;
   eu: Pessoa | null;
+  padraoDivisao: string;
   onTrocar: (m: Partial<Estado>) => void;
 }) {
   const { dia, mes } = diaMes(l.data);
@@ -423,20 +515,26 @@ function LinhaFatura({
   const s = l.situacao;
   const casou = !e.forcadaNova && (s.tipo === 'jaLancado' || s.tipo === 'suspeita');
   const serie = !e.forcadaNova && s.tipo === 'novaSerie' ? s.parcelas : null;
+  const nome = e.descricao.trim() || l.descricao;
+  const editada = foiEditada(l, e, padraoDivisao);
 
   // A divergência é medida contra o valor que o app tem AGORA — depois de uma
   // conciliação ela some, e some sozinha.
   const dif = e.valorApp === null ? null : arred(l.valor - e.valorApp);
 
+  /** Fechar solta a trava: só então a linha vai para a aba a que pertence. */
+  const alternar = () =>
+    onTrocar(e.aberta ? { aberta: false, abaTravada: null } : { aberta: true });
+
   return (
     <div className={`linha-fat${e.marcada ? ' marcada' : ''}`}>
-      <div className="topo" onClick={() => onTrocar({ aberta: !e.aberta })} role="button" tabIndex={0}>
+      <div className="topo" onClick={alternar} role="button" tabIndex={0}>
         <input
           type="checkbox"
           checked={e.marcada}
           onClick={(ev) => ev.stopPropagation()}
           onChange={(ev) => onTrocar({ marcada: ev.target.checked })}
-          aria-label={`Lançar ${l.descricao}`}
+          aria-label={`Lançar ${nome}`}
         />
         <div className="col-data">
           <div className="dia">{dia}</div>
@@ -445,10 +543,16 @@ function LinhaFatura({
         <Avatar quem={(e.quemPagou || null) as never} tamanho={22} className="quem-pagou" />
         <div className="item-info">
           <div className="desc">
-            {l.parcela && <span className="parc">{l.parcela.n}/{l.parcela.de}</span>}
-            {l.descricao}
+            {l.parcela && (
+              <span className="parc">
+                {l.parcela.n}/{l.parcela.de}
+              </span>
+            )}
+            {nome}
           </div>
           <div className="meta">
+            {e.forcadaNova && <span className="selo-mud reclass">era &ldquo;já no app&rdquo;</span>}
+            {editada && !e.forcadaNova && <span className="selo-mud">editada</span>}
             {casou
               ? s.tipo === 'jaLancado'
                 ? `já no app · ${s.serieDescricao} ${s.seq}/${s.total}`
@@ -473,9 +577,9 @@ function LinhaFatura({
           {/* O lado da FATURA em tom de observação, e os campos preenchidos com
               o que o app já tem: a tela mostra de onde veio cada número. */}
           <div className="da-fatura">
-            na fatura · {dataBR(l.data)} · {l.nomeCartao || 'sem nome'}
+            na fatura · {dataBR(l.data)} · {l.descricao}
+            {l.nomeCartao ? ` · ${l.nomeCartao}` : ''}
             {l.cartao ? ` · ${l.cartao}` : ''}
-            {l.tipoCartao ? ` · ${l.tipoCartao.toLowerCase()}` : ''}
           </div>
 
           {casou && app ? (
@@ -486,10 +590,24 @@ function LinhaFatura({
               suspeita={s.tipo === 'suspeita'}
               eu={eu}
               onConciliou={(v) => onTrocar({ valorApp: v })}
-              onNova={() => onTrocar({ forcadaNova: true, marcada: true, aberta: true })}
+              // Vira gasto novo, mas fica ONDE ESTÁ até ser fechada: quem
+              // acabou de dizer "não é o mesmo gasto" ainda vai escrever o
+              // nome e escolher a categoria, e a linha não pode sumir no meio.
+              onNova={() =>
+                onTrocar({ forcadaNova: true, marcada: true, aberta: true, abaTravada: 'app' })
+              }
             />
           ) : (
             <>
+              {e.abaTravada && (
+                <div className="aviso" style={{ marginTop: 0 }}>
+                  <span>⚠</span>
+                  <div>
+                    Vai ser lançada como <b>gasto novo</b>. Ajuste o nome e a categoria; ao fechar,
+                    a linha passa para a aba <b>Novos</b>.
+                  </div>
+                </div>
+              )}
               {serie && (
                 <div className="aviso" style={{ marginTop: 0 }}>
                   <span>⚠</span>
@@ -499,6 +617,29 @@ function LinhaFatura({
                   </div>
                 </div>
               )}
+
+              {/* O nome da fatura fica de fundo, apagado: digitar o substitui, e
+                  apagar o campo o traz de volta. Sem um campo aqui, um
+                  `Ifd*dpc Culinaria Japonesbelo` entraria na lista assim para
+                  sempre. */}
+              <div className="campo">
+                <label>Nome</label>
+                <input
+                  type="text"
+                  value={e.descricao}
+                  placeholder={l.descricao}
+                  onChange={(ev) => onTrocar({ descricao: ev.target.value })}
+                />
+                {e.descricao.trim() && (
+                  <div className="dica">
+                    na fatura: {l.descricao} ·{' '}
+                    <button type="button" className="link" onClick={() => onTrocar({ descricao: '' })}>
+                      voltar ao original
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <div className="campo">
                 <label>Categoria</label>
                 <select value={e.grupo} onChange={(ev) => onTrocar({ grupo: ev.target.value })}>
@@ -509,6 +650,7 @@ function LinhaFatura({
                   ))}
                 </select>
               </div>
+
               <div className="grade">
                 <div className="campo">
                   <label>Quem pagou</label>
@@ -526,7 +668,10 @@ function LinhaFatura({
                 </div>
                 <div className="campo">
                   <label>Divisão</label>
-                  <select value={e.divisao} onChange={(ev) => onTrocar({ divisao: ev.target.value })}>
+                  <select
+                    value={e.divisao}
+                    onChange={(ev) => onTrocar({ divisao: ev.target.value })}
+                  >
                     <option value="">—</option>
                     {opcoes.divisoes
                       .filter((d) => d !== 'Custom')
@@ -538,10 +683,15 @@ function LinhaFatura({
                   </select>
                 </div>
               </div>
-              {e.forcadaNova && (
-                <div className="dica">
-                  Tirada da aba &ldquo;Já no app&rdquo; por você: vai ser lançada como gasto novo.
-                </div>
+
+              {e.abaTravada && (
+                <button
+                  type="button"
+                  className="btn-linha forte"
+                  onClick={() => onTrocar({ aberta: false, abaTravada: null })}
+                >
+                  Pronto — mover para Novos
+                </button>
               )}
             </>
           )}
@@ -641,7 +791,11 @@ function Conciliacao({
         </div>
       </div>
 
-      {erro && <div className="msg-erro" style={{ marginTop: 9 }}>{erro}</div>}
+      {erro && (
+        <div className="msg-erro" style={{ marginTop: 9 }}>
+          {erro}
+        </div>
+      )}
 
       {Math.abs(dif) >= 0.005 ? (
         <>
@@ -673,7 +827,12 @@ function Conciliacao({
                     : comSinal(eu === 'Maria' ? -prev.deltaAcerto : prev.deltaAcerto)}
                 </span>
               </div>
-              <button type="button" className="btn-linha forte" disabled={ocupado} onClick={confirmar}>
+              <button
+                type="button"
+                className="btn-linha forte"
+                disabled={ocupado}
+                onClick={confirmar}
+              >
                 {ocupado ? 'Gravando…' : 'Confirmar'}
               </button>
               <button type="button" className="btn-linha" onClick={() => setPrev(null)}>
@@ -697,6 +856,17 @@ function Conciliacao({
 
 // ---------------------------------------------------------------------------
 
+function abaDe(l: Linha, e: Estado | undefined): Aba {
+  // A trava vem primeiro: uma linha sendo editada não muda de aba embaixo do
+  // dedo de quem a está editando.
+  if (e?.abaTravada) return e.abaTravada;
+  if (e?.forcadaNova) return 'novos';
+  const s = l.situacao;
+  if (s.tipo === 'jaLancado' || s.tipo === 'suspeita') return 'app';
+  if (s.tipo === 'novaSerie') return 'parc';
+  return 'novos';
+}
+
 function divisaoInicial(padrao: string, quemPagou: string): string {
   if (padrao !== PADRAO_PAGADOR) return padrao;
   // Sem nome reconhecido no cartão não se inventa pagador nem divisão: pela A4
@@ -704,10 +874,54 @@ function divisaoInicial(padrao: string, quemPagou: string): string {
   return quemPagou === 'Irwin' || quemPagou === 'Maria' ? `100% ${quemPagou}` : '';
 }
 
+/** Se alguém mexeu na linha, para o selo `editada` na lista. */
+function foiEditada(l: Linha, e: Estado, padrao: string): boolean {
+  const quem = l.quemPagou ?? '';
+  return (
+    !!e.descricao.trim() ||
+    e.grupo !== l.categoriaSugerida ||
+    e.quemPagou !== quem ||
+    e.divisao !== divisaoInicial(padrao, quem)
+  );
+}
+
 /** Quantas parcelas a linha vira. `null` = uma linha só. */
 function parcelasDe(l: Linha, e: Estado | undefined): number | null {
   if (!e || e.forcadaNova) return null;
   return l.situacao.tipo === 'novaSerie' ? l.situacao.parcelas : null;
+}
+
+/** O que o lote guarda: sem o que é estado de tela. */
+function aoSalvar(est: Record<number, Estado>): Record<number, Estado> {
+  const fora: Record<number, Estado> = {};
+  for (const [k, e] of Object.entries(est)) {
+    fora[Number(k)] = { ...e, aberta: false, abaTravada: null };
+  }
+  return fora;
+}
+
+/** Reabrir nunca começa com linha aberta nem trava pendente. */
+function aoReabrir(est: Record<number, Estado>): Record<number, Estado> {
+  const dentro: Record<number, Estado> = {};
+  for (const [k, e] of Object.entries(est)) {
+    dentro[Number(k)] = { ...e, descricao: e.descricao ?? '', aberta: false, abaTravada: null };
+  }
+  return dentro;
+}
+
+/**
+ * O que conta como "mudou" numa edição.
+ *
+ * Abrir e fechar uma linha não é mudança, e sem tirar isso da comparação o
+ * botão acenderia só de alguém ter olhado.
+ */
+function assinaturaDe(est: Record<number, Estado>): string {
+  return Object.entries(est)
+    .map(([k, e]) =>
+      [k, e.marcada, e.descricao ?? '', e.grupo, e.divisao, e.quemPagou, e.forcadaNova].join('|'),
+    )
+    .sort()
+    .join('\n');
 }
 
 const arred = (v: number) => Math.round(v * 100) / 100;

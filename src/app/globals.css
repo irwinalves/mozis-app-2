@@ -1100,3 +1100,44 @@ a.item-lanc {
   font-weight: 400;
   margin-right: 5px;
 }
+
+/* Selo de linha mexida: `editada` quando alguém trocou nome ou categoria,
+   `era "já no app"` quando a linha foi tirada da aba de conferência. Os dois
+   respondem à mesma pergunta ao varrer 111 linhas: onde eu já pus a mão? */
+.selo-mud {
+  display: inline-flex;
+  align-items: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--verde);
+  background: var(--invest-l);
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-right: 5px;
+  vertical-align: 1px;
+}
+.selo-mud.reclass {
+  color: var(--aviso);
+  background: var(--aviso-bg);
+}
+
+/* Um botão que é link dentro do texto de uma dica. */
+.link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--verde);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* `.btn-linha` também é usado como `<a>` — precisa se comportar como bloco. */
+a.btn-linha {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  box-sizing: border-box;
+}

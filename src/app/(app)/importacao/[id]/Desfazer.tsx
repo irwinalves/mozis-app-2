@@ -9,9 +9,19 @@
  */
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { rpc } from '@/lib/rpc';
 
-export function Desfazer({ id, qtd }: { id: number; qtd: number }) {
+export function Desfazer({
+  id,
+  qtd,
+  podeEditar,
+}: {
+  id: number;
+  qtd: number;
+  /** Lotes anteriores à coluna `estado` não têm a revisão para reabrir. */
+  podeEditar: boolean;
+}) {
   const router = useRouter();
   const [confirmando, setConfirmando] = useState(false);
   const [ocupado, setOcupado] = useState(false);
@@ -32,9 +42,18 @@ export function Desfazer({ id, qtd }: { id: number; qtd: number }) {
 
   if (!confirmando) {
     return (
-      <button type="button" className="btn-perigo" onClick={() => setConfirmando(true)}>
-        Desfazer esta importação
-      </button>
+      <>
+        {/* Editar vem antes de desfazer, e com mais peso: ajustar o lote é o
+            que se quer quase sempre, e apagar tudo é o caso extremo. */}
+        {podeEditar && (
+          <Link href={`/importacao/${id}/editar`} className="btn-linha forte" style={{ marginTop: 12 }}>
+            Editar esta importação
+          </Link>
+        )}
+        <button type="button" className="btn-perigo" onClick={() => setConfirmando(true)}>
+          Desfazer esta importação
+        </button>
+      </>
     );
   }
 

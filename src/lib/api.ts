@@ -1570,6 +1570,140 @@ export interface LinhaParaLancar {
 }
 
 /**
+ * O `tx` que `db.transaction` entrega. Derivado do próprio tipo do driver, em
+ * vez de escrito à mão: assim ele não pode divergir da biblioteca.
+ */
+type Transacao = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * O corpo da gravação de um lote, sem a transação e sem a linha de
+ * `importacoes`.
+ *
+ * Existe para `lancarFatura` e `regravarImportacao` gravarem pelo MESMO
+ * caminho. Duas cópias divergiriam no primeiro ajuste — e a que fica para trás
+ * é sempre a que grava dinheiro errado sem ninguém ver.
+ */
+async function gravarLote(
+  tx: Transacao,
+  impId: number,
+  linhas: LinhaParaLancar[],
+  pctRenda: number,
+) {
+  let qtd = 0;
+  let total = 0;
+  const paraGravar: Record<string, string | number | boolean | null>[] = [];
+
+  for (const l of linhas) {
+    const pct = pctIrwinDe(l.divisao, l.pctIrwinCustom ?? null, pctRenda);
+    const pctCustomFracao =
+      l.divisao === 'Custom' ? (Number(l.pctIrwinCustom) || 0) / 100 : null;
+    const tipoFinal = l.tipo || (await planoTipoPadrao(l.grupo));
+
+    // Parcelada: a série inteira. `montarParcelas` é reaproveitada, não
+    // reescrita — é ela que faz a última absorver o arredondamento (A7).
+    const ocorrencias =
+      l.parcelas && l.parcelas > 1
+        ? montarParcelas({
+            data: l.data,
+            descricao: l.descricao,
+            valor: arred(l.valor * l.parcelas),
+            parcelado: true,
+            parcelas: l.parcelas,
+            tipoValor: 'total',
+          } as DadosParcelas)
+        : [{ data: dataLocal(l.data), descricao: l.descricao, valor: arred(l.valor) }];
+
+    let serieId: number | null = null;
+    if (ocorrencias.length > 1) {
+      const [s] = await tx.execute<{ id: number }>(
+        sql`insert into series (tipo, descricao, total, origem)
+            values ('parcelamento', ${l.descricao}, ${ocorrencias.length}, 'fatura')
+            returning id`,
+      );
+      serieId = s.id;
+    }
+
+    for (let k = 0; k < ocorrencias.length; k++) {
+      const o = ocorrencias[k];
+      const parteIrwin = arred(o.valor * pct);
+      const pagoIrwin = pagoIrwinDe(l.quemPagou as never, o.valor, parteIrwin, null);
+      // Os números vão como TEXTO e o Postgres os lê como `numeric`. Passar
+      // `float` aqui reintroduziria a regra nº 4 pela porta dos fundos: o
+      // JSON de um `number` é decimal binário, e 15,345 não existe nele.
+      paraGravar.push({
+        data: formatarData(o.data),
+        descricao: o.descricao,
+        categoria: l.grupo,
+        tipo: tipoFinal,
+        valor: String(o.valor),
+        divisao: l.divisao,
+        pct_custom: pctCustomFracao === null ? null : String(pctCustomFracao),
+        pct: String(pct),
+        eh_quitacao: ehQuitacaoDe(l.grupo),
+        quem_pagou: l.quemPagou,
+        pago_irwin: pagoIrwin === null ? null : String(pagoIrwin),
+        gasto_de: l.gastoDe || null,
+        serie_id: serieId,
+        seq: serieId ? k + 1 : null,
+      });
+      qtd++;
+      total += o.valor;
+    }
+  }
+
+  /**
+   * Uma inserção só, não 154.
+   *
+   * Medido em 26/08/2026: o laço linha a linha levava 10,7 s para a fatura de
+   * agosto — 70 ms de ida e volta vezes 154. Cabe no limite da função hoje,
+   * mas é o tipo de custo que cresce com o tamanho da fatura e falha no dia
+   * em que ela for maior. `jsonb_to_recordset` faz o banco receber o lote
+   * inteiro de uma vez; a regra de montagem das parcelas (A7, A8) continua
+   * exatamente onde estava, em `montarParcelas`.
+   */
+  if (paraGravar.length) {
+    await tx.execute(
+      sql`insert into lancamentos
+            (data, descricao, categoria, tipo, cat_original, fonte, valor_total,
+             divisao, pct_irwin_custom, pct_irwin, eh_quitacao, quem_pagou,
+             pago_irwin, recorrente, gasto_de, serie_id, seq, importacao_id)
+          select r.data::date, r.descricao, r.categoria, r.tipo,
+                 'Fatura do cartão', 'Cartão', r.valor::numeric, r.divisao,
+                 r.pct_custom::numeric, r.pct::numeric, r.eh_quitacao,
+                 r.quem_pagou, r.pago_irwin::numeric, false, r.gasto_de,
+                 r.serie_id, r.seq, ${impId}
+          from jsonb_to_recordset(${JSON.stringify(paraGravar)}::jsonb) as r(
+            data text, descricao text, categoria text, tipo text, valor text,
+            divisao text, pct_custom text, pct text, eh_quitacao boolean,
+            quem_pagou text, pago_irwin text, gasto_de text,
+            serie_id int, seq int)`,
+    );
+  }
+
+  return { qtd, total: arred(total) };
+}
+
+/**
+ * Tira do banco tudo que um lote criou: os lançamentos e as séries que
+ * ficaram vazias. Compartilhado pelo desfazer e pela regravação.
+ */
+async function apagarLoteDe(tx: Transacao, id: number) {
+  const series = await tx.execute<{ serie_id: number }>(
+    sql`select distinct serie_id from lancamentos
+        where importacao_id = ${id} and serie_id is not null`,
+  );
+  await tx.execute(sql`delete from lancamentos where importacao_id = ${id}`);
+  for (const s of series) {
+    // Só apaga a série se ela ficou vazia: uma parcela lançada à mão pode ter
+    // sido ligada à mesma série depois.
+    await tx.execute(
+      sql`delete from series where id = ${s.serie_id}
+          and not exists (select 1 from lancamentos where serie_id = ${s.serie_id})`,
+    );
+  }
+}
+
+/**
  * Grava o lote. Uma transação só.
  *
  * Uma linha marcada como `Parcela 1 de N` vira N lançamentos, um por mês, com
@@ -1578,7 +1712,13 @@ export interface LinhaParaLancar {
  */
 export async function lancarFatura(
   linhas: LinhaParaLancar[],
-  meta: { titulo: string; arquivo?: string; criadaPor?: string | null },
+  meta: {
+    titulo: string;
+    arquivo?: string;
+    criadaPor?: string | null;
+    /** As decisões da revisão, para o lote poder ser reaberto e ajustado. */
+    estado?: unknown;
+  },
 ) {
   if (!linhas.length) throw new Error('Nada marcado para lançar.');
   for (const l of linhas) exigirPagador(l.quemPagou);
@@ -1587,107 +1727,79 @@ export async function lancarFatura(
 
   return db.transaction(async (tx) => {
     const [imp] = await tx.execute<{ id: number }>(
-      sql`insert into importacoes (tipo, titulo, arquivo, criada_por, qtd, total)
+      sql`insert into importacoes (tipo, titulo, arquivo, criada_por, qtd, total, estado)
           values ('fatura', ${meta.titulo}, ${meta.arquivo ?? null},
-                  ${meta.criadaPor ?? null}, 0, 0)
+                  ${meta.criadaPor ?? null}, 0, 0,
+                  ${meta.estado === undefined ? null : JSON.stringify(meta.estado)}::jsonb)
           returning id`,
     );
 
-    let qtd = 0;
-    let total = 0;
-    const paraGravar: Record<string, string | number | boolean | null>[] = [];
-
-    for (const l of linhas) {
-      const pct = pctIrwinDe(l.divisao, l.pctIrwinCustom ?? null, pctRenda);
-      const pctCustomFracao =
-        l.divisao === 'Custom' ? (Number(l.pctIrwinCustom) || 0) / 100 : null;
-      const tipoFinal = l.tipo || (await planoTipoPadrao(l.grupo));
-
-      // Parcelada: a série inteira. `montarParcelas` é reaproveitada, não
-      // reescrita — é ela que faz a última absorver o arredondamento (A7).
-      const ocorrencias =
-        l.parcelas && l.parcelas > 1
-          ? montarParcelas({
-              data: l.data,
-              descricao: l.descricao,
-              valor: arred(l.valor * l.parcelas),
-              parcelado: true,
-              parcelas: l.parcelas,
-              tipoValor: 'total',
-            } as DadosParcelas)
-          : [{ data: dataLocal(l.data), descricao: l.descricao, valor: arred(l.valor) }];
-
-      let serieId: number | null = null;
-      if (ocorrencias.length > 1) {
-        const [s] = await tx.execute<{ id: number }>(
-          sql`insert into series (tipo, descricao, total, origem)
-              values ('parcelamento', ${l.descricao}, ${ocorrencias.length}, 'fatura')
-              returning id`,
-        );
-        serieId = s.id;
-      }
-
-      for (let k = 0; k < ocorrencias.length; k++) {
-        const o = ocorrencias[k];
-        const parteIrwin = arred(o.valor * pct);
-        const pagoIrwin = pagoIrwinDe(l.quemPagou as never, o.valor, parteIrwin, null);
-        // Os números vão como TEXTO e o Postgres os lê como `numeric`. Passar
-        // `float` aqui reintroduziria a regra nº 4 pela porta dos fundos: o
-        // JSON de um `number` é decimal binário, e 15,345 não existe nele.
-        paraGravar.push({
-          data: formatarData(o.data),
-          descricao: o.descricao,
-          categoria: l.grupo,
-          tipo: tipoFinal,
-          valor: String(o.valor),
-          divisao: l.divisao,
-          pct_custom: pctCustomFracao === null ? null : String(pctCustomFracao),
-          pct: String(pct),
-          eh_quitacao: ehQuitacaoDe(l.grupo),
-          quem_pagou: l.quemPagou,
-          pago_irwin: pagoIrwin === null ? null : String(pagoIrwin),
-          gasto_de: l.gastoDe || null,
-          serie_id: serieId,
-          seq: serieId ? k + 1 : null,
-        });
-        qtd++;
-        total += o.valor;
-      }
-    }
-
-    /**
-     * Uma inserção só, não 154.
-     *
-     * Medido em 26/08/2026: o laço linha a linha levava 10,7 s para a fatura de
-     * agosto — 70 ms de ida e volta vezes 154. Cabe no limite da função hoje,
-     * mas é o tipo de custo que cresce com o tamanho da fatura e falha no dia
-     * em que ela for maior. `jsonb_to_recordset` faz o banco receber o lote
-     * inteiro de uma vez; a regra de montagem das parcelas (A7, A8) continua
-     * exatamente onde estava, em `montarParcelas`.
-     */
-    if (paraGravar.length) {
-      await tx.execute(
-        sql`insert into lancamentos
-              (data, descricao, categoria, tipo, cat_original, fonte, valor_total,
-               divisao, pct_irwin_custom, pct_irwin, eh_quitacao, quem_pagou,
-               pago_irwin, recorrente, gasto_de, serie_id, seq, importacao_id)
-            select r.data::date, r.descricao, r.categoria, r.tipo,
-                   'Fatura do cartão', 'Cartão', r.valor::numeric, r.divisao,
-                   r.pct_custom::numeric, r.pct::numeric, r.eh_quitacao,
-                   r.quem_pagou, r.pago_irwin::numeric, false, r.gasto_de,
-                   r.serie_id, r.seq, ${imp.id}
-            from jsonb_to_recordset(${JSON.stringify(paraGravar)}::jsonb) as r(
-              data text, descricao text, categoria text, tipo text, valor text,
-              divisao text, pct_custom text, pct text, eh_quitacao boolean,
-              quem_pagou text, pago_irwin text, gasto_de text,
-              serie_id int, seq int)`,
-      );
-    }
+    const r = await gravarLote(tx, imp.id, linhas, pctRenda);
 
     await tx.execute(
-      sql`update importacoes set qtd = ${qtd}, total = ${arred(total)} where id = ${imp.id}`,
+      sql`update importacoes set qtd = ${r.qtd}, total = ${r.total} where id = ${imp.id}`,
     );
-    return { importacaoId: imp.id, qtd, total: arred(total) };
+    return { importacaoId: imp.id, ...r };
+  });
+}
+
+/**
+ * As decisões guardadas de um lote — o que a tela de edição rehidrata.
+ *
+ * Vem em chamada separada de `obterImportacao` de propósito: são dezenas de
+ * KB de JSON que só a edição precisa, e a tela do lote é aberta muito mais
+ * vezes do que editada.
+ */
+export async function estadoDaImportacao(id: number) {
+  const [r] = await db.execute<{ estado: unknown; titulo: string; arquivo: string | null }>(
+    sql`select estado, titulo, arquivo from importacoes where id = ${id}`,
+  );
+  if (!r) throw new Error('Importação não encontrada.');
+  if (r.estado == null) {
+    throw new Error(
+      'Esta importação foi feita antes da edição existir e não guardou as decisões da revisão. ' +
+        'Dá para desfazer e importar de novo.',
+    );
+  }
+  return { estado: r.estado, titulo: r.titulo, arquivo: r.arquivo };
+}
+
+/**
+ * Reescreve um lote com os ajustes.
+ *
+ * APAGA E REGRAVA, numa transação só. Tentar casar linha a linha com o que já
+ * está lá seria um segundo cruzamento — desta vez do lote consigo mesmo — e a
+ * regra nº 3 vale aqui: uma implementação do cruzamento, não duas. O `id` do
+ * lote é o mesmo, então o selo na lista e o link do evento continuam valendo.
+ *
+ * O que isso custa está escrito na tela antes de confirmar: edições feitas À
+ * MÃO num lançamento deste lote, depois da importação, se perdem. Não há como
+ * preservá-las — a linha some e nasce outra.
+ */
+export async function regravarImportacao(
+  id: number,
+  linhas: LinhaParaLancar[],
+  meta: { estado?: unknown },
+) {
+  if (!linhas.length) throw new Error('Nada marcado para lançar.');
+  for (const l of linhas) exigirPagador(l.quemPagou);
+
+  const [existe] = await db.execute<{ id: number }>(
+    sql`select id from importacoes where id = ${id}`,
+  );
+  if (!existe) throw new Error('Importação não encontrada.');
+
+  const pctRenda = await pctDaRenda();
+
+  return db.transaction(async (tx) => {
+    await apagarLoteDe(tx, id);
+    const r = await gravarLote(tx, id, linhas, pctRenda);
+    await tx.execute(
+      sql`update importacoes set qtd = ${r.qtd}, total = ${r.total},
+                 estado = ${meta.estado === undefined ? null : JSON.stringify(meta.estado)}::jsonb
+          where id = ${id}`,
+    );
+    return { importacaoId: id, ...r };
   });
 }
 
@@ -1696,6 +1808,7 @@ export async function obterImportacao(id: number, pessoa: Pessoa | null = null) 
   const [imp] = await db.execute<{
     id: number; tipo: string; titulo: string; arquivo: string | null;
     criada_em: string | Date; criada_por: string | null; qtd: number; total: string;
+    estado: unknown;
   }>(sql`select * from importacoes where id = ${id}`);
   if (!imp) throw new Error('Importação não encontrada.');
 
@@ -1722,6 +1835,9 @@ export async function obterImportacao(id: number, pessoa: Pessoa | null = null) 
     total: Number(imp.total),
     series: Number(series),
     efeitoNoAcerto: Number(ef?.saldo ?? 0),
+    // Só um lote que guardou as decisões da revisão pode ser reaberto. Os
+    // anteriores à coluna `estado` só têm o desfazer.
+    podeEditar: imp.estado != null,
     eu: pessoa,
     itens: linhas.map(paraItem),
   };
@@ -1754,19 +1870,7 @@ export async function desfazerImportacao(id: number) {
     const [{ n }] = await tx.execute<{ n: string }>(
       sql`select count(*)::text as n from lancamentos where importacao_id = ${id}`,
     );
-    const series = await tx.execute<{ serie_id: number }>(
-      sql`select distinct serie_id from lancamentos
-          where importacao_id = ${id} and serie_id is not null`,
-    );
-    await tx.execute(sql`delete from lancamentos where importacao_id = ${id}`);
-    for (const s of series) {
-      // Só apaga a série se ela ficou vazia: uma parcela lançada à mão pode ter
-      // sido ligada à mesma série depois.
-      await tx.execute(
-        sql`delete from series where id = ${s.serie_id}
-            and not exists (select 1 from lancamentos where serie_id = ${s.serie_id})`,
-      );
-    }
+    await apagarLoteDe(tx, id);
     await tx.execute(sql`delete from importacoes where id = ${id}`);
     return { ok: true, apagados: Number(n) };
   });

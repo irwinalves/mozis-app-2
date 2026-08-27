@@ -25,6 +25,8 @@ const METODOS = {
   obterImportacao: api.obterImportacao,
   listarImportacoes: api.listarImportacoes,
   desfazerImportacao: api.desfazerImportacao,
+  estadoDaImportacao: api.estadoDaImportacao,
+  regravarImportacao: api.regravarImportacao,
   previewConciliacao: api.previewConciliacao,
   conciliarValor: api.conciliarValor,
   salvarLancamento: api.salvarLancamento,
