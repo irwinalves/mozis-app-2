@@ -5,7 +5,7 @@ app em Google Apps Script + planilha, aposentado em 20/08/2026.
 
 - **No ar:** https://mozis-app-2.vercel.app
 - **Legado:** [mozis-app-legado](https://github.com/irwinalves/mozis-app-legado) — código preservado
-- **As regras que atravessam a migração:** `PARA-O-APP-2.0.md`, no repositório do legado.
+- **As regras que este app pagou caro para descobrir:** `docs/INVARIANTES.md`.
   **São 38, e valem mais que este arquivo.** Leia antes de mexer em regra de negócio.
 
 ## Regra número 1: o banco é a fonte de verdade

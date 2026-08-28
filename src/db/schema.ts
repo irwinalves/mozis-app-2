@@ -202,7 +202,7 @@ export const lancamentos = pgTable(
     seq: integer('seq'),
 
     /**
-     * Desempate de mesma data, que o `PARA-O-APP-2.0.md` deixou em aberto: sem
+     * Desempate de mesma data, que o `docs/INVARIANTES.md` deixou em aberto: sem
      * carimbo de criação, dois lançamentos do mesmo dia não têm ordem estável.
      * O `id desc` da ordenação fazia esse papel por acaso; aqui fica explícito.
      */

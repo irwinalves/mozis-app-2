@@ -1,5 +1,5 @@
 /**
- * A foto de quem pagou — C2 do `PARA-O-APP-2.0.md`.
+ * A foto de quem pagou — C2 do `docs/INVARIANTES.md`.
  *
  * Duas coisas que esta regra obriga e que são fáceis de perder numa reescrita:
  *

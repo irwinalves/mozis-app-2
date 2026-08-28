@@ -201,7 +201,7 @@ finanças reais de duas pessoas, e o app não tem desfazer.
 
 O ciclo do projeto é: corrigir, e então transformar o defeito em regra portátil.
 
-1. A regra vai para `PARA-O-APP-2.0.md`, no repositório do legado, no formato
+1. A regra vai para `docs/INVARIANTES.md`, no formato
    *regra · o que quebra sem ela · **como provar***.
 2. Se for verificável automaticamente, a terceira coluna vira um invariante novo
    em `scripts/invariantes.ts`. É assim que o documento deixa de depender de
@@ -213,7 +213,7 @@ existirem duas verdades.
 
 ## Referência
 
-- `PARA-O-APP-2.0.md` (repositório do legado) — as 38 regras, com o defeito
+- `docs/INVARIANTES.md` — as 40 regras, com o defeito
   medido que originou cada uma. Vale mais que o `CLAUDE.md`.
 - `docs/OPERACAO.md` — diagnóstico por sintoma.
 - `docs/ACHADOS-DA-RECONCILIACAO.md` — o que a migração descobriu, com números.

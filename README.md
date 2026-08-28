@@ -71,7 +71,7 @@ dupla e é inerte em produção — conferido contra build real.
 - **Cálculo da divisão:** `pctIrwinDe()` em `src/lib/lancamentos.ts`, e **só ali**.
   O resultado é gravado em `lancamentos.pct_irwin`; a view faz apenas aritmética.
 - **Regras de negócio:** as 38 regras herdadas estão em
-  [`PARA-O-APP-2.0.md`](https://github.com/irwinalves/mozis-app-legado/blob/main/PARA-O-APP-2.0.md)
+  [`docs/INVARIANTES.md`](docs/INVARIANTES.md)
   no repositório do legado.
 - **O que a migração descobriu:** [`docs/ACHADOS-DA-RECONCILIACAO.md`](docs/ACHADOS-DA-RECONCILIACAO.md)
 - **Como operar:** [`docs/OPERACAO.md`](docs/OPERACAO.md)

@@ -53,7 +53,7 @@ interface Resultado {
 
 interface Invariante {
   id: string;
-  /** A regra do PARA-O-APP-2.0.md ou do CLAUDE.md que isto protege. */
+  /** A regra do `docs/INVARIANTES.md` ou do CLAUDE.md que isto protege. */
   regra: string;
   pergunta: string;
   checar: () => Promise<Resultado>;
