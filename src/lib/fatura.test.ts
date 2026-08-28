@@ -167,6 +167,51 @@ test('mesmo valor mas semanas depois não é suspeita', () => {
   assert.equal(c.situacao.tipo, 'nova');
 });
 
+test('as 12 parcelas na MESMA fatura viram uma série, não 1 + 11 soltas', () => {
+  // Medido na fatura real de ago/2026: `Adaptaorg` traz as doze parcelas de
+  // uma vez, todas com a data da compra. Sem cruzar a fatura consigo mesma, a
+  // primeira virava série de 12 e as outras onze entravam soltas — o mesmo
+  // gasto contado duas vezes.
+  const doze = Array.from({ length: 12 }, (_, k) => ({
+    data: '2026-07-03',
+    descricao: 'Adaptaorg Sao Paulo Br',
+    parcela: { n: k + 1, de: 12 },
+    valor: 99,
+  }));
+  const r = cruzar(doze, [], []);
+  assert.equal(r[0].situacao.tipo, 'novaSerie');
+  for (let k = 1; k < 12; k++) {
+    assert.equal(r[k].situacao.tipo, 'naSerieNova', `parcela ${k + 1} ficou solta`);
+  }
+  assert.equal(r[5].situacao.tipo === 'naSerieNova' && r[5].situacao.linhaDaSerie, 0);
+});
+
+test('mesmo valor e mesmo total, em DATAS diferentes, são duas compras', () => {
+  // `Amazon day`: duas compras de 6x que se intercalam na fatura. Absorver a
+  // segunda na série da primeira apagaria um gasto real.
+  const r = cruzar(
+    [
+      { data: '2026-07-03', descricao: 'Amazon', parcela: { n: 1, de: 6 }, valor: 50 },
+      { data: '2026-07-19', descricao: 'Amazon', parcela: { n: 1, de: 6 }, valor: 50 },
+    ],
+    [],
+    [],
+  );
+  assert.equal(r[0].situacao.tipo, 'novaSerie');
+  assert.equal(r[1].situacao.tipo, 'novaSerie');
+});
+
+test('parcela do meio sem irmã `1 de N` na fatura continua entrando sozinha', () => {
+  // A compra é anterior ao app. Não há série para cobri-la, e inventar um
+  // passado seria pior que uma linha solta.
+  const r = cruzar(
+    [{ data: '2025-01-10', descricao: 'Antiga', parcela: { n: 7, de: 10 }, valor: 50 }],
+    [],
+    [],
+  );
+  assert.equal(r[0].situacao.tipo, 'nova');
+});
+
 test('a folga de data cresce com a posição da parcela', () => {
   // Onze somas de mês afastam a data da compra da data gravada; com folga
   // fixa, a parcela 11 nunca casaria.

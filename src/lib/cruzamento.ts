@@ -51,6 +51,11 @@ export type Situacao =
   | { tipo: 'jaLancado'; serieId: number; serieDescricao: string; seq: number; total: number; lancamentoId: number }
   /** Compra parcelada nova: vira uma SÉRIE de N lançamentos, não uma linha. */
   | { tipo: 'novaSerie'; parcelas: number; primeira: string }
+  /**
+   * Já está coberta por uma série que OUTRA LINHA DESTA MESMA FATURA vai
+   * criar. Entra desmarcada: lançá-la seria contar o gasto duas vezes.
+   */
+  | { tipo: 'naSerieNova'; linhaDaSerie: number; seq: number; total: number }
   /** Pode já estar lá. Chave fraca — entra desmarcada, com o candidato ao lado. */
   | { tipo: 'suspeita'; lancamentoId: number; descricao: string; data: string }
   /** Gasto novo, à vista. */
@@ -101,7 +106,7 @@ export function cruzar<T extends LinhaCruzavel>(
   parcelas: ParcelaExistente[],
   avulsos: LancamentoExistente[],
 ): LinhaClassificada<T>[] {
-  return linhas.map((linha) => {
+  const passo1 = linhas.map((linha) => {
     if (linha.parcela) {
       const { n, de } = linha.parcela;
       // Onde a parcela `n` deveria estar, contando da data da compra.
@@ -153,5 +158,51 @@ export function cruzar<T extends LinhaCruzavel>(
     }
 
     return { linha, situacao: { tipo: 'nova' } };
+  }) as LinhaClassificada<T>[];
+
+  /**
+   * A FATURA TAMBÉM PRECISA SER CRUZADA CONSIGO MESMA.
+   *
+   * Medido em 26/08/2026 na fatura de agosto: `Adaptaorg` aparece nela com as
+   * doze parcelas de uma vez — `Parcela 1 de 12` até `Parcela 12 de 12`, todas
+   * com a data da compra. A primeira virava série de 12 lançamentos, e as
+   * outras onze, sem série no app para casar, caíam em `nova` e entravam
+   * SOLTAS. O mesmo gasto contado duas vezes, R$ 1.188 virando R$ 2.277.
+   *
+   * O passo 1 só sabe comparar a fatura com o app. Aqui a série que está
+   * PRESTES a nascer entra na conta: uma parcela cujo irmão `1 de N` está na
+   * mesma fatura já está coberta por ele.
+   */
+  const novasSeries = passo1
+    .map((c, i) => ({ i, c }))
+    .filter((x) => x.c.situacao.tipo === 'novaSerie');
+
+  if (!novasSeries.length) return passo1;
+
+  return passo1.map((c, i) => {
+    const { parcela } = c.linha;
+    if (c.situacao.tipo !== 'nova' || !parcela) return c;
+
+    const dona = novasSeries.find(
+      (x) =>
+        x.i !== i &&
+        x.c.linha.parcela?.de === parcela.de &&
+        pertoDe(c.linha.valor, x.c.linha.valor) &&
+        // Mesma data de compra: é o que amarra as parcelas ao mesmo gasto.
+        // Duas compras de igual valor e igual número de parcelas em dias
+        // diferentes continuam sendo duas compras.
+        x.c.linha.data === c.linha.data,
+    );
+    if (!dona) return c;
+
+    return {
+      linha: c.linha,
+      situacao: {
+        tipo: 'naSerieNova',
+        linhaDaSerie: dona.i,
+        seq: parcela.n,
+        total: parcela.de,
+      },
+    };
   });
 }

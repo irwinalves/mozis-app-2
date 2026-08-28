@@ -189,6 +189,8 @@ export function Importador({
           // Só nasce marcado o que o cruzamento não achou no app. O que casou
           // entra desmarcado — inclusive a suspeita, que é palpite (C7) e
           // marcar por palpite é como se duplica um gasto.
+          // `naSerieNova` fica de fora: a série da linha irmã já a cobre, e
+          // marcá-la lançaria o mesmo gasto duas vezes.
           marcada: l.situacao.tipo === 'nova' || l.situacao.tipo === 'novaSerie',
           descricao: '',
           grupo: l.categoriaSugerida,
@@ -567,6 +569,7 @@ function LinhaFatura({
   const s = l.situacao;
   const casou = !e.forcadaNova && (s.tipo === 'jaLancado' || s.tipo === 'suspeita');
   const serie = !e.forcadaNova && s.tipo === 'novaSerie' ? s.parcelas : null;
+  const naSerie = !e.forcadaNova && s.tipo === 'naSerieNova' ? s : null;
   const nome = e.descricao.trim() || l.descricao;
   const editada = foiEditada(l, e, padraoDivisao);
 
@@ -612,9 +615,11 @@ function LinhaFatura({
               ? s.tipo === 'jaLancado'
                 ? `já no app · ${s.serieDescricao} ${s.seq}/${s.total}`
                 : 'pode já estar no app'
-              : serie
-                ? `vira ${serie} parcelas de ${brl(l.valor)}`
-                : [e.grupo.replace(/^\d+\s/, ''), e.divisao].filter(Boolean).join(' · ')}
+              : naSerie
+                ? `já entra na série da parcela 1/${naSerie.total} desta fatura`
+                : serie
+                  ? `vira ${serie} parcelas de ${brl(l.valor)}`
+                  : [e.grupo.replace(/^\d+\s/, ''), e.divisao].filter(Boolean).join(' · ')}
           </div>
         </div>
         <div className="item-valor">
@@ -669,6 +674,20 @@ function LinhaFatura({
                   <div>
                     Vira uma série de <b>{serie} parcelas</b> de {brl(l.valor)}, uma por mês a
                     partir de {dataBR(l.data)}. As futuras já entram lançadas.
+                  </div>
+                </div>
+              )}
+              {naSerie && (
+                <div className="aviso" style={{ marginTop: 0 }}>
+                  <span>⚠</span>
+                  <div>
+                    Esta fatura traz as <b>{naSerie.total} parcelas de uma vez</b>. A parcela{' '}
+                    <b>1/{naSerie.total}</b> já cria a série inteira, então esta{' '}
+                    <b>
+                      {naSerie.seq}/{naSerie.total}
+                    </b>{' '}
+                    fica de fora — marcá-la lançaria o mesmo gasto duas vezes. Marque só se souber
+                    que é outra compra.
                   </div>
                 </div>
               )}
@@ -918,7 +937,7 @@ function abaDe(l: Linha, e: Estado | undefined): Aba {
   if (e?.forcadaNova) return 'novos';
   const s = l.situacao;
   if (s.tipo === 'jaLancado' || s.tipo === 'suspeita') return 'app';
-  if (s.tipo === 'novaSerie') return 'parc';
+  if (s.tipo === 'novaSerie' || s.tipo === 'naSerieNova') return 'parc';
   return 'novos';
 }
 
