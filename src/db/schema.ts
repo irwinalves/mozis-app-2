@@ -186,6 +186,14 @@ export const lancamentos = pgTable(
      * É o que permite desfazer o lote inteiro e o que dá o selo na lista.
      */
     importacaoId: integer('importacao_id'),
+  /**
+   * Qual LINHA da fatura gerou este lançamento.
+   *
+   * Sem isto, reabrir uma importação para corrigir em lote só saberia apagar
+   * tudo e reescrever — e levaria junto as edições feitas à mão depois. Com o
+   * elo, a tela mexe só nas linhas que a pessoa mudou, e o resto fica de pé.
+   */
+  importacaoLinha: integer('importacao_linha'),
     /**
      * A posição na série — o `3` de `3/12`. É o DADO; o texto da descrição é
      * apresentação e continua carregando o sufixo, porque é o que a lista

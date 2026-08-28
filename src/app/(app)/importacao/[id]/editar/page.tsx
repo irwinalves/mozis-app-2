@@ -1,18 +1,22 @@
 /**
- * Reabrir um lote já importado.
+ * Corrigir em lote o que uma importação trouxe.
  *
- * Serve a MESMA tela de revisão da importação, com as decisões do dia — as
- * linhas marcadas, as que ficaram de fora de propósito, os nomes reescritos e
- * as categorias escolhidas. É por isso que o lote guarda o estado da revisão e
- * não só o resultado dela: sem as linhas descartadas, "reabrir exatamente como
- * ficou" seria mentira.
+ * Serve a MESMA tela de revisão, com duas camadas sobrepostas: as decisões do
+ * dia da importação — que é a única fonte para as linhas que ficaram de fora,
+ * porque o lote não guarda o que não entrou — e, por cima, o que os
+ * lançamentos SÃO hoje.
+ *
+ * A ordem importa e é o coração da tela: o banco ganha. Quem renomeou uma linha
+ * na tela normal encontra aqui o nome que escreveu, e só as linhas mexidas
+ * nesta tela são regravadas. O objetivo é corrigir em bloco sem perder
+ * trabalho, não reimportar.
  */
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { estadoDaImportacao, getOpcoes } from '@/lib/api';
 import { quemEsta } from '@/lib/sessao';
 import { Avatar } from '@/components/Avatar';
-import { Importador, type EstadoSalvo } from '../../../importar/Importador';
+import { Importador, type EstadoSalvo, type AtualDoLote } from '../../../importar/Importador';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,6 +84,7 @@ export default async function PaginaEditarImportacao({
           id: idImp,
           titulo: guardado.titulo,
           salvo: guardado.estado as EstadoSalvo,
+          atual: guardado.atual as AtualDoLote,
         }}
       />
     </>

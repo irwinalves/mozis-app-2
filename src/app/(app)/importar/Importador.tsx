@@ -93,6 +93,15 @@ interface Estado {
   abaTravada: Aba | null;
   /** O valor que o app tem agora — muda quando se adota o da fatura. */
   valorApp: number | null;
+  /**
+   * Ao reabrir um lote: o valor que o LANÇAMENTO tem hoje, que pode não ser
+   * mais o da fatura — alguém pode tê-lo corrigido à mão. É ele que é
+   * regravado, senão corrigir a categoria de uma linha desfaria a correção de
+   * valor de outra pessoa.
+   */
+  valorAtual?: number | null;
+  /** Ao reabrir: este lançamento foi mexido à mão depois da importação. */
+  mexidaDepois?: boolean;
 }
 
 /** O que fica guardado no lote para a edição poder reabrir a revisão. */
@@ -102,6 +111,21 @@ export interface EstadoSalvo {
   padraoDivisao: string;
 }
 
+/** Como cada linha da fatura está no banco AGORA. */
+export type AtualDoLote = Record<
+  number,
+  {
+    parcelas: number;
+    descricao: string;
+    categoria: string;
+    tipo: string;
+    divisao: string;
+    quemPagou: string | null;
+    valor: number;
+    total: number;
+  }
+>;
+
 export function Importador({
   opcoes,
   eu,
@@ -110,7 +134,7 @@ export function Importador({
   opcoes: Opcoes;
   eu: Pessoa | null;
   /** Presente quando se está reabrindo um lote já importado. */
-  edicao?: { id: number; titulo: string; salvo: EstadoSalvo };
+  edicao?: { id: number; titulo: string; salvo: EstadoSalvo; atual: AtualDoLote };
 }) {
   const router = useRouter();
 
@@ -119,20 +143,27 @@ export function Importador({
     edicao?.salvo.padraoDivisao ?? PADRAO_PAGADOR,
   );
   const [analise, setAnalise] = useState<Analise | null>(edicao?.salvo.analise ?? null);
-  const [est, setEst] = useState<Record<number, Estado>>(() =>
-    edicao ? aoReabrir(edicao.salvo.est) : {},
+  /**
+   * Ao reabrir, o ponto de partida é o BANCO, não o que a fatura dizia.
+   *
+   * É o que faz a correção em lote preservar trabalho: quem renomeou uma linha
+   * na tela normal encontra aqui o nome que escreveu, e só as linhas que ele
+   * mexer nesta tela são regravadas.
+   */
+  const base = useMemo(
+    () => (edicao ? aoReabrir(edicao.salvo, edicao.atual) : {}),
+    [edicao],
   );
+  const [est, setEst] = useState<Record<number, Estado>>(base);
   const [aba, setAba] = useState<Aba>('app');
   const [ocupado, setOcupado] = useState('');
   const [erro, setErro] = useState('');
   const [confirmando, setConfirmando] = useState(false);
 
-  /** O estado do dia da importação, para saber se algo mudou desde então. */
-  const original = useMemo(
-    () => (edicao ? assinaturaDe(edicao.salvo.est) : ''),
-    [edicao],
-  );
+  /** O que mudou desde que a tela abriu — não desde a importação. */
+  const original = useMemo(() => assinaturaDe(base), [base]);
   const mudou = !!edicao && assinaturaDe(est) !== original;
+  const mexidasDepois = Object.values(base).filter((e) => e.mexidaDepois).length;
 
   const tipoDoGrupo = useMemo(() => {
     const m = new Map<string, string>();
@@ -212,20 +243,41 @@ export function Importador({
     });
   }
 
+  const umaLinha = (l: Linha, e: Estado): LinhaParaLancar => ({
+    data: l.data,
+    descricao: (e.descricao.trim() || l.descricao).trim(),
+    // O valor de hoje, quando existe — ver `valorAtual`.
+    valor: e.valorAtual ?? l.valor,
+    grupo: e.grupo,
+    tipo: tipoDoGrupo.get(e.grupo),
+    quemPagou: e.quemPagou,
+    divisao: e.divisao,
+    parcelas: parcelasDe(l, e),
+    ref: l.i,
+  });
+
   function paraLancar(): LinhaParaLancar[] {
-    return marcadas.map((l) => {
-      const e = est[l.i];
-      return {
-        data: l.data,
-        descricao: (e.descricao.trim() || l.descricao).trim(),
-        valor: l.valor,
-        grupo: e.grupo,
-        tipo: tipoDoGrupo.get(e.grupo),
-        quemPagou: e.quemPagou,
-        divisao: e.divisao,
-        parcelas: parcelasDe(l, e),
-      };
-    });
+    return marcadas.map((l) => umaLinha(l, est[l.i]));
+  }
+
+  /**
+   * O diferencial de uma correção em lote.
+   *
+   * Só entra o que MUDOU nesta tela. Uma linha que ninguém tocou não vai nem
+   * para `linhas` nem para `apagar`, e por isso o lançamento dela não é
+   * reescrito — é assim que o trabalho feito à mão sobrevive.
+   */
+  function diferencial(): { linhas: LinhaParaLancar[]; apagar: number[] } {
+    const linhas: LinhaParaLancar[] = [];
+    const apagar: number[] = [];
+    for (const l of analise?.linhas ?? []) {
+      const agora = est[l.i];
+      const antes = base[l.i];
+      if (!agora || assinaturaLinha(agora) === assinaturaLinha(antes)) continue;
+      if (agora.marcada) linhas.push(umaLinha(l, agora));
+      else apagar.push(l.i);
+    }
+    return { linhas, apagar };
   }
 
   async function lancar() {
@@ -235,7 +287,7 @@ export function Importador({
     try {
       const salvo: EstadoSalvo = { analise, est: aoSalvar(est), padraoDivisao };
       if (edicao) {
-        await rpc('regravarImportacao', edicao.id, paraLancar(), { estado: salvo });
+        await rpc('ajustarImportacao', edicao.id, diferencial(), { estado: salvo });
         router.push(`/importacao/${edicao.id}`);
       } else {
         const r = await rpc('lancarFatura', paraLancar(), {
@@ -356,13 +408,19 @@ export function Importador({
           </div>
 
           {edicao && (
-            <div className="aviso" style={{ marginTop: 0, marginBottom: 10 }}>
-              <span>⚠</span>
-              <div>
-                Você está <b>reabrindo um lote já importado</b>, com as decisões daquele dia.
-                Confirmar apaga e regrava as {quantosLancamentos} linhas deste lote — ajustes
-                feitos à mão nelas depois da importação <b>se perdem</b>.
+            <div className="card suave" style={{ marginBottom: 10, padding: '10px 12px' }}>
+              <div style={{ fontSize: 12.5 }}>
+                Correção em lote. As linhas abrem <b>como estão no app hoje</b>, e só as que você
+                mexer aqui são regravadas — o resto fica exatamente como está.
               </div>
+              {mexidasDepois > 0 && (
+                <div className="dica" style={{ marginTop: 5 }}>
+                  {mexidasDepois === 1
+                    ? '1 linha foi editada à mão'
+                    : `${mexidasDepois} linhas foram editadas à mão`}{' '}
+                  depois da importação, e aparecem com o selo <b>mudou no app</b>.
+                </div>
+              )}
             </div>
           )}
 
@@ -453,15 +511,9 @@ export function Importador({
               onClick={() => (confirmando ? lancar() : setConfirmando(true))}
             >
               {ocupado ||
-                (!mudou
-                  ? 'Nada mudou ainda'
-                  : confirmando
-                    ? `Confirmar — regravar ${quantosLancamentos} lançamentos`
-                    : 'Importar com ajustes')}
-              {!ocupado && mudou && !confirmando && (
-                <b>
-                  {marcadas.length} marcadas · {brl(somaMarcadas)}
-                </b>
+                (!mudou ? 'Nada mudou ainda' : confirmando ? 'Confirmar' : 'Importar com ajustes')}
+              {!ocupado && mudou && (
+                <b>{resumoDoDiferencial(diferencial())}</b>
               )}
             </button>
             <button
@@ -552,7 +604,10 @@ function LinhaFatura({
           </div>
           <div className="meta">
             {e.forcadaNova && <span className="selo-mud reclass">era &ldquo;já no app&rdquo;</span>}
-            {editada && !e.forcadaNova && <span className="selo-mud">editada</span>}
+            {e.mexidaDepois && <span className="selo-mud">mudou no app</span>}
+            {editada && !e.forcadaNova && !e.mexidaDepois && (
+              <span className="selo-mud">editada</span>
+            )}
             {casou
               ? s.tipo === 'jaLancado'
                 ? `já no app · ${s.serieDescricao} ${s.seq}/${s.total}`
@@ -900,28 +955,84 @@ function aoSalvar(est: Record<number, Estado>): Record<number, Estado> {
   return fora;
 }
 
-/** Reabrir nunca começa com linha aberta nem trava pendente. */
-function aoReabrir(est: Record<number, Estado>): Record<number, Estado> {
+/**
+ * O ponto de partida da correção em lote: as decisões do dia, corrigidas pelo
+ * que o banco diz HOJE.
+ *
+ * A precedência é o banco, não o arquivo. Se alguém renomeou `Ifd*dpc Culinaria`
+ * para `Jantar no japonês` na tela normal, é `Jantar no japonês` que tem que
+ * aparecer aqui — mostrar o nome da fatura convidaria a pessoa a "corrigir" de
+ * volta um trabalho que já estava feito.
+ *
+ * Uma linha que o `estado` diz marcada mas que não está no banco foi apagada à
+ * mão: volta desmarcada, que é a verdade.
+ */
+function aoReabrir(salvo: EstadoSalvo, atual: AtualDoLote): Record<number, Estado> {
+  const daFatura = new Map(salvo.analise.linhas.map((l) => [l.i, l]));
   const dentro: Record<number, Estado> = {};
-  for (const [k, e] of Object.entries(est)) {
-    dentro[Number(k)] = { ...e, descricao: e.descricao ?? '', aberta: false, abaTravada: null };
+
+  for (const [k, e] of Object.entries(salvo.est)) {
+    const ref = Number(k);
+    const a = atual[ref];
+    const limpo = { ...e, descricao: e.descricao ?? '', aberta: false, abaTravada: null };
+
+    if (!a) {
+      dentro[ref] = { ...limpo, marcada: false };
+      continue;
+    }
+
+    // Nome vazio continua querendo dizer "o da fatura serve" — o campo mostra o
+    // original apagado atrás, e só o que difere dele é texto escolhido.
+    const nomeFatura = daFatura.get(ref)?.descricao ?? '';
+    dentro[ref] = {
+      ...limpo,
+      marcada: true,
+      descricao: a.descricao === nomeFatura ? '' : a.descricao,
+      grupo: a.categoria,
+      divisao: a.divisao,
+      quemPagou: a.quemPagou ?? '',
+      valorAtual: a.valor,
+      mexidaDepois:
+        (a.descricao === nomeFatura ? '' : a.descricao) !== (e.descricao ?? '') ||
+        a.categoria !== e.grupo ||
+        a.divisao !== e.divisao ||
+        (a.quemPagou ?? '') !== e.quemPagou,
+    };
   }
   return dentro;
 }
 
 /**
- * O que conta como "mudou" numa edição.
+ * O que conta como "mudou" numa linha.
  *
- * Abrir e fechar uma linha não é mudança, e sem tirar isso da comparação o
- * botão acenderia só de alguém ter olhado.
+ * Abrir e fechar não é mudança, e sem tirar isso da comparação o botão
+ * acenderia só de alguém ter olhado.
  */
+function assinaturaLinha(e: Estado | undefined): string {
+  if (!e) return '';
+  return [
+    e.marcada, e.descricao ?? '', e.grupo, e.divisao, e.quemPagou,
+    e.forcadaNova, e.valorAtual ?? '',
+  ].join('|');
+}
+
 function assinaturaDe(est: Record<number, Estado>): string {
   return Object.entries(est)
-    .map(([k, e]) =>
-      [k, e.marcada, e.descricao ?? '', e.grupo, e.divisao, e.quemPagou, e.forcadaNova].join('|'),
-    )
+    .map(([k, e]) => k + '|' + assinaturaLinha(e))
     .sort()
     .join('\n');
+}
+
+/** "3 linhas corrigidas · 1 removida" — o que o botão vai fazer, em português. */
+function resumoDoDiferencial(d: { linhas: unknown[]; apagar: unknown[] }): string {
+  const partes: string[] = [];
+  if (d.linhas.length) {
+    partes.push(`${d.linhas.length} ${d.linhas.length === 1 ? 'linha' : 'linhas'} regravada${d.linhas.length === 1 ? '' : 's'}`);
+  }
+  if (d.apagar.length) {
+    partes.push(`${d.apagar.length} removida${d.apagar.length === 1 ? '' : 's'}`);
+  }
+  return partes.join(' · ') + ' · o resto fica como está';
 }
 
 const arred = (v: number) => Math.round(v * 100) / 100;

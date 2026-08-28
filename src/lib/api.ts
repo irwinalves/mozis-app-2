@@ -104,6 +104,7 @@ interface LinhaView extends Record<string, unknown> {
   serie_id: number | null;
   seq: number | null;
   importacao_id: number | null;
+  importacao_linha: number | null;
 }
 
 /** Converte uma linha da view no item que a lista do Início espera. */
@@ -1567,6 +1568,12 @@ export interface LinhaParaLancar {
   gastoDe?: string | null;
   /** Quando vem de `Parcela 1 de N`: cria a série inteira, não uma linha. */
   parcelas?: number | null;
+  /**
+   * Qual linha da fatura é esta. É o elo que permite corrigir um lote em bloco
+   * sem apagá-lo inteiro: com ele a gravação sabe exatamente quais lançamentos
+   * substituir e quais deixar em paz.
+   */
+  ref?: number | null;
 }
 
 /**
@@ -1645,6 +1652,7 @@ async function gravarLote(
         gasto_de: l.gastoDe || null,
         serie_id: serieId,
         seq: serieId ? k + 1 : null,
+        ref: l.ref ?? null,
       });
       qtd++;
       total += o.valor;
@@ -1666,17 +1674,18 @@ async function gravarLote(
       sql`insert into lancamentos
             (data, descricao, categoria, tipo, cat_original, fonte, valor_total,
              divisao, pct_irwin_custom, pct_irwin, eh_quitacao, quem_pagou,
-             pago_irwin, recorrente, gasto_de, serie_id, seq, importacao_id)
+             pago_irwin, recorrente, gasto_de, serie_id, seq, importacao_id,
+             importacao_linha)
           select r.data::date, r.descricao, r.categoria, r.tipo,
                  'Fatura do cartão', 'Cartão', r.valor::numeric, r.divisao,
                  r.pct_custom::numeric, r.pct::numeric, r.eh_quitacao,
                  r.quem_pagou, r.pago_irwin::numeric, false, r.gasto_de,
-                 r.serie_id, r.seq, ${impId}
+                 r.serie_id, r.seq, ${impId}, r.ref
           from jsonb_to_recordset(${JSON.stringify(paraGravar)}::jsonb) as r(
             data text, descricao text, categoria text, tipo text, valor text,
             divisao text, pct_custom text, pct text, eh_quitacao boolean,
             quem_pagou text, pago_irwin text, gasto_de text,
-            serie_id int, seq int)`,
+            serie_id int, seq int, ref int)`,
     );
   }
 
@@ -1743,66 +1752,6 @@ export async function lancarFatura(
   });
 }
 
-/**
- * As decisões guardadas de um lote — o que a tela de edição rehidrata.
- *
- * Vem em chamada separada de `obterImportacao` de propósito: são dezenas de
- * KB de JSON que só a edição precisa, e a tela do lote é aberta muito mais
- * vezes do que editada.
- */
-export async function estadoDaImportacao(id: number) {
-  const [r] = await db.execute<{ estado: unknown; titulo: string; arquivo: string | null }>(
-    sql`select estado, titulo, arquivo from importacoes where id = ${id}`,
-  );
-  if (!r) throw new Error('Importação não encontrada.');
-  if (r.estado == null) {
-    throw new Error(
-      'Esta importação foi feita antes da edição existir e não guardou as decisões da revisão. ' +
-        'Dá para desfazer e importar de novo.',
-    );
-  }
-  return { estado: r.estado, titulo: r.titulo, arquivo: r.arquivo };
-}
-
-/**
- * Reescreve um lote com os ajustes.
- *
- * APAGA E REGRAVA, numa transação só. Tentar casar linha a linha com o que já
- * está lá seria um segundo cruzamento — desta vez do lote consigo mesmo — e a
- * regra nº 3 vale aqui: uma implementação do cruzamento, não duas. O `id` do
- * lote é o mesmo, então o selo na lista e o link do evento continuam valendo.
- *
- * O que isso custa está escrito na tela antes de confirmar: edições feitas À
- * MÃO num lançamento deste lote, depois da importação, se perdem. Não há como
- * preservá-las — a linha some e nasce outra.
- */
-export async function regravarImportacao(
-  id: number,
-  linhas: LinhaParaLancar[],
-  meta: { estado?: unknown },
-) {
-  if (!linhas.length) throw new Error('Nada marcado para lançar.');
-  for (const l of linhas) exigirPagador(l.quemPagou);
-
-  const [existe] = await db.execute<{ id: number }>(
-    sql`select id from importacoes where id = ${id}`,
-  );
-  if (!existe) throw new Error('Importação não encontrada.');
-
-  const pctRenda = await pctDaRenda();
-
-  return db.transaction(async (tx) => {
-    await apagarLoteDe(tx, id);
-    const r = await gravarLote(tx, id, linhas, pctRenda);
-    await tx.execute(
-      sql`update importacoes set qtd = ${r.qtd}, total = ${r.total},
-                 estado = ${meta.estado === undefined ? null : JSON.stringify(meta.estado)}::jsonb
-          where id = ${id}`,
-    );
-    return { importacaoId: id, ...r };
-  });
-}
-
 /** Um lote, com o que ele criou — a tela do evento e o desfazer. */
 export async function obterImportacao(id: number, pessoa: Pessoa | null = null) {
   const [imp] = await db.execute<{
@@ -1859,11 +1808,10 @@ export async function listarImportacoes(limite = 12) {
 }
 
 /**
- * Desfaz o lote inteiro.
+ * Desfaz o lote inteiro: apaga tudo que ele criou e o próprio registro.
  *
- * Apaga também as SÉRIES que a importação criou — uma série de 3 parcelas que
- * nasceu aqui não deve sobreviver ao desfazer, ou vira uma série vazia que
- * ninguém sabe de onde veio.
+ * Diferente do ajuste, que mexe só nas linhas alteradas. Aqui a intenção é
+ * "essa importação não devia ter acontecido".
  */
 export async function desfazerImportacao(id: number) {
   return db.transaction(async (tx) => {
@@ -1874,6 +1822,146 @@ export async function desfazerImportacao(id: number) {
     await tx.execute(sql`delete from importacoes where id = ${id}`);
     return { ok: true, apagados: Number(n) };
   });
+}
+
+/**
+ * O que a tela de edição de um lote precisa para abrir.
+ *
+ * Vêm DUAS coisas, e a diferença entre elas é o ponto:
+ *
+ * - `estado` são as DECISÕES do dia da importação, inclusive sobre as linhas
+ *   que ficaram de fora. É a única fonte para elas: o lote não guarda o que
+ *   não entrou.
+ * - `atual` é o que os lançamentos SÃO agora, lidos do banco. É o que preserva
+ *   o trabalho feito à mão depois da importação — se alguém renomeou ou
+ *   recategorizou uma linha na tela normal, é isso que a edição em lote tem
+ *   que mostrar, não o que a fatura dizia em agosto.
+ *
+ * Uma linha marcada no `estado` mas ausente do `atual` foi apagada à mão. A
+ * tela mostra como desmarcada, que é a verdade do banco.
+ */
+export async function estadoDaImportacao(id: number) {
+  const [r] = await db.execute<{ estado: unknown; titulo: string; arquivo: string | null }>(
+    sql`select estado, titulo, arquivo from importacoes where id = ${id}`,
+  );
+  if (!r) throw new Error('Importação não encontrada.');
+  if (r.estado == null) {
+    throw new Error(
+      'Esta importação foi feita antes da edição existir e não guardou as decisões da revisão. ' +
+        'Dá para desfazer e importar de novo.',
+    );
+  }
+
+  /**
+   * `order by seq nulls first` e o `[1]`: numa série, a PRIMEIRA parcela é a
+   * que carrega o valor unitário limpo — a última absorve o arredondamento
+   * (A7) e não serve de referência.
+   */
+  const linhas = await db.execute<{
+    ref: number; n: number; descricao: string; categoria: string; tipo: string;
+    divisao: string; quem_pagou: string | null; valor: string; total: string;
+  }>(sql`select importacao_linha as ref, count(*)::int as n,
+                (array_agg(descricao   order by seq nulls first, data, id))[1] as descricao,
+                (array_agg(categoria   order by seq nulls first, data, id))[1] as categoria,
+                (array_agg(tipo        order by seq nulls first, data, id))[1] as tipo,
+                (array_agg(divisao     order by seq nulls first, data, id))[1] as divisao,
+                (array_agg(quem_pagou  order by seq nulls first, data, id))[1] as quem_pagou,
+                (array_agg(valor_total order by seq nulls first, data, id))[1]::text as valor,
+                round(sum(valor_total)::numeric, 2)::text as total
+         from v_lancamentos
+         where importacao_id = ${id} and importacao_linha is not null
+         group by importacao_linha`);
+
+  const atual: Record<number, {
+    parcelas: number; descricao: string; categoria: string; tipo: string;
+    divisao: string; quemPagou: string | null; valor: number; total: number;
+  }> = {};
+  for (const l of linhas) {
+    atual[l.ref] = {
+      parcelas: l.n,
+      // O sufixo ` N/M` é gerado por `montarParcelas`; o nome da série é o que
+      // sobra. Sem tirar, reabrir e regravar somaria um sufixo a cada vez.
+      descricao: l.n > 1 ? String(l.descricao).replace(/ \(?\d[\d,+]*\/\d+\)?$/, '') : l.descricao,
+      categoria: l.categoria,
+      tipo: l.tipo,
+      divisao: l.divisao,
+      quemPagou: l.quem_pagou,
+      valor: Number(l.valor),
+      total: Number(l.total),
+    };
+  }
+
+  return { estado: r.estado, titulo: r.titulo, arquivo: r.arquivo, atual };
+}
+
+/**
+ * Corrige um lote em bloco, mexendo SÓ no que mudou.
+ *
+ * A tela manda as linhas da fatura que foram alteradas — `linhas` para as que
+ * devem existir com estes valores, `apagar` para as que a pessoa desmarcou. O
+ * que não vem em nenhuma das duas listas não é tocado, e é essa a garantia que
+ * importa: uma edição feita à mão depois da importação sobrevive à correção em
+ * lote de outras linhas.
+ *
+ * Dentro de uma linha alterada a substituição é total — uma parcelada de 5x é
+ * remontada por `montarParcelas`, porque mudar o valor ou o número de parcelas
+ * muda todas as datas. Isso só acontece na linha que a pessoa mexeu.
+ */
+export async function ajustarImportacao(
+  id: number,
+  mudancas: { linhas: LinhaParaLancar[]; apagar: number[] },
+  meta: { estado?: unknown } = {},
+) {
+  for (const l of mudancas.linhas) exigirPagador(l.quemPagou);
+
+  const [existe] = await db.execute<{ id: number }>(
+    sql`select id from importacoes where id = ${id}`,
+  );
+  if (!existe) throw new Error('Importação não encontrada.');
+
+  const pctRenda = await pctDaRenda();
+  const refs = [
+    ...new Set([...mudancas.apagar, ...mudancas.linhas.map((l) => Number(l.ref))]),
+  ].filter((r) => Number.isInteger(r));
+
+  return db.transaction(async (tx) => {
+    if (refs.length) await apagarLinhasDe(tx, id, refs);
+    if (mudancas.linhas.length) await gravarLote(tx, id, mudancas.linhas, pctRenda);
+
+    // `qtd` e `total` são do lote inteiro, não do que passou por aqui: eles
+    // descrevem o que existe agora, e o resto do lote continuou existindo.
+    const [r] = await tx.execute<{ n: string; soma: string | null }>(
+      sql`select count(*)::text as n, sum(valor_total)::text as soma
+          from lancamentos where importacao_id = ${id}`,
+    );
+    await tx.execute(
+      sql`update importacoes set qtd = ${Number(r.n)}, total = ${arred(Number(r.soma ?? 0))},
+                 estado = ${meta.estado === undefined ? null : JSON.stringify(meta.estado)}::jsonb
+          where id = ${id}`,
+    );
+    return { importacaoId: id, qtd: Number(r.n), total: arred(Number(r.soma ?? 0)) };
+  });
+}
+
+/** As linhas de um lote correspondentes a estas posições da fatura. */
+async function apagarLinhasDe(tx: Transacao, id: number, refs: number[]) {
+  const lista = JSON.stringify(refs.map((r) => ({ r })));
+  const series = await tx.execute<{ serie_id: number }>(
+    sql`select distinct l.serie_id from lancamentos l
+        join jsonb_to_recordset(${lista}::jsonb) as x(r int) on x.r = l.importacao_linha
+        where l.importacao_id = ${id} and l.serie_id is not null`,
+  );
+  await tx.execute(
+    sql`delete from lancamentos l
+        using jsonb_to_recordset(${lista}::jsonb) as x(r int)
+        where l.importacao_id = ${id} and l.importacao_linha = x.r`,
+  );
+  for (const s of series) {
+    await tx.execute(
+      sql`delete from series where id = ${s.serie_id}
+          and not exists (select 1 from lancamentos where serie_id = ${s.serie_id})`,
+    );
+  }
 }
 
 /**
