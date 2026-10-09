@@ -70,9 +70,18 @@ async function main() {
   }
 
   const antes = await acerto();
-  const efeito = alvo.reduce((a, l) => a + Number(l.saldo), 0);
+
+  // A previsão sai do POSTGRES, não de somar em JS as parcelas arredondadas.
+  // Na primeira versão a diferença apareceu na hora: previ …,35 e o resultado
+  // foi …,34. Um centavo não quebra nada, mas um script cuja única função é
+  // mostrar o número ANTES de gravar não pode errar o número (regra nº 4).
+  const [prev] = await sql<{ depois: string }[]>`
+    select round(coalesce(sum(saldo_irwin), 0)::numeric, 2)::text as depois
+      from v_lancamentos
+     where not (recorrente = true and data > ${LIMITE})`;
+
   console.log(`\nAcerto "total" agora: ${brl(Number(antes.total))}`);
-  console.log(`Depois da correção:   ${brl(Number(antes.total) - efeito)}`);
+  console.log(`Depois da correção:   ${brl(Number(prev.depois))}`);
   console.log(`Corte do mês (não muda): ${brl(Number(antes.mes))}`);
 
   if (!APLICAR) {
