@@ -24,7 +24,7 @@ arquivo guarda o que precisa **sobreviver à troca de tecnologia**.
 
 ## Quantas estão verificadas por máquina
 
-40 regras escritas. **`scripts/invariantes.ts` verifica 16 delas contra o banco real**,
+42 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
 e é por isso que os dois têm o mesmo nome: a distância entre os dois números é a medida
 de quanto ainda depende de alguém lembrar.
 
@@ -270,6 +270,54 @@ ao corrigir **outra** linha do mesmo lote.
 
 **Como provar:** importe, edite uma linha à mão pelo caminho normal, corrija **outra**
 linha pela edição em lote, e confira que a primeira continua exatamente como estava.
+
+### A18. Recorrência não adianta o futuro, tenha ou não data fim
+
+**Regra:** ao gravar, uma recorrência produz ocorrências **só até o fim do mês corrente**.
+A data fim é *vigência da regra* — o cron a respeita e para na hora certa —, não
+autorização para lançar os meses seguintes.
+
+**Por que é diferente de parcelamento:** uma parcelada é dívida **já contraída** — a
+compra aconteceu e as N parcelas são devidas, então gravar todas é o certo (A7). Uma
+recorrência é escolha que **se repete**: a faxina, a assinatura, a viagem podem ser
+canceladas no mês que vem. Pôr uma data fim planeja o término; não transforma o futuro
+em dívida.
+
+**Se violada:** medido em 09/10/2026, e foi o Irwin quem viu na tela do app. Quatro
+regras com data fim tinham gravado **23 ocorrências até março de 2027** no ato da
+criação — R$ 22.859,05 — e, com `ultima_geracao` já no fim, o cron nunca mais as tocava.
+O corte **"total"** do acerto estava **R$ 11.429,53 errado**: cinco meses de uma despesa
+que ainda não aconteceu. Os cortes do mês e do mês seguinte estavam certos, e é por isso
+que passou despercebido por seis semanas.
+
+> O defeito nasceu de uma assimetria sem motivo: `montarRecorrencias` tinha dois ramos,
+> um para `semFimRec` e outro para data fim, e só o primeiro parava no mês corrente. A
+> conta certa já existia **no cron**. Era a regra nº 3 violada — duas implementações da
+> mesma coisa, e a cópia errada era a que gravava.
+
+**Como provar:** `scripts/invariantes.ts`, invariante `recorrencia-adiantada` — nenhuma
+linha com `recorrente = true` pode ter data além do fim do mês corrente. Parcela futura
+não entra no filtro, de propósito.
+
+### A19. Um parcelamento nasce com série, sempre
+
+**Regra:** gravar uma compra parcelada cria a linha em `series` e liga **todas** as
+parcelas a ela, com `seq`. Não existe parcelamento órfão.
+
+**Se violada:** medido em 09/10/2026 junto com a A18 — **17 parcelas criadas em
+setembro** pela tela de Lançar, todas sem `serie_id`. O custo é duplo e nenhum dá erro:
+
+- A tela de editar série não as alcança — exatamente a função que a Fase 3 entregou.
+- O cruzamento da fatura usa `series` como **chave forte**. Uma `Leiturinha 6/12`
+  chegando na fatura do mês seguinte não casaria com nada e entraria **duplicada**.
+
+> Mesma classe de falha da A10, do outro lado da moeda: em agosto a recorrência
+> indefinida nascia sem regra, foi corrigida, e **ninguém olhou o parcelamento**.
+> Quando um defeito é "o registro-pai não foi criado", procure os outros tipos de
+> registro-pai no mesmo caminho de gravação.
+
+**Como provar:** `scripts/invariantes.ts`, invariante `serie-identidade` — toda linha
+cuja descrição termina em ` N/M` tem `serie_id`.
 
 ---
 

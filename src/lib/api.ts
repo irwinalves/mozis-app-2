@@ -561,6 +561,33 @@ export async function salvarLancamento(dados: DadosLancamento) {
 
   const linhas = await db.transaction(async (tx) => {
     const ids: number[] = [];
+
+    /**
+     * Um parcelamento é uma SÉRIE, e precisa nascer com id.
+     *
+     * Isto faltava, e é a mesma falha da A10 do outro lado da moeda: em agosto
+     * eu consertei a recorrência indefinida que nascia órfã e não olhei o
+     * parcelamento. Resultado medido em 09/10/2026: 17 parcelas criadas em
+     * setembro pela tela de Lançar, todas sem `serie_id`.
+     *
+     * O que isso custa, e não é pouco:
+     *
+     * - A tela de editar série não as alcança — exatamente a função que a
+     *   Fase 3 existiu para entregar.
+     * - O cruzamento da fatura usa `series` como CHAVE FORTE. Uma
+     *   `Leiturinha 6/12` chegando na fatura do mês que vem não casaria com
+     *   nada, e entraria duplicada.
+     */
+    let serieId: number | null = null;
+    if (!dados.repetir && ocorrencias.length > 1) {
+      const [s] = await tx.execute<{ id: number }>(
+        sql`insert into series (tipo, descricao, total, origem)
+            values ('parcelamento', ${dados.descricao}, ${ocorrencias.length}, 'app')
+            returning id`,
+      );
+      serieId = s.id;
+    }
+
     for (let i = 0; i < ocorrencias.length; i++) {
       const o = ocorrencias[i];
       const parteIrwin = arred(o.valor * pct);
@@ -585,12 +612,13 @@ export async function salvarLancamento(dados: DadosLancamento) {
         sql`insert into lancamentos
               (data, descricao, categoria, tipo, fonte, valor_total, divisao,
                pct_irwin_custom, pct_irwin, eh_quitacao, quem_pagou, pago_irwin,
-               obs, recorrente, gasto_de)
+               obs, recorrente, gasto_de, serie_id, seq)
             values (${formatarData(o.data)}, ${o.descricao}, ${dados.grupo}, ${tipo},
                     ${dados.fonte ?? null}, ${o.valor}, ${dados.divisao},
                     ${pctCustomFracao}, ${pct}, ${ehQuitacaoDe(dados.grupo)},
                     ${quemPagou}, ${pagoIrwin},
-                    ${dados.obs ?? null}, ${!!dados.repetir}, ${dados.gastoDe || null})
+                    ${dados.obs ?? null}, ${!!dados.repetir}, ${dados.gastoDe || null},
+                    ${serieId}, ${serieId ? i + 1 : null})
             returning id`,
       );
       ids.push(row.id);

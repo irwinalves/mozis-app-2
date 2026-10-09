@@ -6,8 +6,8 @@ app em Google Apps Script + planilha, aposentado em 20/08/2026.
 - **No ar:** https://mozis-app-2.vercel.app
 - **Legado:** [mozis-app-legado](https://github.com/irwinalves/mozis-app-legado) — código preservado
 - **As regras que este app pagou caro para descobrir:** `docs/INVARIANTES.md`.
-  **São 40, e valem mais que este arquivo.** Leia antes de mexer em regra de negócio.
-  `scripts/invariantes.ts` verifica 16 delas contra o banco — regra nova pede a
+  **São 42, e valem mais que este arquivo.** Leia antes de mexer em regra de negócio.
+  `scripts/invariantes.ts` verifica 17 delas contra o banco — regra nova pede a
   pergunta: dá para checá-la por consulta?
 - **Antes de mexer no front:** `docs/design/README.md` (tokens e a spec de cada tela)
   e `docs/design/BRIEFING-Claude-Design.md` (o *porquê* de cada regra). É a referência

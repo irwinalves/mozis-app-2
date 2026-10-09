@@ -94,6 +94,40 @@ const invariantes: Invariante[] = [
   },
 
   {
+    id: 'recorrencia-adiantada',
+    regra: 'A18 — recorrência não adianta o futuro, tenha ou não data fim',
+    pergunta: 'Existe recorrência lançada além do mês corrente?',
+    checar: async () => {
+      // Uma parcelada futura é dívida já contraída e PODE estar lançada (A7).
+      // Uma recorrência futura não: ela é escolha que se repete, e o cron a
+      // gera mês a mês. Achado em 09/10/2026 com 23 ocorrências até março de
+      // 2027 — o corte "total" do acerto estava R$ 11.429,53 errado.
+      const linhas = await sql<
+        { descricao: string; n: string; ate: string; saldo: string }[]
+      >`select descricao, count(*)::text as n, max(data)::text as ate,
+               round(sum(saldo_irwin)::numeric, 2)::text as saldo
+          from v_lancamentos
+         where recorrente = true
+           and data > (date_trunc('month', current_date)
+                       + interval '1 month' - interval '1 day')::date
+         group by descricao order by count(*) desc`;
+
+      const total = linhas.reduce((a, l) => a + Number(l.n), 0);
+      const efeito = linhas.reduce((a, l) => a + Number(l.saldo), 0);
+
+      return {
+        ok: total === 0,
+        severidade: 'defeito',
+        medida:
+          total === 0
+            ? 'nenhuma recorrência lançada além do mês corrente'
+            : `${total} ocorrência(s) adiantada(s) em ${linhas.length} regra(s) · movem o acerto "total" em ${brl(efeito)}`,
+        exemplos: linhas.map((l) => `${l.descricao} — ${l.n} até ${l.ate}`),
+      };
+    },
+  },
+
+  {
     id: 'pct-congelado',
     regra: 'Regra 3 — uma implementação, nunca duas',
     pergunta: 'O `pct_irwin` gravado ainda concorda com o que a regra calcularia hoje?',

@@ -21,6 +21,7 @@ import {
   pagoIrwinDe,
   montarParcelas,
   montarRecorrencias,
+  limiteDaGeracao,
   normalizarFreq,
   ocorrenciaFreq,
   fracaoPagaPeloIrwin,
@@ -225,4 +226,67 @@ test('fracaoPagaPeloIrwin: null quando não é Ambos ou não há rateio', () => 
   const p = montarParcelas({ data: '2026-01-15', descricao: 'X', valor: 100, parcelas: 1 });
   assert.equal(fracaoPagaPeloIrwin({ quemPagou: 'Irwin', pagoIrwin: 100 }, p), null);
   assert.equal(fracaoPagaPeloIrwin({ quemPagou: 'Ambos', pagoIrwin: null }, p), null);
+});
+
+// ---------------------------------------------------------------------------
+// A18 — recorrência não adianta o futuro, tenha ou não data fim
+// ---------------------------------------------------------------------------
+
+/**
+ * A data é FIXA de propósito. Estes testes dependem de "que mês é hoje", e com
+ * `new Date()` real eles passariam hoje e falhariam em novembro — um teste que
+ * quebra sozinho com a virada do mês ensina a ignorar a suíte.
+ */
+const HOJE = new Date(2026, 9, 9); // 09/10/2026
+
+test('recorrência COM data fim grava só até o fim do mês corrente', () => {
+  // O defeito que isto trava, visto por Irwin na tela em 09/10/2026: quatro
+  // regras com data fim tinham gravado 23 ocorrências até março de 2027 no ato
+  // da criação — R$ 22.859,05 — e o corte "total" do acerto saiu R$ 11.429,53
+  // errado. A data fim é vigência da regra, não autorização para adiantar.
+  const oc = montarRecorrencias({
+    data: '2026-10-07', descricao: 'Cynthia', valor: '2902.51',
+    repetir: true, freqRec: 'mensal', semFimRec: false, fimRec: '2027-03-07',
+  } as never, HOJE);
+  assert.equal(oc.length, 1);
+  assert.equal(formatarData(oc[0].data), '2026-10-07');
+});
+
+test('indefinida continua parando no fim do mês corrente', () => {
+  const oc = montarRecorrencias({
+    data: '2026-10-07', descricao: 'Condomínio', valor: '1380',
+    repetir: true, freqRec: 'mensal', semFimRec: true,
+  } as never, HOJE);
+  assert.equal(oc.length, 1);
+});
+
+test('quinzenal grava as ocorrências do mês, e nenhuma do seguinte', () => {
+  // Quinzenal são 14 dias, não meio mês: outubro cabe três.
+  const oc = montarRecorrencias({
+    data: '2026-10-02', descricao: 'Orgânicos do chico', valor: '128',
+    repetir: true, freqRec: 'quinzenal', semFimRec: false, fimRec: '2027-03-04',
+  } as never, HOJE);
+  assert.deepEqual(
+    oc.map((o) => formatarData(o.data)),
+    ['2026-10-02', '2026-10-16', '2026-10-30'],
+  );
+});
+
+test('data fim ANTES do fim do mês encurta o limite', () => {
+  // O caso que a regra sempre quis cobrir: termina em 15/10, não gera 30/10.
+  const oc = montarRecorrencias({
+    data: '2026-10-01', descricao: 'Algo curto', valor: '50',
+    repetir: true, freqRec: 'quinzenal', semFimRec: false, fimRec: '2026-10-10',
+  } as never, HOJE);
+  assert.equal(oc.length, 1);
+});
+
+test('limiteDaGeracao é a mesma conta dos dois lados', () => {
+  const hoje = new Date(2026, 9, 9); // 09/10/2026
+  const fimDoMes = new Date(2026, 9, 31);
+  assert.equal(limiteDaGeracao(null, hoje).getTime(), fimDoMes.getTime());
+  // Vigência no futuro não estica o limite.
+  assert.equal(limiteDaGeracao(new Date(2027, 2, 7), hoje).getTime(), fimDoMes.getTime());
+  // Vigência dentro do mês o encurta.
+  assert.equal(limiteDaGeracao(new Date(2026, 9, 15), hoje).getTime(), new Date(2026, 9, 15).getTime());
 });

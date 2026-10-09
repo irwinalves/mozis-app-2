@@ -70,8 +70,8 @@ dupla e é inerte em produção — conferido contra build real.
 
 - **Cálculo da divisão:** `pctIrwinDe()` em `src/lib/lancamentos.ts`, e **só ali**.
   O resultado é gravado em `lancamentos.pct_irwin`; a view faz apenas aritmética.
-- **Regras de negócio:** as 40 regras, cada uma com o defeito que a gerou, em
-  [`docs/INVARIANTES.md`](docs/INVARIANTES.md). `scripts/invariantes.ts` verifica 16
+- **Regras de negócio:** as 42 regras, cada uma com o defeito que a gerou, em
+  [`docs/INVARIANTES.md`](docs/INVARIANTES.md). `scripts/invariantes.ts` verifica 17
   delas contra o banco real.
 - **Design:** [`docs/design/README.md`](docs/design/README.md) tem os tokens e a spec
   de cada tela; [`docs/design/BRIEFING-Claude-Design.md`](docs/design/BRIEFING-Claude-Design.md)

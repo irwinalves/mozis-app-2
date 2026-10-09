@@ -206,22 +206,52 @@ export interface DadosRecorrencia {
  * Marcado como indefinido, gera só até o fim do mês corrente — o resto fica com
  * o gatilho mensal idempotente.
  */
-export function montarRecorrencias(d: DadosRecorrencia): Ocorrencia[] {
+/**
+ * Até onde uma recorrência pode ser gerada AGORA: o fim do mês corrente,
+ * encurtado pela vigência da regra.
+ *
+ * POR QUE A DATA FIM NÃO ADIANTA O FUTURO
+ *
+ * Uma parcelada é dívida JÁ CONTRAÍDA: a compra aconteceu e as N parcelas são
+ * devidas, então gravar todas de uma vez é o certo (A7). Uma recorrência é
+ * escolha que se repete — a faxina, a assinatura, a viagem podem ser
+ * canceladas no mês que vem. Pôr uma data fim planeja o término; não transforma
+ * os meses seguintes em dívida.
+ *
+ * Medido em 09/10/2026, e foi o Irwin quem viu na tela: quatro regras com data
+ * fim tinham gravado **23 ocorrências até março de 2027** no ato da criação —
+ * R$ 22.859,05 — e com `ultima_geracao` já no fim, o cron nunca mais as
+ * tocava. O corte "total" do acerto, que soma tudo, estava **R$ 11.429,53**
+ * errado: cinco meses de Cynthia que ainda não aconteceram.
+ *
+ * Esta função é a MESMA conta que o cron faz (regra nº 3). Era duplicada, e a
+ * cópia da gravação era a que estava errada.
+ */
+export function limiteDaGeracao(dataFim: Date | null, hoje = new Date()): Date {
+  const fimMes = fimDoMes(hoje);
+  if (!dataFim) return fimMes;
+  return dataFim.getTime() < fimMes.getTime() ? dataFim : fimMes;
+}
+
+export function montarRecorrencias(d: DadosRecorrencia, hoje = new Date()): Ocorrencia[] {
   const valor = arred(Number(d.valor));
   if (!(valor > 0)) throw new Error('Informe um valor maior que zero.');
   const d0 = parseDataLocal(d.data);
   const freq = normalizarFreq(d.freqRec);
 
-  let limite: Date;
-  if (d.semFimRec) {
-    limite = fimDoMes(new Date());
-  } else {
+  let fim: Date | null = null;
+  if (!d.semFimRec) {
     if (!d.fimRec) throw new Error('Informe a data fim ou marque repetição indefinida.');
-    limite = parseDataLocal(d.fimRec);
-    if (!(limite.getTime() >= d0.getTime())) {
+    fim = parseDataLocal(d.fimRec);
+    if (!(fim.getTime() >= d0.getTime())) {
       throw new Error('A data fim deve ser igual ou depois da data do lançamento.');
     }
   }
+
+  // A gravação para no fim do mês corrente, TENHA OU NÃO data fim. A data fim
+  // é vigência da regra — o cron a respeita e para na hora certa —, não
+  // autorização para adiantar o futuro. Ver `limiteDaGeracao`.
+  const limite = limiteDaGeracao(fim, hoje);
 
   const datas = gerarDatasRecorrencia(d0, freq, limite, 500);
   if (!datas.length) throw new Error('Nenhuma ocorrência no período informado.');
