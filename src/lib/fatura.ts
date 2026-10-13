@@ -168,7 +168,14 @@ export function lerFatura(
         linha: i + 1,
         descricao,
         valor,
-        motivo: /pagamento efetuado/i.test(descricao) ? 'pagamento da fatura' : 'estorno ou crédito',
+        // `Pagamento Efetuado` numa fatura paga e `Pagamento Debito
+        // Automatico` numa fatura aberta — o banco usa os dois. Reconhecer só
+        // o primeiro fazia o pagamento de setembro, R$ 16.132,19, aparecer
+        // como "estorno ou crédito". Os dois são descartados do mesmo jeito,
+        // mas o MOTIVO é lido por quem olha a tela, e agora também por
+        // `ligarEstornos`, que não pode procurar a compra que um pagamento de
+        // fatura cancelaria — ele não cancela nenhuma, paga todas.
+        motivo: /^pagamento\b/i.test(descricao) ? 'pagamento da fatura' : 'estorno ou crédito',
       });
       continue;
     }
