@@ -13,7 +13,7 @@ import {
 } from './api';
 import {
   arred,
-  fimDoMes,
+  limiteDaGeracao,
   pagoIrwinDe,
   pctIrwinDe,
   formatarData,
@@ -59,18 +59,14 @@ export async function gerarRecorrenciasPendentes() {
   );
   const pctRenda = Number(conf?.pct_irwin_renda ?? 0.4947);
 
-  const fimDoMesCorrente = fimDoMes(new Date());
+  const hoje = new Date();
   const geradas: { regra: string; datas: string[] }[] = [];
 
   for (const r of regras) {
     const freq = normalizarFreq(r.frequencia);
-    // A vigência da regra encurta o limite: uma recorrência que termina em
-    // 15/09 não deve gerar a ocorrência de 30/09 só porque o mês ainda não
-    // acabou.
-    const limite =
-      r.data_fim && comoData(r.data_fim).getTime() < fimDoMesCorrente.getTime()
-        ? comoData(r.data_fim)
-        : fimDoMesCorrente;
+    // A mesma conta da gravação, e agora literalmente a mesma função: a
+    // vigência encurta o limite, e o limite nunca passa do mês corrente.
+    const limite = limiteDaGeracao(r.data_fim ? comoData(r.data_fim) : null, hoje);
 
     const base = comoData(r.ultima_geracao ?? r.data_inicio);
     const proxima = ocorrenciaFreq(base, freq, 1);

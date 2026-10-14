@@ -1,0 +1,1 @@
+ALTER TABLE "lancamentos" ADD COLUMN "importacao_linha" integer;

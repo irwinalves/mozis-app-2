@@ -20,6 +20,7 @@ import {
   boolean,
   index,
   timestamp,
+  jsonb,
 } from 'drizzle-orm/pg-core';
 
 /**
@@ -181,6 +182,19 @@ export const lancamentos = pgTable(
     /** A série a que este lançamento pertence. NULL = lançamento avulso. */
     serieId: integer('serie_id'),
     /**
+     * O lote de importação que criou esta linha. NULL = lançado à mão.
+     * É o que permite desfazer o lote inteiro e o que dá o selo na lista.
+     */
+    importacaoId: integer('importacao_id'),
+  /**
+   * Qual LINHA da fatura gerou este lançamento.
+   *
+   * Sem isto, reabrir uma importação para corrigir em lote só saberia apagar
+   * tudo e reescrever — e levaria junto as edições feitas à mão depois. Com o
+   * elo, a tela mexe só nas linhas que a pessoa mudou, e o resto fica de pé.
+   */
+  importacaoLinha: integer('importacao_linha'),
+    /**
      * A posição na série — o `3` de `3/12`. É o DADO; o texto da descrição é
      * apresentação e continua carregando o sufixo, porque é o que a lista
      * mostra e o que a busca encontra.
@@ -188,7 +202,7 @@ export const lancamentos = pgTable(
     seq: integer('seq'),
 
     /**
-     * Desempate de mesma data, que o `PARA-O-APP-2.0.md` deixou em aberto: sem
+     * Desempate de mesma data, que o `docs/INVARIANTES.md` deixou em aberto: sem
      * carimbo de criação, dois lançamentos do mesmo dia não têm ordem estável.
      * O `id desc` da ordenação fazia esse papel por acaso; aqui fica explícito.
      */
@@ -208,6 +222,42 @@ export const lancamentos = pgTable(
     index('idx_lancamentos_serie').on(t.serieId, t.seq),
   ],
 );
+
+/**
+ * Um lote de importação.
+ *
+ * Existe por causa do DESFAZER, que não é enfeite: sem ele o primeiro erro
+ * custa limpar 120 linhas à mão, e o medo disso é o que faz a importação não
+ * ser usada — que é literalmente o estado de hoje, com zero linhas importadas
+ * em 3.544.
+ *
+ * E existe também para o lote poder ser VISTO. Uma importação é um evento: num
+ * dia entraram 120 gastos de uma fatura. Sem o lote, essa informação se dissolve
+ * em 120 linhas soltas e ninguém consegue mais responder o que entrou no dia.
+ */
+export const importacoes = pgTable('importacoes', {
+  id: serial('id').primaryKey(),
+  /** fatura · extrato. O sinal do valor é OPOSTO entre os dois. */
+  tipo: text('tipo').notNull(),
+  /** O que a tela mostra, por exemplo Cartão Itaú · Agosto/2026. */
+  titulo: text('titulo').notNull(),
+  arquivo: text('arquivo'),
+  criadaEm: timestamp('criada_em', { withTimezone: true }).notNull().defaultNow(),
+  /** Quem importou. Não é quem pagou — a fatura traz um pagador por linha. */
+  criadaPor: text('criada_por'),
+  qtd: integer('qtd').notNull().default(0),
+  total: numeric('total', { precision: 12, scale: 2 }).notNull().default('0'),
+  /**
+   * As DECISÕES da revisão, não o resultado dela.
+   *
+   * O lote guarda o que foi lançado; isto guarda o que foi resolvido — as
+   * linhas que ficaram DE FORA, a categoria escolhida para cada uma, o nome
+   * reescrito. Sem isso, reabrir uma importação para ajustar mostraria só o
+   * que entrou, e "desmarquei essa linha de propósito" viraria "essa linha
+   * nunca existiu". É o que torna a edição de um lote possível.
+   */
+  estado: jsonb('estado'),
+});
 
 /**
  * Aba `Recorrências`: regras de gasto recorrente indefinido.

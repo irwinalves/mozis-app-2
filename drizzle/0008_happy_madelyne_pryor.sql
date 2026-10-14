@@ -1,0 +1,1 @@
+ALTER TABLE "importacoes" ADD COLUMN "estado" jsonb;

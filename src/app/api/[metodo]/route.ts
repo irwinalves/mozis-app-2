@@ -20,6 +20,15 @@ const METODOS = {
   serieDoLancamento: api.serieDoLancamento,
   previewEdicaoSerie: api.previewEdicaoSerie,
   atualizarSerie: api.atualizarSerie,
+  analisarFatura: api.analisarFatura,
+  lancarFatura: api.lancarFatura,
+  obterImportacao: api.obterImportacao,
+  listarImportacoes: api.listarImportacoes,
+  desfazerImportacao: api.desfazerImportacao,
+  estadoDaImportacao: api.estadoDaImportacao,
+  ajustarImportacao: api.ajustarImportacao,
+  previewConciliacao: api.previewConciliacao,
+  conciliarValor: api.conciliarValor,
   salvarLancamento: api.salvarLancamento,
   obterLancamento: api.obterLancamento,
   atualizarLancamento: api.atualizarLancamento,
@@ -41,7 +50,7 @@ type Metodo = keyof typeof METODOS;
  * módulo também roda em scripts fora do Next — importar NextAuth lá dentro
  * quebraria `verificar-e2e`, `sync` e `reconcile` de uma vez.
  */
-const PRECISAM_DA_PESSOA = new Set<string>(['getOpcoes', 'obterSerie']);
+const PRECISAM_DA_PESSOA = new Set<string>(['getOpcoes', 'obterSerie', 'obterImportacao']);
 
 export async function POST(
   req: Request,

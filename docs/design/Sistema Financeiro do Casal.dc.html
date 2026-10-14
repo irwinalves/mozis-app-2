@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; background: #EDEEF0; font-family: 'Roboto', Arial, sans-serif; }
+    * { box-sizing: border-box; }
+    input[type="range"] { accent-color: #2F5233; }
+  </style>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="1,1"></x-import>
+</helmet>
+
+<div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 40px 20px;">
+  <div style="font-size: 13px; color: #5f6368; letter-spacing: 0.2px;">Sistema de Gestão Financeira do Casal — protótipo</div>
+
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402,874">
+    <div style="height: 100%; display: flex; flex-direction: column; padding-top: 54px; background: #fff;">
+
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 20px 14px; border-bottom: 1px solid #EBEBEB; flex-shrink: 0;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <sc-if value="{{ showBack }}" hint-placeholder-val="{{ false }}">
+            <div onClick="{{ onBackToHome }}" style="font-size: 22px; color: #5f6368; cursor: pointer; line-height: 1;">‹</div>
+          </sc-if>
+          <div style="font-size: 20px; font-weight: 500; color: #202124;">{{ headerTitle }}</div>
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <div style="width: 26px; height: 26px; border-radius: 999px; background: #1F4E79; color: #fff; font-size: 12px; font-weight: 500; display: flex; align-items: center; justify-content: center;">I</div>
+          <div style="width: 26px; height: 26px; border-radius: 999px; background: #6A1B9A; color: #fff; font-size: 12px; font-weight: 500; display: flex; align-items: center; justify-content: center;">M</div>
+        </div>
+      </div>
+
+      <div style="flex: 1; overflow: auto; padding: 16px 16px 24px; position: relative;">
+
+        <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <div style="background: {{ saldoBg }}; border: 1px solid {{ saldoBorder }}; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px;">
+              <div style="font-size: 12px; color: #5f6368; margin-bottom: 4px;">Acerto de contas</div>
+              <div style="font-size: 15px; font-weight: 500; color: #202124;">{{ saldoFrase }}</div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+              <div style="flex: 1; background: #F6DCD8; border-radius: 10px; padding: 10px 12px;">
+                <div style="font-size: 11px; color: #7a3a30;">Fixo este mês</div>
+                <div style="font-size: 15px; font-weight: 500; color: #A63A2E;">{{ mesFixoFmt }}</div>
+              </div>
+              <div style="flex: 1; background: #FBEED0; border-radius: 10px; padding: 10px 12px;">
+                <div style="font-size: 11px; color: #8a6a10;">Variável este mês</div>
+                <div style="font-size: 15px; font-weight: 500; color: #B8860B;">{{ mesVariavelFmt }}</div>
+              </div>
+            </div>
+
+            <div onClick="{{ onGoImport }}" style="display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #DADCE0; border-radius: 8px; padding: 11px; margin-bottom: 18px; cursor: pointer; color: #2F5233; font-size: 14px; font-weight: 500;">
+              <span style="font-size: 16px;">↥</span> Importar extrato do cartão
+            </div>
+
+            <div style="font-size: 13px; font-weight: 500; color: #5f6368; margin-bottom: 4px;">Lançamentos recentes</div>
+            <sc-for list="{{ entriesSorted }}" as="e" hint-placeholder-count="4">
+              <div style="display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid #F1F1F1;">
+                <div style="width: 40px; flex-shrink: 0; text-align: center;">
+                  <div style="font-size: 15px; font-weight: 500; color: #202124; line-height: 1.1;">{{ e.dia }}</div>
+                  <div style="font-size: 10px; color: #9aa0a6; text-transform: uppercase;">{{ e.mesAbbr }}</div>
+                </div>
+                <div style="width: 6px; height: 6px; border-radius: 999px; background: {{ e.catColor }}; flex-shrink: 0;"></div>
+                <div style="flex: 1; min-width: 0;">
+                  <div style="font-size: 14px; color: #202124; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ e.descricao }}</div>
+                  <div style="font-size: 10px; color: #9aa0a6;">{{ e.catNome }} · {{ e.tipo }}</div>
+                </div>
+                <div style="text-align: right; flex-shrink: 0;">
+                  <div style="font-size: 14px; font-weight: 500; color: #202124;">{{ e.valorFmt }}</div>
+                  <div style="font-size: 10px; color: #9aa0a6;">I {{ e.parteIrwinFmt }} · M {{ e.parteMariaFmt }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isNew }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div style="margin-bottom: 14px;">
+              <label style="font-size: 12px; color: #5f6368;">Data</label>
+              <input type="date" value="{{ form.data }}" onChange="{{ onDataChange }}" style="border: 1px solid #DADCE0; border-radius: 8px; padding: 9px 10px; margin-top: 4px; width: 100%; font-size: 14px; font-family: 'Roboto', Arial, sans-serif; color: #202124; outline: none;" />
+            </div>
+            <div style="margin-bottom: 14px;">
+              <label style="font-size: 12px; color: #5f6368;">Valor</label>
+              <div style="display: flex; align-items: center; border: 1px solid #DADCE0; border-radius: 8px; padding: 10px 12px; margin-top: 4px;">
+                <span style="color: #5f6368; margin-right: 6px; font-size: 20px;">R$</span>
+                <input type="number" step="0.01" placeholder="0,00" value="{{ form.valor }}" onChange="{{ onValorChange }}" style="border: none; outline: none; font-size: 20px; width: 100%; font-family: 'Roboto', Arial, sans-serif; color: #202124;" />
+              </div>
+            </div>
+
+            <div style="margin-bottom: 14px;">
+              <label style="font-size: 12px; color: #5f6368;">Descrição</label>
+              <input type="text" placeholder="Ex: Supermercado" value="{{ form.descricao }}" onChange="{{ onDescricaoChange }}" style="border: 1px solid #DADCE0; border-radius: 8px; padding: 10px 12px; margin-top: 4px; width: 100%; font-size: 15px; font-family: 'Roboto', Arial, sans-serif; color: #202124; outline: none;" />
+            </div>
+
+            <div style="margin-bottom: 14px;">
+              <label style="font-size: 12px; color: #5f6368;">Categoria</label>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;">
+                <sc-for list="{{ categoriesView }}" as="c" hint-placeholder-count="7">
+                  <div onClick="{{ c.onSelect }}" style="{{ c.chipStyle }}">{{ c.nome }}</div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 14px;">
+              <label style="font-size: 12px; color: #5f6368;">Tipo</label>
+              <div style="display: flex; gap: 8px; margin-top: 6px;">
+                <sc-for list="{{ tiposView }}" as="t" hint-placeholder-count="2">
+                  <div onClick="{{ t.onSelect }}" style="{{ t.chipStyle }}">{{ t.nome }}</div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 14px;">
+              <label style="font-size: 12px; color: #5f6368;">Origem</label>
+              <div style="display: flex; gap: 8px; margin-top: 6px;">
+                <sc-for list="{{ origemView }}" as="o" hint-placeholder-count="2">
+                  <div onClick="{{ o.onSelect }}" style="{{ o.chipStyle }}">{{ o.nome }}</div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 14px;">
+              <label style="font-size: 12px; color: #5f6368;">Quem pagou</label>
+              <div style="display: flex; gap: 8px; margin-top: 6px;">
+                <sc-for list="{{ pagouView }}" as="p" hint-placeholder-count="3">
+                  <div onClick="{{ p.onSelect }}" style="{{ p.chipStyle }}">{{ p.nome }}</div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 10px;">
+              <label style="font-size: 12px; color: #5f6368;">Como dividir</label>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;">
+                <sc-for list="{{ divisaoView }}" as="d" hint-placeholder-count="5">
+                  <div onClick="{{ d.onSelect }}" style="{{ d.chipStyle }}">{{ d.label }}</div>
+                </sc-for>
+              </div>
+              <sc-if value="{{ isCustomDivisao }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+                  <input type="range" min="0" max="100" value="{{ form.customPct }}" onChange="{{ onCustomPctChange }}" style="flex: 1;" />
+                  <div style="font-size: 12px; color: #5f6368; width: 80px; text-align: right;">Irwin {{ customPctLabel }}%</div>
+                </div>
+              </sc-if>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 18px;">
+              <div style="flex: 1; background: #D9E7F5; border-radius: 8px; padding: 10px 12px;">
+                <div style="font-size: 11px; color: #1F4E79;">Parte Irwin</div>
+                <div style="font-size: 15px; font-weight: 500; color: #1F4E79;">{{ parteIrwinFmt }}</div>
+              </div>
+              <div style="flex: 1; background: #EADCF5; border-radius: 8px; padding: 10px 12px;">
+                <div style="font-size: 11px; color: #6A1B9A;">Parte Maria</div>
+                <div style="font-size: 15px; font-weight: 500; color: #6A1B9A;">{{ parteMariaFmt }}</div>
+              </div>
+            </div>
+
+            <div style="border: 1px solid #EBEBEB; border-radius: 10px; padding: 12px 14px; margin-bottom: 18px;">
+              <div style="display: flex; align-items: center; justify-content: space-between;" onClick="{{ onToggleParcelado }}">
+                <div style="font-size: 14px; color: #202124; font-weight: 500;">Parcelar esse gasto</div>
+                <div style="{{ parceladoSwitchTrackStyle }}"><div style="{{ parceladoSwitchThumbStyle }}"></div></div>
+              </div>
+
+              <sc-if value="{{ form.parcelado }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top: 14px;">
+                  <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 10px;">
+                    <div style="font-size: 12px; color: #5f6368; flex: 1;">Nº de parcelas</div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <div onClick="{{ onParcelasDown }}" style="width: 28px; height: 28px; border-radius: 999px; background: #F1F3F4; display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; color: #202124;">−</div>
+                      <div style="font-size: 15px; font-weight: 500; width: 20px; text-align: center;">{{ form.parcelas }}</div>
+                      <div onClick="{{ onParcelasUp }}" style="width: 28px; height: 28px; border-radius: 999px; background: #F1F3F4; display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; color: #202124;">+</div>
+                    </div>
+                  </div>
+
+                  <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                    <sc-for list="{{ valorTipoView }}" as="v" hint-placeholder-count="2">
+                      <div onClick="{{ v.onSelect }}" style="{{ v.chipStyle }}">{{ v.label }}</div>
+                    </sc-for>
+                  </div>
+
+                  <div style="font-size: 12px; color: #5f6368; margin-bottom: 6px;">Prévia — {{ form.parcelas }} lançamentos</div>
+                  <div style="max-height: 150px; overflow: auto; border: 1px solid #F1F1F1; border-radius: 8px;">
+                    <sc-for list="{{ installmentsPreview }}" as="row" hint-placeholder-count="3">
+                      <div style="display: flex; justify-content: space-between; padding: 7px 10px; border-bottom: 1px solid #F5F5F5; font-size: 12px; color: #202124;">
+                        <span>{{ row.desc }}</span>
+                        <span style="color: #5f6368;">{{ row.mesAno }}</span>
+                        <span style="font-weight: 500;">{{ row.valorFmt }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+
+            <div onClick="{{ onSave }}" style="{{ saveButtonStyle }}">Salvar</div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isInvest }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div style="background: #D8EBD8; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px;">
+              <div style="font-size: 12px; color: #2E6B2E; line-height: 1.5;">Investimento não é gasto — é patrimônio mudando de lugar. Fica fora do resultado de despesas.</div>
+            </div>
+
+            <div style="margin-bottom: 14px;">
+              <label style="font-size: 12px; color: #5f6368;">Data</label>
+              <input type="date" value="{{ invest.data }}" onChange="{{ onInvDataChange }}" style="border: 1px solid #DADCE0; border-radius: 8px; padding: 9px 10px; margin-top: 4px; width: 100%; font-size: 14px; font-family: 'Roboto', Arial, sans-serif; color: #202124; outline: none;" />
+            </div>
+
+            <div style="margin-bottom: 14px;">
+              <label style="font-size: 12px; color: #5f6368;">Movimento</label>
+              <div style="display: flex; gap: 8px; margin-top: 6px;">
+                <sc-for list="{{ invMovView }}" as="m" hint-placeholder-count="2">
+                  <div onClick="{{ m.onSelect }}" style="{{ m.chipStyle }}">{{ m.label }}</div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 14px;">
+              <label style="font-size: 12px; color: #5f6368;">Valor</label>
+              <div style="display: flex; align-items: center; border: 1px solid #DADCE0; border-radius: 8px; padding: 10px 12px; margin-top: 4px;">
+                <span style="color: #5f6368; margin-right: 6px; font-size: 20px;">R$</span>
+                <input type="number" step="0.01" placeholder="0,00" value="{{ invest.valor }}" onChange="{{ onInvValorChange }}" style="border: none; outline: none; font-size: 20px; width: 100%; font-family: 'Roboto', Arial, sans-serif; color: #202124;" />
+              </div>
+            </div>
+
+            <div style="margin-bottom: 14px;">
+              <label style="font-size: 12px; color: #5f6368;">Instituição / conta</label>
+              <input type="text" placeholder="Ex: XP, Nubank, Tesouro Direto" value="{{ invest.conta }}" onChange="{{ onInvContaChange }}" style="border: 1px solid #DADCE0; border-radius: 8px; padding: 10px 12px; margin-top: 4px; width: 100%; font-size: 15px; font-family: 'Roboto', Arial, sans-serif; color: #202124; outline: none;" />
+            </div>
+
+            <div style="margin-bottom: 14px;">
+              <label style="font-size: 12px; color: #5f6368;">Classe do ativo</label>
+              <select value="{{ invest.classe }}" onChange="{{ onInvClasseChange }}" style="border: 1px solid #DADCE0; border-radius: 8px; padding: 10px 12px; margin-top: 4px; width: 100%; font-size: 14px; font-family: 'Roboto', Arial, sans-serif; color: #202124; outline: none;">
+                <sc-for list="{{ classes }}" as="cl" hint-placeholder-count="5">
+                  <option value="{{ cl }}">{{ cl }}</option>
+                </sc-for>
+              </select>
+            </div>
+
+            <div style="margin-bottom: 18px;">
+              <label style="font-size: 12px; color: #5f6368;">De quem é o aporte</label>
+              <div style="display: flex; gap: 8px; margin-top: 6px;">
+                <sc-for list="{{ invQuemView }}" as="q" hint-placeholder-count="3">
+                  <div onClick="{{ q.onSelect }}" style="{{ q.chipStyle }}">{{ q.nome }}</div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div onClick="{{ onSaveInvest }}" style="{{ invSaveButtonStyle }}">Registrar movimento</div>
+
+            <div style="background: #F8F9FA; border: 1px solid #E0E0E0; border-radius: 8px; padding: 12px; margin-top: 16px; font-size: 12px; color: #5f6368; line-height: 1.5;">
+              A posição de cada conta é anotada 1x por mês lendo o app do banco. O rendimento é calculado: saldo final − inicial − aportes + resgates.
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isImport }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <sc-if value="{{ importNotLoaded }}" hint-placeholder-val="{{ true }}">
+              <div>
+                <div onClick="{{ onImportSelect }}" style="border: 1.5px dashed #DADCE0; border-radius: 12px; padding: 36px 20px; text-align: center; cursor: pointer; margin-bottom: 14px;">
+                  <div style="font-size: 30px; color: #9aa0a6; margin-bottom: 8px;">↥</div>
+                  <div style="font-size: 14px; color: #202124; font-weight: 500;">Toque para selecionar</div>
+                  <div style="font-size: 12px; color: #5f6368; margin-top: 4px;">Extrato exportado em OFX ou CSV</div>
+                </div>
+                <div style="font-size: 12px; color: #5f6368; line-height: 1.5;">Conexão direta com o banco não está disponível — o caminho é importar o extrato exportado pelo app do banco.</div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ import.loaded }}" hint-placeholder-val="{{ false }}">
+              <div>
+                <div style="font-size: 12px; color: #5f6368; margin-bottom: 6px;">Lançar todas as {{ import.count }} transações como</div>
+                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                  <sc-for list="{{ importPagouView }}" as="p" hint-placeholder-count="3">
+                    <div onClick="{{ p.onSelect }}" style="{{ p.chipStyle }}">{{ p.nome }}</div>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ importIsConjunta }}" hint-placeholder-val="{{ true }}">
+                  <div style="margin-bottom: 8px;">
+                    <div style="font-size: 12px; color: #5f6368; margin-bottom: 6px;">Como dividir entre os dois</div>
+                    <div style="display: flex; gap: 8px;">
+                      <sc-for list="{{ importDivisaoView }}" as="d" hint-placeholder-count="2">
+                        <div onClick="{{ d.onSelect }}" style="{{ d.chipStyle }}">{{ d.label }}</div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-if>
+                <div style="font-size: 11px; color: #9aa0a6; margin-bottom: 14px; line-height: 1.5;">Categoria sugerida pela descrição — revise antes de confirmar; o que não der pra identificar cai em "Outros".</div>
+
+                <div style="border: 1px solid #F1F1F1; border-radius: 8px; overflow: hidden; margin-bottom: 16px;">
+                  <sc-for list="{{ importRowsView }}" as="r" hint-placeholder-count="6">
+                    <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid #F5F5F5;">
+                      <div style="width: 38px; flex-shrink: 0; text-align: center;">
+                        <div style="font-size: 13px; font-weight: 500; color: #202124; line-height: 1.1;">{{ r.dia }}</div>
+                        <div style="font-size: 9px; color: #9aa0a6; text-transform: uppercase;">{{ r.mesAbbr }}</div>
+                      </div>
+                      <div style="flex: 1; min-width: 0;">
+                        <div style="font-size: 13px; color: #202124; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ r.descricao }}</div>
+                        <div style="font-size: 10px; margin-top: 2px;"><span style="background: {{ r.catBg }}; color: {{ r.catColor }}; padding: 1px 7px; border-radius: 999px;">{{ r.catNome }}</span></div>
+                      </div>
+                      <div style="font-size: 13px; font-weight: 500; color: #202124; flex-shrink: 0;">{{ r.valorFmt }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div onClick="{{ onImportConfirm }}" style="text-align: center; padding: 13px; border-radius: 8px; font-size: 15px; font-weight: 500; cursor: pointer; background: #2F5233; color: #fff;">Lançar {{ import.count }} transações · {{ importTotalFmt }}</div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showSuccess }}" hint-placeholder-val="{{ false }}">
+          <div style="position: absolute; inset: 0; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center;">
+            <div style="width: 56px; height: 56px; border-radius: 999px; background: #D6EFE6; display: flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#0F6E56" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div style="font-size: 17px; font-weight: 500; color: #202124; margin-bottom: 6px;">{{ successTitle }}</div>
+            <div style="font-size: 13px; color: #5f6368; margin-bottom: 24px;">{{ successMessage }}</div>
+            <div onClick="{{ onBackToHome }}" style="background: #2F5233; color: #fff; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer;">Ver lançamentos</div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div style="border: 1px solid #EBEBEB; border-radius: 10px; padding: 14px; margin-bottom: 14px;">
+              <div style="font-size: 13px; font-weight: 500; color: #202124; margin-bottom: 10px;">Fixo vs. variável do mês</div>
+              <div style="font-size: 11px; color: #5f6368; margin-bottom: 4px;">Este mês — {{ mesTotalFmt }}</div>
+              <div style="display: flex; height: 16px; border-radius: 4px; overflow: hidden; margin-bottom: 10px;">
+                <div style="width: {{ mesFixoPctW }}; background: #A63A2E;"></div>
+                <div style="width: {{ mesVariavelPctW }}; background: #B8860B;"></div>
+              </div>
+              <div style="font-size: 11px; color: #5f6368; margin-bottom: 4px;">Média do ano — {{ mediaTotalFmt }}</div>
+              <div style="display: flex; height: 16px; border-radius: 4px; overflow: hidden;">
+                <div style="width: {{ mediaFixoPctW }}; background: #A63A2E; opacity: 0.6;"></div>
+                <div style="width: {{ mediaVariavelPctW }}; background: #B8860B; opacity: 0.6;"></div>
+              </div>
+              <div style="display: flex; gap: 12px; margin-top: 8px; font-size: 11px; color: #5f6368;">
+                <span><span style="color: #A63A2E;">■</span> Fixa</span>
+                <span><span style="color: #B8860B;">■</span> Variável</span>
+              </div>
+            </div>
+
+            <div style="border: 1px solid #EBEBEB; border-radius: 10px; padding: 14px; margin-bottom: 14px;">
+              <div style="font-size: 13px; font-weight: 500; color: #202124; margin-bottom: 2px;">Evolução do % de despesas fixas</div>
+              <div style="font-size: 11px; color: #5f6368; margin-bottom: 10px;">O indicador mais importante do sistema</div>
+              <div style="display: flex; align-items: flex-end; gap: 14px; height: 90px;">
+                <sc-for list="{{ fixedEvolution }}" as="fy" hint-placeholder-count="4">
+                  <div style="display: flex; flex-direction: column; align-items: center; flex: 1;">
+                    <div style="font-size: 11px; color: #202124; margin-bottom: 4px; font-weight: 500;">{{ fy.pctLabel }}</div>
+                    <div style="width: 100%; background: #A63A2E; border-radius: 3px 3px 0 0; height: {{ fy.barHeight }};"></div>
+                    <div style="font-size: 10px; color: #5f6368; margin-top: 4px;">{{ fy.year }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="border: 1px solid #EBEBEB; border-radius: 10px; padding: 14px; margin-bottom: 14px;">
+              <div style="font-size: 13px; font-weight: 500; color: #202124; margin-bottom: 10px;">Gasto por categoria (histórico)</div>
+              <sc-for list="{{ categoryTotals }}" as="ct" hint-placeholder-count="6">
+                <div style="margin-bottom: 8px;">
+                  <div style="display: flex; justify-content: space-between; font-size: 12px; color: #202124; margin-bottom: 3px;">
+                    <span>{{ ct.nome }}</span>
+                    <span style="font-weight: 500;">{{ ct.totalFmt }}</span>
+                  </div>
+                  <div style="height: 8px; border-radius: 4px; background: #F1F1F1;">
+                    <div style="height: 100%; border-radius: 4px; width: {{ ct.barWidth }}; background: {{ ct.forte }};"></div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="border: 1px solid #EBEBEB; border-radius: 10px; padding: 14px; margin-bottom: 14px;">
+              <div style="font-size: 13px; font-weight: 500; color: #202124; margin-bottom: 10px;">Maior "ofensor" por categoria</div>
+              <sc-for list="{{ maiorOfensor }}" as="m" hint-placeholder-count="6">
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #F5F5F5;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 8px; height: 8px; border-radius: 999px; background: {{ m.dotColor }};"></div>
+                    <span style="font-size: 12px; color: #202124;">{{ m.nome }}</span>
+                  </div>
+                  <div style="font-size: 11px; padding: 3px 8px; border-radius: 999px; background: {{ m.badgeBg }}; color: {{ m.badgeColor }};">{{ m.vencedor }}</div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="border: 1px solid #EBEBEB; border-radius: 10px; padding: 14px; margin-bottom: 14px;">
+              <div style="font-size: 13px; font-weight: 500; color: #202124; margin-bottom: 8px;">Ritmo de gasto</div>
+              <div style="font-size: 20px; font-weight: 500; color: #2F5233;">R$ [redigido] / ano</div>
+              <div style="font-size: 11px; color: #5f6368; margin-top: 2px;">R$ [redigido] por mês — projeção considera as parcelas já lançadas</div>
+            </div>
+
+            <div style="border: 1px solid #EBEBEB; border-radius: 10px; padding: 14px; margin-bottom: 14px;">
+              <div style="font-size: 13px; font-weight: 500; color: #202124; margin-bottom: 10px;">Patrimônio</div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; padding: 5px 0; color: #202124;"><span>Investimentos</span><span style="font-weight: 500;">—</span></div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; padding: 5px 0; color: #202124;"><span>Dívidas</span><span style="font-weight: 500;">—</span></div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; padding: 5px 0; color: #202124; border-top: 1px solid #F1F1F1; margin-top: 4px;"><span>Patrimônio líquido</span><span style="font-weight: 500;">—</span></div>
+              <div style="font-size: 11px; color: #5f6368; margin-top: 6px;">Atualizado 1x por mês, na posição bancária (ritual de 5 min)</div>
+            </div>
+
+            <div style="background: #F8F9FA; border: 1px solid #E0E0E0; border-radius: 8px; padding: 12px; font-size: 12px; color: #5f6368; line-height: 1.5;">
+              "Outros" concentra R$ [redigido] dos dois somados — quase metade do total. 72% do histórico do Splitwise tinha descrições genéricas demais para reclassificar.
+            </div>
+          </div>
+        </sc-if>
+
+      </div>
+
+      <div style="display: flex; border-top: 1px solid #EBEBEB; padding: 8px 0 22px; flex-shrink: 0;">
+        <sc-for list="{{ tabsView }}" as="tb" hint-placeholder-count="4">
+          <div onClick="{{ tb.onSelect }}" style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer;">
+            <div style="width: 6px; height: 6px; border-radius: 999px; background: {{ tb.dotColor }};"></div>
+            <div style="font-size: 11px; color: {{ tb.textColor }}; font-weight: {{ tb.fontWeight }};">{{ tb.label }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+    </div>
+  </x-import>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const CATEGORIES = [
+  { code: 1, nome: 'Casa', forte: '#2F5597', clara: '#D9E2F3', tipoPadrao: 'Fixa' },
+  { code: 2, nome: 'Carro', forte: '#1F7A6B', clara: '#D5EFEA', tipoPadrao: 'Variável' },
+  { code: 3, nome: 'Comida', forte: '#4E8C2A', clara: '#DFF0D2', tipoPadrao: 'Variável' },
+  { code: 4, nome: 'Saúde', forte: '#B23A3A', clara: '#F7D9D9', tipoPadrao: 'Variável' },
+  { code: 5, nome: 'Lazer & Pessoal', forte: '#B5407A', clara: '#F7D9EA', tipoPadrao: 'Variável' },
+  { code: 6, nome: 'Viagem', forte: '#1B7FA8', clara: '#D4EBF5', tipoPadrao: 'Variável' },
+  { code: 7, nome: 'Outros', forte: '#6E6E6E', clara: '#E8E8E8', tipoPadrao: 'Variável' },
+  { code: 8, nome: 'Investimentos', forte: '#2E6B2E', clara: '#D8EBD8', tipoPadrao: 'Investimento' },
+];
+const TIPOS = {
+  'Fixa': { forte: '#A63A2E', clara: '#F6DCD8' },
+  'Variável': { forte: '#B8860B', clara: '#FBEED0' },
+};
+const PESSOAS = {
+  Irwin: { forte: '#1F4E79', clara: '#D9E7F5' },
+  Maria: { forte: '#6A1B9A', clara: '#EADCF5' },
+  Conjunta: { forte: '#5f6368', clara: '#F1F3F4' },
+};
+const ORIGENS = ['Cartão', 'Pix'];
+const CLASSES = ['Renda fixa', 'Renda variável', 'Fundos', 'Previdência', 'Cripto'];
+const DIVISOES = [
+  { id: '50/50', label: '50/50' },
+  { id: 'renda', label: 'Por renda' },
+  { id: '100-irwin', label: '100% Irwin' },
+  { id: '100-maria', label: '100% Maria' },
+  { id: 'custom', label: 'Custom' },
+];
+const INCOME_PCT_IRWIN = 49.47;
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+function formatBRL(v) {
+  if (v == null || isNaN(v)) return 'R$ 0,00';
+  return 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function dateParts(iso) {
+  if (!iso) return { dia: '', mesAbbr: '' };
+  const [y, m, d] = iso.split('-');
+  return { dia: d, mesAbbr: MESES[parseInt(m, 10) - 1] };
+}
+function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+function addMonthsClamped(date, i, originalDay) {
+  const y0 = date.getFullYear(), m0 = date.getMonth();
+  let m = m0 + i;
+  const y = y0 + Math.floor(m / 12);
+  m = ((m % 12) + 12) % 12;
+  return new Date(y, m, Math.min(originalDay, daysInMonth(y, m)));
+}
+
+const chipBase = { padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap', border: '1px solid transparent' };
+
+class Component extends DCLogic {
+  state = {
+    tab: 'home',
+    showSuccess: false,
+    entries: [
+      { id: 1, data: '2026-07-21', descricao: 'Supermercado Extra', categoria: 3, tipo: 'Variável', origem: 'Cartão', valor: 187.40, divisao: '50/50', customPct: 50, quemPagou: 'Conjunta' },
+      { id: 2, data: '2026-07-20', descricao: 'Aluguel', categoria: 1, tipo: 'Fixa', origem: 'Pix', valor: 3200.00, divisao: 'renda', customPct: 50, quemPagou: 'Irwin' },
+      { id: 3, data: '2026-07-19', descricao: 'Sofá 2/6', categoria: 5, tipo: 'Variável', origem: 'Cartão', valor: 333.34, divisao: '50/50', customPct: 50, quemPagou: 'Maria' },
+      { id: 4, data: '2026-07-18', descricao: 'Gasolina', categoria: 2, tipo: 'Variável', origem: 'Cartão', valor: 210.00, divisao: '50/50', customPct: 50, quemPagou: 'Irwin' },
+      { id: 5, data: '2026-07-15', descricao: 'Plano de saúde', categoria: 4, tipo: 'Fixa', origem: 'Pix', valor: 890.00, divisao: 'renda', customPct: 50, quemPagou: 'Conjunta' },
+      { id: 6, data: '2026-07-10', descricao: 'Passagens - viagem set', categoria: 6, tipo: 'Variável', origem: 'Cartão', valor: 1450.00, divisao: '50/50', customPct: 50, quemPagou: 'Maria' },
+    ],
+    form: {
+      valor: '', descricao: '', categoria: 3, tipo: 'Variável', data: '2026-07-23',
+      origem: 'Cartão', quemPagou: 'Conjunta', divisao: '50/50', customPct: 50,
+      parcelado: false, parcelas: 2, valorTipo: 'total',
+    },
+    invest: { movimento: 'Aporte', conta: '', classe: 'Renda fixa', valor: '', data: '2026-07-23', quem: 'Conjunta' },
+    import: {
+      loaded: false, quemPagou: 'Conjunta', divisao: 'renda',
+      rows: [
+        { data: '2026-07-22', descricao: 'IFOOD *RESTAURANTE', valor: 64.90, categoria: 3 },
+        { data: '2026-07-21', descricao: 'POSTO SHELL BR', valor: 180.00, categoria: 2 },
+        { data: '2026-07-20', descricao: 'DROGARIA ARAUJO', valor: 47.30, categoria: 4 },
+        { data: '2026-07-19', descricao: 'NETFLIX.COM', valor: 44.90, categoria: 5 },
+        { data: '2026-07-18', descricao: 'SUPERMERCADO BH', valor: 212.75, categoria: 3 },
+        { data: '2026-07-17', descricao: 'PAG*LOJADESCONHECIDA', valor: 89.00, categoria: 7 },
+      ],
+    },
+  };
+
+  pctIrwin(divisao, customPct) {
+    if (divisao === '50/50') return 50;
+    if (divisao === 'renda') return INCOME_PCT_IRWIN;
+    if (divisao === '100-irwin') return 100;
+    if (divisao === '100-maria') return 0;
+    return customPct;
+  }
+  computeParts(valor, divisao, customPct) {
+    const pI = this.pctIrwin(divisao, customPct);
+    const parteIrwin = valor * pI / 100;
+    return { parteIrwin, parteMaria: valor - parteIrwin };
+  }
+
+  setTab(tab) { this.setState({ tab, showSuccess: false }); }
+  updateForm(patch) { this.setState(s => ({ form: { ...s.form, ...patch } })); }
+  updateInvest(patch) { this.setState(s => ({ invest: { ...s.invest, ...patch } })); }
+  updateImport(patch) { this.setState(s => ({ import: { ...s.import, ...patch } })); }
+
+  selectCategoria(code) {
+    const cat = CATEGORIES.find(c => c.code === code);
+    this.updateForm({ categoria: code, tipo: cat.tipoPadrao });
+  }
+
+  computeInstallments(form) {
+    const n = form.parcelas;
+    const valor = parseFloat(form.valor) || 0;
+    let parcelaBase, lastParcela, total;
+    if (form.valorTipo === 'total') {
+      parcelaBase = Math.floor((valor / n) * 100) / 100;
+      lastParcela = +(valor - parcelaBase * (n - 1)).toFixed(2);
+      total = valor;
+    } else {
+      parcelaBase = valor; lastParcela = valor; total = +(valor * n).toFixed(2);
+    }
+    const baseDate = new Date(form.data + 'T00:00:00');
+    const originalDay = baseDate.getDate();
+    const rows = [];
+    for (let i = 0; i < n; i++) {
+      const d = addMonthsClamped(baseDate, i, originalDay);
+      const val = i === n - 1 ? lastParcela : parcelaBase;
+      rows.push({ desc: `${form.descricao || 'Lançamento'} ${i + 1}/${n}`, mesAno: `${MESES[d.getMonth()]}/${d.getFullYear()}`, valorFmt: formatBRL(val) });
+    }
+    return { rows, total };
+  }
+
+  onSave() {
+    const form = this.state.form;
+    const valor = parseFloat(form.valor) || 0;
+    if (!valor || !form.descricao) return;
+    let newEntries = [], msg = '';
+    if (form.parcelado) {
+      const { total } = this.computeInstallments(form);
+      const n = form.parcelas;
+      let parcelaBase, lastParcela;
+      if (form.valorTipo === 'total') { parcelaBase = Math.floor((valor / n) * 100) / 100; lastParcela = +(valor - parcelaBase * (n - 1)).toFixed(2); }
+      else { parcelaBase = valor; lastParcela = valor; }
+      const baseDate = new Date(form.data + 'T00:00:00');
+      const originalDay = baseDate.getDate();
+      for (let i = 0; i < n; i++) {
+        const d = addMonthsClamped(baseDate, i, originalDay);
+        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        newEntries.push({ id: Date.now() + i, data: iso, descricao: `${form.descricao} ${i + 1}/${n}`, categoria: form.categoria, tipo: form.tipo, origem: form.origem, valor: i === n - 1 ? lastParcela : parcelaBase, divisao: form.divisao, customPct: form.customPct, quemPagou: form.quemPagou });
+      }
+      msg = `${n} parcelas geradas · total ${formatBRL(total)}`;
+    } else {
+      newEntries = [{ id: Date.now(), data: form.data, descricao: form.descricao, categoria: form.categoria, tipo: form.tipo, origem: form.origem, valor, divisao: form.divisao, customPct: form.customPct, quemPagou: form.quemPagou }];
+      msg = `${form.descricao} · ${formatBRL(valor)}`;
+    }
+    this.setState(s => ({ entries: [...newEntries, ...s.entries], showSuccess: true, form: { ...s.form, valor: '', descricao: '', parcelado: false, parcelas: 2, valorTipo: 'total' } }));
+    this._successTitle = 'Lançamento salvo';
+    this._successMsg = msg;
+  }
+
+  onSaveInvest() {
+    const inv = this.state.invest;
+    const valor = parseFloat(inv.valor) || 0;
+    if (!valor || !inv.conta) return;
+    this.setState({ showSuccess: true, invest: { ...inv, valor: '', conta: '' } });
+    this._successTitle = 'Movimento registrado';
+    this._successMsg = `${inv.movimento} · ${inv.conta} · ${formatBRL(valor)}`;
+  }
+
+  onImportConfirm() {
+    const imp = this.state.import;
+    const map = { Irwin: { div: '100-irwin', pagou: 'Irwin' }, Maria: { div: '100-maria', pagou: 'Maria' }, Conjunta: { div: imp.divisao, pagou: 'Conjunta' } };
+    const m = map[imp.quemPagou];
+    const total = imp.rows.reduce((a, r) => a + r.valor, 0);
+    const newEntries = imp.rows.map((r, i) => {
+      const cat = CATEGORIES.find(c => c.code === r.categoria);
+      return { id: Date.now() + i, data: r.data, descricao: r.descricao, categoria: r.categoria, tipo: cat.tipoPadrao, origem: 'Cartão', valor: r.valor, divisao: m.div, customPct: 50, quemPagou: m.pagou };
+    });
+    this.setState(s => ({ entries: [...newEntries, ...s.entries], showSuccess: true, import: { ...s.import, loaded: false } }));
+    this._successTitle = 'Extrato importado';
+    this._successMsg = `${imp.rows.length} transações · ${formatBRL(total)}`;
+  }
+
+  renderVals() {
+    const s = this.state;
+    const form = s.form;
+    const valorNum = parseFloat(form.valor) || 0;
+    const { parteIrwin, parteMaria } = this.computeParts(valorNum, form.divisao, form.customPct);
+
+    const categoriesView = CATEGORIES.filter(c => c.code !== 8).map(c => ({
+      nome: c.nome,
+      onSelect: () => this.selectCategoria(c.code),
+      chipStyle: { ...chipBase, background: form.categoria === c.code ? c.forte : c.clara, color: form.categoria === c.code ? '#fff' : '#333' },
+    }));
+    const tiposView = ['Fixa', 'Variável'].map(t => ({
+      nome: t,
+      onSelect: () => this.updateForm({ tipo: t }),
+      chipStyle: { ...chipBase, background: form.tipo === t ? TIPOS[t].forte : TIPOS[t].clara, color: form.tipo === t ? '#fff' : '#333' },
+    }));
+    const origemView = ORIGENS.map(o => ({
+      nome: o,
+      onSelect: () => this.updateForm({ origem: o }),
+      chipStyle: { ...chipBase, flex: 1, textAlign: 'center', background: form.origem === o ? '#2F5233' : '#EDEEF0', color: form.origem === o ? '#fff' : '#333' },
+    }));
+    const pagouView = ['Irwin', 'Maria', 'Conjunta'].map(p => ({
+      nome: p,
+      onSelect: () => this.updateForm({ quemPagou: p }),
+      chipStyle: { ...chipBase, flex: 1, textAlign: 'center', background: form.quemPagou === p ? PESSOAS[p].forte : PESSOAS[p].clara, color: form.quemPagou === p ? '#fff' : '#333' },
+    }));
+    const divisaoView = DIVISOES.map(d => ({
+      label: d.label,
+      onSelect: () => this.updateForm({ divisao: d.id }),
+      chipStyle: { ...chipBase, background: form.divisao === d.id ? '#2F5233' : '#EDEEF0', color: form.divisao === d.id ? '#fff' : '#333' },
+    }));
+    const valorTipoView = [{ id: 'total', label: 'É o total' }, { id: 'parcela', label: 'É a parcela' }].map(v => ({
+      label: v.label,
+      onSelect: () => this.updateForm({ valorTipo: v.id }),
+      chipStyle: { ...chipBase, flex: 1, textAlign: 'center', background: form.valorTipo === v.id ? '#2F5233' : '#EDEEF0', color: form.valorTipo === v.id ? '#fff' : '#333' },
+    }));
+
+    let installmentsPreview = [];
+    if (form.parcelado && valorNum > 0 && form.descricao) installmentsPreview = this.computeInstallments(form).rows;
+
+    const entriesSorted = s.entries.slice().sort((a, b) => b.data.localeCompare(a.data) || b.id - a.id).map(e => {
+      const cat = CATEGORIES.find(c => c.code === e.categoria) || CATEGORIES[6];
+      const parts = this.computeParts(e.valor, e.divisao, e.customPct);
+      const dp = dateParts(e.data);
+      return { ...e, catColor: cat.forte, catNome: cat.nome, dia: dp.dia, mesAbbr: dp.mesAbbr, valorFmt: formatBRL(e.valor), parteIrwinFmt: formatBRL(parts.parteIrwin), parteMariaFmt: formatBRL(parts.parteMaria) };
+    });
+
+    let saldoIrwin = 0;
+    s.entries.forEach(e => {
+      if (e.quemPagou === 'Conjunta') return;
+      const parts = this.computeParts(e.valor, e.divisao, e.customPct);
+      const pagouIrwin = e.quemPagou === 'Irwin' ? e.valor : 0;
+      saldoIrwin += pagouIrwin - parts.parteIrwin;
+    });
+    let saldoFrase;
+    if (Math.abs(saldoIrwin) < 0.01) saldoFrase = 'Estão quites.';
+    else if (saldoIrwin > 0) saldoFrase = `Maria deve a Irwin ${formatBRL(saldoIrwin)}`;
+    else saldoFrase = `Irwin deve a Maria ${formatBRL(-saldoIrwin)}`;
+
+    const tabs = [
+      { id: 'home', label: 'Início' }, { id: 'new', label: 'Lançar' },
+      { id: 'invest', label: 'Investir' }, { id: 'dashboard', label: 'Dashboard' },
+    ];
+    const activeTab = s.tab === 'import' ? 'home' : s.tab;
+    const tabsView = tabs.map(t => ({
+      label: t.label,
+      onSelect: () => this.setTab(t.id),
+      dotColor: activeTab === t.id ? '#2F5233' : 'transparent',
+      textColor: activeTab === t.id ? '#2F5233' : '#5f6368',
+      fontWeight: activeTab === t.id ? 500 : 400,
+    }));
+
+    const invMovView = ['Aporte', 'Resgate'].map(mv => ({
+      label: mv, onSelect: () => this.updateInvest({ movimento: mv }),
+      chipStyle: { ...chipBase, flex: 1, textAlign: 'center', background: s.invest.movimento === mv ? '#2E6B2E' : '#D8EBD8', color: s.invest.movimento === mv ? '#fff' : '#2E6B2E' },
+    }));
+    const invQuemView = ['Irwin', 'Maria', 'Conjunta'].map(p => ({
+      nome: p, onSelect: () => this.updateInvest({ quem: p }),
+      chipStyle: { ...chipBase, flex: 1, textAlign: 'center', background: s.invest.quem === p ? PESSOAS[p].forte : PESSOAS[p].clara, color: s.invest.quem === p ? '#fff' : '#333' },
+    }));
+    const invValorNum = parseFloat(s.invest.valor) || 0;
+
+    const importPagouView = ['Irwin', 'Maria', 'Conjunta'].map(p => ({
+      nome: p, onSelect: () => this.updateImport({ quemPagou: p }),
+      chipStyle: { ...chipBase, flex: 1, textAlign: 'center', background: s.import.quemPagou === p ? PESSOAS[p].forte : PESSOAS[p].clara, color: s.import.quemPagou === p ? '#fff' : '#333' },
+    }));
+    const importRowsView = s.import.rows.map(r => {
+      const cat = CATEGORIES.find(c => c.code === r.categoria);
+      const dp = dateParts(r.data);
+      return { descricao: r.descricao, valorFmt: formatBRL(r.valor), dia: dp.dia, mesAbbr: dp.mesAbbr, catNome: cat.nome, catBg: cat.clara, catColor: cat.forte };
+    });
+    const importTotal = s.import.rows.reduce((a, r) => a + r.valor, 0);
+    const importDivisaoView = [{ id: 'renda', label: 'Por renda' }, { id: '50/50', label: '50/50' }].map(d => ({
+      label: d.label, onSelect: () => this.updateImport({ divisao: d.id }),
+      chipStyle: { ...chipBase, flex: 1, textAlign: 'center', background: s.import.divisao === d.id ? '#2F5233' : '#EDEEF0', color: s.import.divisao === d.id ? '#fff' : '#333' },
+    }));
+
+    const catTotalsRaw = [
+      { nome: 'Casa', total: 303673, forte: '#2F5597' }, { nome: 'Outros', total: 400776, forte: '#6E6E6E' },
+      { nome: 'Comida', total: 121459, forte: '#4E8C2A' }, { nome: 'Carro', total: 39733, forte: '#1F7A6B' },
+      { nome: 'Viagem', total: 32291, forte: '#1B7FA8' }, { nome: 'Saúde', total: 8189, forte: '#B23A3A' },
+    ].sort((a, b) => b.total - a.total);
+    const maxCat = Math.max(...catTotalsRaw.map(c => c.total));
+    const categoryTotals = catTotalsRaw.map(c => ({ ...c, totalFmt: formatBRL(c.total), barWidth: (c.total / maxCat * 100) + '%' }));
+
+    const maiorOfensor = [
+      { nome: 'Casa', vencedor: 'Maria' }, { nome: 'Carro', vencedor: 'Maria' },
+      { nome: 'Comida', vencedor: 'Empate' }, { nome: 'Saúde', vencedor: 'Irwin' },
+      { nome: 'Viagem', vencedor: 'Maria' }, { nome: 'Outros', vencedor: 'Irwin' },
+    ].map(m => {
+      const cat = CATEGORIES.find(c => c.nome === m.nome);
+      const badge = m.vencedor === 'Empate' ? { bg: '#E8E8E8', color: '#6E6E6E' } : { bg: PESSOAS[m.vencedor].clara, color: PESSOAS[m.vencedor].forte };
+      return { nome: m.nome, dotColor: cat.forte, vencedor: m.vencedor, badgeBg: badge.bg, badgeColor: badge.color };
+    });
+
+    const fixedEvolution = [{ year: 2022, pct: 30.2 }, { year: 2023, pct: 35.3 }, { year: 2024, pct: 36.3 }, { year: 2025, pct: 40.6 }]
+      .map(f => ({ year: f.year, pctLabel: f.pct + '%', barHeight: Math.round(f.pct / 45 * 70) + 'px' }));
+
+    const mesTotal = 14200, mesFixoPct = 42, mediaTotal = 12333, mediaFixoPct = 40.6;
+    const headerMap = { home: 'Início', new: 'Novo lançamento', invest: 'Novo investimento', dashboard: 'Dashboard', import: 'Importar extrato' };
+
+    return {
+      headerTitle: headerMap[s.tab],
+      showBack: s.tab === 'import',
+      isHome: s.tab === 'home', isNew: s.tab === 'new', isInvest: s.tab === 'invest', isDashboard: s.tab === 'dashboard', isImport: s.tab === 'import',
+      importNotLoaded: !s.import.loaded,
+      showSuccess: s.showSuccess, successTitle: this._successTitle || '', successMessage: this._successMsg || '',
+      onBackToHome: () => this.setTab('home'),
+      onGoImport: () => this.setTab('import'),
+      saldoFrase, saldoBg: Math.abs(saldoIrwin) < 0.01 ? '#F1F3F4' : '#F8F9FA', saldoBorder: '#E0E0E0',
+      mesFixoFmt: formatBRL(5964), mesVariavelFmt: formatBRL(8236),
+      entriesSorted, form, invest: s.invest, import: { ...s.import, count: s.import.rows.length },
+      categoriesView, tiposView, origemView, pagouView, divisaoView, valorTipoView,
+      isCustomDivisao: form.divisao === 'custom', customPctLabel: Math.round(form.customPct),
+      classes: CLASSES,
+      parteIrwinFmt: formatBRL(parteIrwin), parteMariaFmt: formatBRL(parteMaria),
+      onValorChange: (e) => this.updateForm({ valor: e.target.value }),
+      onDescricaoChange: (e) => this.updateForm({ descricao: e.target.value }),
+      onDataChange: (e) => this.updateForm({ data: e.target.value }),
+      onCustomPctChange: (e) => this.updateForm({ customPct: parseFloat(e.target.value) }),
+      onToggleParcelado: () => this.updateForm({ parcelado: !form.parcelado }),
+      onParcelasUp: () => this.updateForm({ parcelas: Math.min(24, form.parcelas + 1) }),
+      onParcelasDown: () => this.updateForm({ parcelas: Math.max(2, form.parcelas - 1) }),
+      parceladoSwitchTrackStyle: { width: 40, height: 22, borderRadius: 999, background: form.parcelado ? '#2F5233' : '#DADCE0', position: 'relative', flexShrink: 0 },
+      parceladoSwitchThumbStyle: { width: 18, height: 18, borderRadius: 999, background: '#fff', position: 'absolute', top: 2, left: form.parcelado ? 20 : 2, transition: 'left 0.15s' },
+      installmentsPreview,
+      onSave: () => this.onSave(),
+      saveButtonStyle: { textAlign: 'center', padding: '13px', borderRadius: 8, fontSize: 15, fontWeight: 500, cursor: 'pointer', background: (valorNum > 0 && form.descricao) ? '#2F5233' : '#DADCE0', color: (valorNum > 0 && form.descricao) ? '#fff' : '#8a8a8a' },
+      invMovView, invQuemView,
+      onInvValorChange: (e) => this.updateInvest({ valor: e.target.value }),
+      onInvContaChange: (e) => this.updateInvest({ conta: e.target.value }),
+      onInvClasseChange: (e) => this.updateInvest({ classe: e.target.value }),
+      onInvDataChange: (e) => this.updateInvest({ data: e.target.value }),
+      onSaveInvest: () => this.onSaveInvest(),
+      invSaveButtonStyle: { textAlign: 'center', padding: '13px', borderRadius: 8, fontSize: 15, fontWeight: 500, cursor: 'pointer', background: (invValorNum > 0 && s.invest.conta) ? '#2E6B2E' : '#DADCE0', color: (invValorNum > 0 && s.invest.conta) ? '#fff' : '#8a8a8a' },
+      onImportSelect: () => this.updateImport({ loaded: true }),
+      importPagouView, importDivisaoView, importIsConjunta: s.import.quemPagou === 'Conjunta', importRowsView, importTotalFmt: formatBRL(importTotal),
+      onImportConfirm: () => this.onImportConfirm(),
+      tabsView,
+      mesTotalFmt: formatBRL(mesTotal), mediaTotalFmt: formatBRL(mediaTotal),
+      mesFixoPctW: mesFixoPct + '%', mesVariavelPctW: (100 - mesFixoPct) + '%',
+      mediaFixoPctW: mediaFixoPct + '%', mediaVariavelPctW: (100 - mediaFixoPct) + '%',
+      fixedEvolution, categoryTotals, maiorOfensor,
+    };
+  }
+}
+
+</script>
+</body>
+</html>

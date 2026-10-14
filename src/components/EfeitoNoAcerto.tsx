@@ -1,5 +1,5 @@
 /**
- * Quanto uma linha mexeu no que um deve ao outro — C1 do `PARA-O-APP-2.0.md`.
+ * Quanto uma linha mexeu no que um deve ao outro — C1 do `docs/INVARIANTES.md`.
  *
  * **Não é a fatia do gasto.** Mostrar "parte de cada um" parece informativo e
  * não é: as duas partes são sempre positivas e somam o total, então duas

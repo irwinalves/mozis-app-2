@@ -40,6 +40,8 @@ select
   serie_id,
   seq,
   criado_em,
+  importacao_id,
+  importacao_linha,
 
   -- Sem arredondamento, de propósito: a fórmula da planilha é multiplicação
   -- crua, e arredondar aqui produziria divergência sistemática de centavo.
