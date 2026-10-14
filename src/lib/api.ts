@@ -30,6 +30,7 @@ import {
   sugerirCategoria,
   type CategoriaKw,
 } from './importacao';
+import { ligarEstornos } from './estornos';
 import { lerFaturaXlsx } from './faturaArquivo';
 import {
   cruzar,
@@ -1555,10 +1556,36 @@ export async function analisarFatura(arquivoB64: string, nomeArquivo: string) {
 
   const plano = await planoParaSugestao();
 
+  /**
+   * Os negativos ligados à compra que cancelam, DENTRO da mesma fatura.
+   *
+   * A A13 manda descartar negativo, e está certa — não é gasto novo. Mas
+   * descartar em silêncio esconde o que importa: em agosto, `Adaptaorg` vem
+   * com as doze parcelas de R$ 99 e com um estorno de −R$ 1.188,00. Sem
+   * ligar os dois, o app grava uma série até junho de 2027 para uma compra
+   * cancelada.
+   */
+  const estornos = ligarEstornos(
+    classificadas.map((c, i) => ({
+      i,
+      descricao: c.linha.descricao,
+      valor: c.linha.valor,
+      parcela: c.linha.parcela,
+    })),
+    r.descartadas,
+  );
+
+  /** As linhas que um estorno INTEGRAL cobre — nascem desmarcadas. */
+  const estornadas = new Set<number>();
+  for (const e of estornos) {
+    if (e.vinculo.tipo === 'integral') for (const ref of e.vinculo.refs) estornadas.add(ref);
+  }
+
   return {
     arquivo: nomeArquivo,
     total: r.total,
     descartadas: r.descartadas,
+    estornos,
     linhas: classificadas.map((c, i) => {
       const idApp = 'lancamentoId' in c.situacao ? c.situacao.lancamentoId : null;
       const app = idApp !== null ? (doApp.get(idApp) ?? null) : null;
@@ -1579,6 +1606,8 @@ export async function analisarFatura(arquivoB64: string, nomeArquivo: string) {
           (app?.categoria as string | undefined) ?? sugerirCategoria(c.linha.descricao, plano),
         /** Divergência de valor com o que está no app, quando houver. */
         difValor: app ? arred(c.linha.valor - Number(app.valor)) : null,
+        /** Um estorno desta fatura cobre a compra inteira. Entra desmarcada. */
+        estornada: estornadas.has(i),
       };
     }),
   };

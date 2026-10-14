@@ -41,24 +41,33 @@ export function Desfazer({
   }
 
   if (!confirmando) {
+    /*
+     * Os dois lado a lado, grudados no topo da rolagem.
+     *
+     * Antes eram dois blocos largos no FIM da lista: para editar um lote de 143
+     * linhas era preciso rolar as 143. A ação que se quer é sempre a mesma
+     * — ajustar — e ela estava atrás do trabalho todo.
+     *
+     * `Editar` preenchido e `Desfazer` só com contorno: agora que o destrutivo
+     * está sempre ao alcance do polegar, a diferença de peso importa mais, não
+     * menos. A confirmação em duas etapas continua.
+     */
     return (
-      <>
-        {/* Editar vem antes de desfazer, e com mais peso: ajustar o lote é o
-            que se quer quase sempre, e apagar tudo é o caso extremo. */}
+      <div className="acoes-lote">
         {podeEditar && (
-          <Link href={`/importacao/${id}/editar`} className="btn-linha forte" style={{ marginTop: 12 }}>
-            Editar esta importação
+          <Link href={`/importacao/${id}/editar`} className="btn-par forte">
+            Editar
           </Link>
         )}
-        <button type="button" className="btn-perigo" onClick={() => setConfirmando(true)}>
-          Desfazer esta importação
+        <button type="button" className="btn-par perigo" onClick={() => setConfirmando(true)}>
+          Desfazer
         </button>
-      </>
+      </div>
     );
   }
 
   return (
-    <div className="card">
+    <div className="card" style={{ marginTop: 10 }}>
       {erro && <div className="msg-erro">{erro}</div>}
       <div className="aviso" style={{ marginTop: 0 }}>
         <span>⚠</span>

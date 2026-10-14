@@ -190,8 +190,10 @@ export function Importador({
           // entra desmarcado — inclusive a suspeita, que é palpite (C7) e
           // marcar por palpite é como se duplica um gasto.
           // `naSerieNova` fica de fora: a série da linha irmã já a cobre, e
-          // marcá-la lançaria o mesmo gasto duas vezes.
-          marcada: l.situacao.tipo === 'nova' || l.situacao.tipo === 'novaSerie',
+          // marcá-la lançaria o mesmo gasto duas vezes. E `estornada` também:
+          // a compra foi cancelada na própria fatura.
+          marcada:
+            !l.estornada && (l.situacao.tipo === 'nova' || l.situacao.tipo === 'novaSerie'),
           descricao: '',
           grupo: l.categoriaSugerida,
           divisao: divisaoInicial(padraoDivisao, quemPagou),
@@ -426,6 +428,8 @@ export function Importador({
             </div>
           )}
 
+          <Estornos analise={analise} />
+
           <div className="abas">
             {ABAS.map((a) => (
               <button
@@ -546,6 +550,86 @@ export function Importador({
 }
 
 // ---------------------------------------------------------------------------
+// Os estornos da própria fatura
+// ---------------------------------------------------------------------------
+
+/**
+ * O que foi devolvido dentro desta fatura, e o que cada devolução cancela.
+ *
+ * `<details>` e não estado em React: recolher e abrir é exatamente o que o
+ * elemento já faz, com teclado e leitor de tela de graça. Abre junto com a
+ * tela, porque um estorno que ninguém vê é o que faz uma compra cancelada
+ * virar série de doze parcelas; fecha num toque, porque oito linhas fixas
+ * comem a tela antes de a revisão começar.
+ *
+ * Os de centavos vão para uma linha só no rodapé. Dar peso igual a −R$ 0,01 e
+ * a −R$ 1.188,00 é transformar um aviso em parede.
+ */
+function Estornos({ analise }: { analise: Analise }) {
+  /*
+   * `?? []` não é paranoia: um lote importado ANTES desta seção existir
+   * guardou um `estado` sem o campo, e a edição reabre exatamente esse JSON.
+   * Sem a guarda, abrir a importação de ontem quebra a tela — e quem abre uma
+   * importação antiga é justamente quem quer corrigi-la.
+   */
+  const todos = analise.estornos ?? [];
+  if (!todos.length) return null;
+
+  const miudos = todos.filter((e) => Math.abs(e.negativa.valor) < 1);
+  const graudos = todos.filter((e) => Math.abs(e.negativa.valor) >= 1);
+  const soma = todos.reduce((a, e) => a + Math.abs(e.negativa.valor), 0);
+
+  return (
+    <details className="estornos" open>
+      <summary className="cabe">
+        <span className="chev" aria-hidden>
+          ›
+        </span>
+        <span>
+          {todos.length === 1 ? 'Estorno nesta fatura' : 'Estornos nesta fatura'}
+        </span>
+        <span className="soma">
+          {todos.length} · −{brl(soma)}
+        </span>
+      </summary>
+
+      {graudos.map((e, k) => {
+        const v = e.vinculo;
+        return (
+          <div key={k} className={`est${v.tipo === 'integral' ? ' forte' : ''}`}>
+            <span className="q">−{brl(Math.abs(e.negativa.valor))}</span>
+            <span className="t">
+              <span className="loja">{e.negativa.descricao}</span>
+              <span className="diz">
+                {v.tipo === 'integral'
+                  ? `cancela a compra inteira — ${v.refs.length} ${v.refs.length === 1 ? 'linha' : 'linhas'} de ${brl(v.valor / v.refs.length)}`
+                  : v.tipo === 'linha'
+                    ? 'cancela uma compra desta fatura, de mesmo valor'
+                    : v.tipo === 'parcial'
+                      ? `devolveu parte · ${v.refs.length} ${v.refs.length === 1 ? 'compra soma' : 'compras somam'} ${brl(v.valor)}`
+                      : 'não corresponde a compra nesta fatura'}
+              </span>
+            </span>
+          </div>
+        );
+      })}
+
+      {miudos.length > 0 && (
+        <div className="menores">
+          + {miudos.length} de centavos ({miudos.map((e) => lojaCurta(e.negativa.descricao)).join(', ')})
+        </div>
+      )}
+    </details>
+  );
+}
+
+/** O começo do nome, para caber na linha dos miúdos. */
+function lojaCurta(s: string): string {
+  const limpo = s.replace(/^(cancelamento( parcial)? de compra|estorno)\s*-?\s*/i, '');
+  return limpo.split(/[*\s]/).filter(Boolean)[0] ?? limpo;
+}
+
+// ---------------------------------------------------------------------------
 // A linha
 // ---------------------------------------------------------------------------
 
@@ -606,12 +690,15 @@ function LinhaFatura({
             {nome}
           </div>
           <div className="meta">
+            {l.estornada && <span className="selo-mud reclass">estornada</span>}
             {e.forcadaNova && <span className="selo-mud reclass">era &ldquo;já no app&rdquo;</span>}
             {e.mexidaDepois && <span className="selo-mud">mudou no app</span>}
             {editada && !e.forcadaNova && !e.mexidaDepois && (
               <span className="selo-mud">editada</span>
             )}
-            {casou
+            {l.estornada
+              ? 'cancelada nesta fatura'
+              : casou
               ? s.tipo === 'jaLancado'
                 ? `já no app · ${s.serieDescricao} ${s.seq}/${s.total}`
                 : 'pode já estar no app'

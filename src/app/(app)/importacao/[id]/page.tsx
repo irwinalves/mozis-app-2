@@ -86,6 +86,8 @@ export default async function PaginaImportacao({
             </div>
           </div>
 
+          <Desfazer id={imp.id} qtd={imp.qtd} podeEditar={imp.podeEditar} />
+
           <div className="card" style={{ paddingTop: 6, paddingBottom: 6 }}>
             <div className="titulo-lista">
               <span>O que entrou</span>
@@ -116,7 +118,6 @@ export default async function PaginaImportacao({
             )}
           </div>
 
-          <Desfazer id={imp.id} qtd={imp.qtd} podeEditar={imp.podeEditar} />
         </div>
       </div>
     </>
