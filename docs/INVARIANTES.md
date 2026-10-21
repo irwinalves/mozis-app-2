@@ -24,7 +24,7 @@ arquivo guarda o que precisa **sobreviver à troca de tecnologia**.
 
 ## Quantas estão verificadas por máquina
 
-42 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
+44 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
 e é por isso que os dois têm o mesmo nome: a distância entre os dois números é a medida
 de quanto ainda depende de alguém lembrar.
 
@@ -320,6 +320,54 @@ setembro** pela tela de Lançar, todas sem `serie_id`. O custo é duplo e nenhum
 cuja descrição termina em ` N/M` tem `serie_id`.
 
 ---
+
+### A20. Cobrança e desconto podem ser lançamentos separados — o app registra o líquido
+
+**Regra:** quando a fatura cobra um valor e devolve parte dele em **outra linha**,
+negativa, em **outro mês**, o que vale para o app é o **líquido**. Descartar o negativo
+(A13) e lançar só o bruto registra uma despesa que não existiu.
+
+**Se violada:** medido em 21/10/2026 nas 10 faturas de fev a nov/2026 do final 8607. A
+anuidade é cobrada em R$ 105,00 e devolvida como `Redução Mensalidade - Plano Do Cartão`.
+O app tinha R$ 100,00 fixos de recorrência enquanto o pago real era 0, 52,50 ou 105,00
+conforme o mês — **e o desconto não é constante**: dois meses tiveram estorno integral, um
+não teve desconto nenhum e um teve desconto dobrado. Total pago no período: R$ 420,00
+contra R$ 1.050,00 de cobrança bruta. A Maria estava devendo R$ 263,25 a mais.
+
+> O que generaliza: **a A13 descarta negativo porque negativo costuma ser pagamento de
+> fatura — mas estorno também é negativo.** Descartar os dois pelo sinal joga fora o
+> estorno junto. O cruzamento de estornos da Fase 4 (`src/lib/estornos.ts`) já trata isso
+> dentro da MESMA fatura; o que a A20 cobra é o caso de **meses diferentes**, que nenhuma
+> tela cruza hoje.
+
+**Como provar:** não é checável por consulta — depende do arquivo da fatura. O que dá para
+checar é o sintoma: uma recorrência cujo valor **nunca varia** enquanto as faturas variam.
+Por ora, `scripts/corrigir-anuidade.mts` carrega a tabela mês a mês, conferida à mão.
+
+---
+
+### A21. Uma base, uma porta de importação
+
+**Regra:** só pode existir **um** caminho que grava lançamentos em lote. Se existirem
+dois, o que não cria `importacoes` não pode continuar de pé.
+
+**Se violada:** medido em 21/10/2026, em produção. A tela antiga de importação OFX/CSV
+(`lancarImportacaoLote`) gravou **150 linhas, R$ 18.796,35**, da fatura de setembro:
+todas `Ambos` 50/50, descrição crua, categoria por palpite, `fonte = 'Extrato banco'` — e
+**sem `importacao_id`, logo sem desfazer**. Seis minutos depois a tela nova importou a
+mesma fatura, cruzou, viu as 150 já lá e criou só as 11 parcelas que faltavam. O
+cruzamento funcionou perfeitamente **contra uma base já suja**.
+
+O efeito no acerto foi quase nulo (R$ 0,21, porque `Ambos` sem rateio não gera dívida) —
+e é justamente isso que torna a falha difícil de perceber: **o saldo não denuncia.** O
+que inflou foi a despesa do mês.
+
+> Duas portas para a mesma coisa não é redundância, é divergência com data marcada. E a
+> porta sem desfazer é sempre a que vai ser usada por engano.
+
+**Como provar:** `select count(*) from lancamentos where importacao_id is null and
+cat_original = 'Importação OFX/CSV'` tem que dar **zero** depois da limpeza — e a tela
+antiga tem que deixar de existir, não ficar escondida.
 
 ## Parte B — Leitura, ordem e identidade
 
