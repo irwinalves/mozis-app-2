@@ -45,3 +45,8 @@ next-env.d.ts
 baseline/
 
 # sharp é usado só para gerar os ícones, sob demanda
+
+# Material do banco: fatura, extrato e prints com número de conta.
+# Fica local, como o baseline/. Ver docs/faturas/README.md.
+docs/faturas/
+docs/manual/prints/

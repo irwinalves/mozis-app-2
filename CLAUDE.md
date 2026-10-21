@@ -131,6 +131,10 @@ começou por uma varredura que respondia "quantas linhas estão assim".
 | `scripts/` | sync, reconcile, inspect |
 | `docs/OPERACAO.md` | Operação, armadilhas e diagnóstico |
 | `docs/ACHADOS-DA-RECONCILIACAO.md` | O que a migração descobriu, com números |
+| `docs/INVARIANTES.md` | As regras que o projeto pagou caro para descobrir |
+| `docs/PENDENCIAS-DE-TELA.md` | O que o Irwin apontou usando o app e ainda não virou código |
+| `docs/faturas/` | **Fora do git.** Faturas e extratos do banco, com índice no README |
+| `docs/manual/` | Manual de uso da importação; os prints ficam fora do git |
 
 ## Identidade visual (fixa)
 
