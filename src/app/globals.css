@@ -1275,3 +1275,400 @@ a.btn-linha {
   opacity: 0.85;
   overflow-wrap: anywhere;
 }
+
+/* ===================================================================
+   Formulário de lançamento — o único, usado pela tela de Lançar e, em
+   seguida, por série e importação. Ver src/components/FormLancamento.tsx.
+
+   O rótulo envolve o campo (`<label class="campo"><span>…`) em vez de ser
+   irmão dele: sem `for`, um label irmão não anuncia nada ao leitor de tela,
+   e tocar no texto não foca o campo. O estilo é o mesmo de `.campo > label`.
+   =================================================================== */
+.form-lanc {
+  padding-bottom: 92px;
+}
+.form-lanc .campo > span {
+  display: block;
+  font-size: 13px;
+  color: var(--texto2);
+  margin: 0 0 5px;
+}
+.form-lanc .linha {
+  display: flex;
+  gap: 10px;
+}
+.form-lanc .linha > * {
+  flex: 1;
+  min-width: 0;
+}
+.form-lanc .rot {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--texto2);
+  font-weight: 500;
+  margin-bottom: 9px;
+}
+.form-lanc .rot.sep {
+  margin-top: 17px;
+}
+.form-lanc .rot .leve {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  color: var(--texto3);
+  font-size: 12px;
+}
+.form-lanc .duas {
+  margin: 0 0 13px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--texto2);
+  background: var(--suave);
+  border-radius: 8px;
+  padding: 9px 11px;
+}
+.form-lanc .duas b {
+  color: var(--texto);
+  font-weight: 500;
+}
+
+/* descrição e o botão do André lado a lado, como sempre foi */
+.form-lanc .linha-desc {
+  display: flex;
+  gap: 9px;
+  align-items: flex-end;
+}
+.form-lanc .linha-desc .campo {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+.form-lanc .btn-andre {
+  flex: 0 0 46px;
+  height: 42px;
+  border: 1px solid var(--borda-input);
+  border-radius: 8px;
+  background: var(--bg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0;
+}
+.form-lanc .btn-andre img {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  object-fit: cover;
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+.form-lanc .btn-andre[aria-pressed='true'] {
+  border-color: var(--andre);
+  background: var(--andre-l);
+}
+.form-lanc .btn-andre[aria-pressed='true'] img {
+  filter: none;
+  opacity: 1;
+}
+
+.form-lanc .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.form-lanc .chip {
+  border: 1px solid var(--borda-input);
+  background: var(--bg);
+  color: var(--texto);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14.5px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.form-lanc .chip[aria-pressed='true'] {
+  background: var(--verde);
+  border-color: var(--verde);
+  color: #fff;
+}
+/* A cor da categoria é dela, não do estado: é a mesma que volta nos gráficos. */
+.form-lanc .chip.cat[aria-pressed='true'] {
+  background: var(--c);
+  border-color: var(--c);
+}
+.form-lanc .chip.cat .pt {
+  background: var(--c);
+}
+.form-lanc .chip small {
+  font-weight: 400;
+  opacity: 0.75;
+  font-size: 12px;
+}
+.form-lanc .chip .pt {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  flex: 0 0 18px;
+  display: inline-block;
+  background-size: cover;
+  background-position: center;
+}
+.form-lanc .chip .pt.i {
+  background-image: url('/avatar-irwin.jpg');
+}
+.form-lanc .chip .pt.m {
+  background-image: url('/avatar-maria.jpg');
+}
+.form-lanc .chip .pt.duo {
+  background-image: url('/avatar-ambos-192.png');
+}
+
+/* os dois lados do dinheiro: quem pagou e de quem é o gasto */
+.form-lanc .partes {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+.form-lanc .parte {
+  flex: 1;
+  min-width: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.form-lanc .parte.i {
+  background: var(--irwin-l);
+}
+.form-lanc .parte.m {
+  background: var(--maria-l);
+}
+.form-lanc .parte .quem {
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.form-lanc .parte.i .quem {
+  color: var(--irwin);
+}
+.form-lanc .parte.m .quem {
+  color: var(--maria);
+}
+.form-lanc .parte .moeda {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.form-lanc .parte .cifra {
+  font-size: 14px;
+  opacity: 0.7;
+}
+.form-lanc .parte input {
+  border: none;
+  background: transparent;
+  padding: 0;
+  width: 100%;
+  border-radius: 0;
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px dashed transparent;
+}
+.form-lanc .parte.i input {
+  color: var(--irwin);
+}
+.form-lanc .parte.m input {
+  color: var(--maria);
+}
+.form-lanc .parte input:not(:disabled) {
+  border-bottom-color: currentColor;
+}
+.form-lanc .parte input:disabled {
+  opacity: 1;
+  -webkit-text-fill-color: currentColor;
+}
+.form-lanc .parte .pct {
+  font-size: 12px;
+  color: var(--texto2);
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* o acerto é a subtração entre as duas respostas — por isso ela aparece */
+.form-lanc .conta {
+  margin-top: 12px;
+  border: 1px solid var(--borda-card);
+  border-radius: 10px;
+  overflow: hidden;
+  font-size: 14px;
+}
+.form-lanc .conta > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 11px;
+  border-top: 1px solid var(--borda-card);
+}
+.form-lanc .conta > div:first-child {
+  border-top: none;
+}
+.form-lanc .conta .cab {
+  background: var(--suave);
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--texto2);
+  font-weight: 500;
+}
+.form-lanc .conta .n {
+  font-variant-numeric: tabular-nums;
+}
+.form-lanc .conta .fecho {
+  background: var(--suave);
+  font-weight: 500;
+}
+
+/* a prévia vem do servidor: são as linhas que vão nascer, não uma estimativa */
+.form-lanc .previa {
+  margin-top: 12px;
+  border: 1px solid var(--borda-card);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.form-lanc .previa .cab {
+  background: var(--suave);
+  padding: 8px 11px;
+  font-size: 12px;
+  color: var(--texto2);
+  font-weight: 500;
+}
+.form-lanc .previa ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 188px;
+  overflow-y: auto;
+}
+.form-lanc .previa li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 11px;
+  font-size: 14px;
+  border-top: 1px solid var(--borda-card);
+}
+.form-lanc .previa li .dt {
+  color: var(--texto2);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.form-lanc .previa li .vl {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.form-lanc .previa .pe {
+  padding: 8px 11px;
+  font-size: 12.5px;
+  color: var(--texto2);
+  border-top: 1px solid var(--borda-card);
+  line-height: 1.45;
+}
+
+.form-lanc .nota {
+  margin: 11px 0 0;
+  font-size: 12.5px;
+  color: var(--texto2);
+  background: var(--suave);
+  border-radius: 8px;
+  padding: 8px 10px;
+  line-height: 1.45;
+}
+.form-lanc .nota b {
+  color: var(--texto);
+  font-weight: 500;
+}
+.form-lanc .erro {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #fff;
+  background: var(--fixa, #a63a2e);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.form-lanc .mais > summary {
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--texto2);
+  font-weight: 500;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.form-lanc .mais > summary::-webkit-details-marker {
+  display: none;
+}
+.form-lanc .mais > summary::before {
+  content: '＋';
+  font-size: 15px;
+  line-height: 1;
+}
+.form-lanc .mais[open] > summary::before {
+  content: '－';
+}
+.form-lanc .mais .conteudo {
+  padding-top: 13px;
+}
+
+.form-lanc .rodape {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg);
+  border-top: 1px solid var(--borda-card);
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  z-index: 4;
+}
+.form-lanc .rodape .dentro {
+  max-width: 520px;
+  margin: 0 auto;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.form-lanc .rodape .resumo {
+  font-size: 12.5px;
+  color: var(--texto2);
+  line-height: 1.35;
+  flex: 0 0 auto;
+  text-align: right;
+}
+.form-lanc .rodape .resumo b {
+  display: block;
+  color: var(--texto);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.form-lanc .salvar {
+  flex: 1;
+  border: none;
+  background: var(--verde);
+  color: #fff;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 10px;
+  padding: 13px;
+  cursor: pointer;
+}
+.form-lanc .salvar:disabled {
+  opacity: 0.6;
+}

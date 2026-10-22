@@ -56,6 +56,9 @@ const VALOR_NOVO_DA_REGRA = 52.5;
 
 class Seco extends Error {}
 
+/** A mesma consulta antes e depois, e é isso que torna a previsão confiável.
+ *  Recebe `sql` ou o `tx` de dentro da transação: o `postgres` tipa os dois
+ *  diferente, mas a chamada por template é idêntica — daí o cast. */
 async function acerto(tx: typeof sql) {
   const [r] = await tx<{ total: string; mes: string }[]>`
     select round(coalesce(sum(saldo_irwin), 0)::numeric, 2)::text as total,
@@ -115,7 +118,7 @@ async function main() {
 
   try {
     await sql.begin(async (tx) => {
-      const antes = await acerto(tx);
+      const antes = await acerto(tx as unknown as typeof sql);
 
       for (const f of FATURAS) {
         // `pago_irwin` acompanha o valor porque o pagador é 'Irwin': quem paga
@@ -130,7 +133,7 @@ async function main() {
                   set valor = ${VALOR_NOVO_DA_REGRA}
                 where id = ${regra.id}`;
 
-      const depois = await acerto(tx);
+      const depois = await acerto(tx as unknown as typeof sql);
       console.log(`\nAcerto "total":      ${brl(Number(antes.total))} → ${brl(Number(depois.total))}`);
       console.log(`Corte do mês:        ${brl(Number(antes.mes))} → ${brl(Number(depois.mes))}`);
       console.log(

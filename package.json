@@ -29,7 +29,8 @@
     "backfill-series:teste": "tsx --env-file=.env.teste scripts/backfill-series.ts",
     "backfill-incremental:teste": "tsx --env-file=.env.teste scripts/backfill-series.ts --incremental",
     "corrigir-recorrencias:teste": "tsx --env-file=.env.teste scripts/corrigir-recorrencias-adiantadas.mts",
-    "verificar-e2e:teste": "tsx --env-file=.env.teste scripts/verificar-e2e.ts"
+    "verificar-e2e:teste": "tsx --env-file=.env.teste scripts/verificar-e2e.ts",
+    "dev:teste": "DATABASE_URL=$(grep '^DATABASE_URL=' .env.teste | cut -d= -f2-) next dev"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

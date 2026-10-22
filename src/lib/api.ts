@@ -167,7 +167,17 @@ export async function getOpcoes(pessoa: Pessoa | null = null) {
     // '8 Investimentos' tem tela própria; '9 Acerto de Contas' fica, é o que o
     // botão Quitar usa.
     gruposLancar: lista.filter((g) => !g.nome.startsWith('8 ')),
-    origens: ['Cartão', 'Pix'],
+    /**
+     * Duas origens, e só. `Pix` virou `Banco` porque a distinção nunca
+     * significou nada: um TED não é um Pix, e os dois saem da mesma conta.
+     *
+     * Os rótulos antigos continuam sendo LIDOS — `Pix` e `Extrato banco` são
+     * Banco; `Família` e `Mozi` são de antes do app, quando a origem do
+     * dinheiro não era registrada. Aceitar na leitura e nunca na escrita é a
+     * A15; criar um "não informado" no formulário seria resolver o passado
+     * abrindo o futuro.
+     */
+    origens: ['Cartão', 'Banco'],
     divisoes: ['50/50', 'Renda', '100% Irwin', '100% Maria', 'Custom'],
     pagadores: ['Irwin', 'Maria', 'Ambos'],
     pagadoresLancar: ['Irwin', 'Maria', 'Ambos'],

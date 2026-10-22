@@ -25,7 +25,7 @@
  * Seco por padrão. `--aplicar` grava.
  */
 import postgres from 'postgres';
-import { salvarLancamento } from '../src/lib/api.ts';
+import { salvarLancamento } from '../src/lib/api';
 
 const sql = postgres(process.env.DATABASE_URL!);
 const APLICAR = process.argv.includes('--aplicar');

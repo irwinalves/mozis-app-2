@@ -874,7 +874,13 @@ if (!navigator.onLine) $('offline').classList.add('on');
 
 /* ---------------- navegação ---------------- */
 document.querySelectorAll('#tabbar button').forEach(function(b){
-  b.onclick = function(){ tabAtiva = b.dataset.tab; irPara(b.dataset.tab); };
+  b.onclick = function(){
+    /* Lançar saiu daqui: virou tela React em `/lancar`, com o formulário único
+       que série e importação também vão usar. Editar um lançamento existente
+       ainda abre o formulário desta página — é o próximo pedaço da migração. */
+    if (b.dataset.tab === 'new'){ location.href = '/lancar'; return; }
+    tabAtiva = b.dataset.tab; irPara(b.dataset.tab);
+  };
 });
 /* A fatura do cartão passou a ter tela própria em React: ela lê o `.xlsx`
    exportado pelo banco, cruza com o que já está no app e pede validação linha a
