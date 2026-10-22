@@ -24,7 +24,7 @@ arquivo guarda o que precisa **sobreviver à troca de tecnologia**.
 
 ## Quantas estão verificadas por máquina
 
-44 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
+45 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
 e é por isso que os dois têm o mesmo nome: a distância entre os dois números é a medida
 de quanto ainda depende de alguém lembrar.
 
@@ -368,6 +368,30 @@ que inflou foi a despesa do mês.
 **Como provar:** `select count(*) from lancamentos where importacao_id is null and
 cat_original = 'Importação OFX/CSV'` tem que dar **zero** depois da limpeza — e a tela
 antiga tem que deixar de existir, não ficar escondida.
+
+---
+
+### A22. O cruzamento da fatura também olha recorrência, não só parcelamento
+
+**Regra:** antes de propor uma linha como nova, o cruzamento pergunta se já existe
+**recorrência** cobrindo aquele gasto naquele mês — não só se existe parcela de série.
+
+**Se violada:** medido em 22/10/2026. A regra da `Netflix` foi criada às 00:56 com as
+ocorrências de 01 a 10/2026. Às 01:02 a fatura de setembro foi importada e trouxe
+`Netflix.comsao Paulobr`, 07/08, R$ 44,90 — **mesma data, mesmo valor, mesmo pagador** da
+ocorrência que já estava lá. Entrou duplicada, e nenhum invariante acusou: `duplicatas`
+compara linhas idênticas, e as descrições diferem.
+
+O mesmo caso já tinha aparecido com a anuidade, e só não duplicou porque foi avisado à
+mão: `Mensalidade - Plano Do Cartão` contra a recorrência `Anuidade Cartão`.
+
+> O padrão: o cruzamento foi desenhado contra **parcelamento**, onde a série é chave
+> forte e o nome é estável. Recorrência não tem nada disso — o nome na fatura é o do
+> lojista e o do app é o que a pessoa escolheu. A chave aqui tem que ser
+> **(valor, mês, pagador)**, com o nome do lojista como pista, não como requisito.
+
+**Como provar:** importar uma fatura com um gasto já coberto por regra ativa no mesmo
+mês. A linha tem que chegar na aba "Já no app", não em "Novos".
 
 ## Parte B — Leitura, ordem e identidade
 
