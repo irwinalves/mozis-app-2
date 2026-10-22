@@ -61,14 +61,53 @@ dizer "isto você deixou de fora" e deixar voltar nelas.
 
 ---
 
-## 3. Buscar por data
+## 3. Aba de estornos, com o par compra ↔ estorno
+
+**O que ele pediu (22/10):** hoje a importação **sinaliza** os estornos numa
+seção recolhível, mas não deixa **tratar** nenhum. Ele quer uma aba própria
+mostrando cada estorno **ao lado da compra a que se refere**, para poder decidir
+na hora: *"não vou lançar isso, porque já está considerado o estorno"*.
+
+**O que a fatura de setembro mostra**, que é a prova de que dá para fazer bem —
+e de que não dá para fazer sozinho:
+
+| Estorno | Compra correspondente | Caso |
+|---|---|---|
+| 13/08 `Shopee*…herbertelet` −19,99 | 13/08 `Shopee*…herbertelet` +62,98 | **mesma data, mesmo texto, uma só candidata** |
+| 19/08 `Cancelamento Parcial De Compra - Brs*sheincom` −69,14 | 18/08 `Brs*sheincomsao Paulobr` +134,70 | **o lojista está no próprio texto do estorno** |
+| 06/08 `Cancelamento Parcial De Compra - Apple.com/bill` −3,50 | **seis** compras Apple no mês (5,90 · 10,00 · 15,14 · 29,90 · 35,00 · 66,90) | **ambíguo** |
+| 13/08 `Redução Mensalidade - Plano Do Cartão` −52,50 | nenhuma linha da fatura — casa com a **recorrência** | fora da fatura (A20) |
+| `Pagamento Debito Automatico` −16.132,19 | — | não é estorno |
+
+Cinco negativos, **cinco casos diferentes**. Daí o desenho:
+
+- Onde o texto nomeia o lojista (`Cancelamento Parcial De Compra - X`) ou onde
+  só existe uma candidata, a tela **mostra o par pronto**.
+- Onde há várias candidatas do mesmo lojista, a tela **pergunta** em vez de
+  adivinhar (C7). O Apple de R$ 3,50 não casa com valor nenhum das seis.
+- O `Redução Mensalidade` não tem par na fatura: pertence à recorrência. É o
+  mesmo buraco da A20 e da A22, visto de outro ângulo.
+
+**Duas ações diferentes, e confundi-las erraria a conta:**
+
+| | Compra | Estorno | O que fazer |
+|---|---:|---:|---|
+| Estorno **integral** | 62,98 | −62,98 | não lançar |
+| Estorno **parcial** | 62,98 | −19,99 | lançar o líquido, 42,99 |
+
+`src/lib/estornos.ts` já classifica em `integral · linha · parcial · solto` —
+a lógica existe, falta a tela deixar agir sobre ela.
+
+---
+
+## 4. Buscar por data
 
 Não existe filtro por data na busca. Ele quer **um dia** ou **um intervalo**,
 com calendário — "entre o dia tal e o dia tal".
 
 ---
 
-## 4. Filtro "dividido entre nós", e ele como padrão
+## 5. Filtro "dividido entre nós", e ele como padrão
 
 **O que ele pediu:** ver só o que é dividido entre os dois; o que é de um só
 fica oculto, com um botão para mostrar tudo. E que **esse seja o padrão**.
@@ -95,7 +134,7 @@ filtro precisa existir antes de a fatura de outubro entrar.
 
 ---
 
-## 5. O "Editar" da série/recorrência é pequeno demais
+## 6. O "Editar" da série/recorrência é pequeno demais
 
 **O que está:** um `Editar ›` verde, pequeno, no canto do card.
 
@@ -108,7 +147,7 @@ uma cor que sinalize "aqui você mexe no que está vendo".
 
 ---
 
-## 6. Manual de uso da importação, para a Maria
+## 7. Manual de uso da importação, para a Maria
 
 A importação de fatura já está em produção e o extrato vem a seguir. Hoje só o
 Irwin sabe o caminho das pedras, e a conta é dos dois.
