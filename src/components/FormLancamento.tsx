@@ -636,7 +636,7 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
       <div className="card">
         <details className="mais">
           <summary>Mais detalhes</summary>
-          <div className="conteudo">
+          <div className="detalhes">
             <label className="campo">
               <span>Observação</span>
               <textarea

@@ -1284,8 +1284,19 @@ a.btn-linha {
    irmão dele: sem `for`, um label irmão não anuncia nada ao leitor de tela,
    e tocar no texto não foca o campo. O estilo é o mesmo de `.campo > label`.
    =================================================================== */
+/*
+ * O `.app` é uma coluna de altura fixa com `overflow: hidden`, e o cabeçalho é
+ * `flex: 0 0 auto`. Quem rola é o filho seguinte — por isso o formulário
+ * precisa ser ele próprio a área rolável, como `.conteudo` faz nas outras
+ * telas. Sem isto o conteúdo que passa da altura da tela é CORTADO, não
+ * escondido: no celular do Irwin a página parava no meio, logo antes de "quem
+ * pagou", e nada ali dizia que faltava coisa embaixo.
+ */
 .form-lanc {
-  padding-bottom: 92px;
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 13px 96px;
 }
 .form-lanc .campo > span {
   display: block;
@@ -1623,7 +1634,7 @@ a.btn-linha {
 .form-lanc .mais[open] > summary::before {
   content: '－';
 }
-.form-lanc .mais .conteudo {
+.form-lanc .mais .detalhes {
   padding-top: 13px;
 }
 
