@@ -34,6 +34,7 @@ select
   obs,
   recorrente,
   eh_quitacao,
+  de_fora,
   gasto_de,
   linha_origem,
   pct_irwin,
@@ -56,7 +57,11 @@ select
   --
   -- NULL quando não há pagador definido. Desde a Versão 42 gravar assim é
   -- recusado, mas a leitura continua tolerando o histórico.
-  pago_irwin - (valor_total * pct_irwin)   as saldo_irwin,
+  -- `de_fora` zera o efeito: a compra passou pelo cartão, mas não é gasto do
+  -- casal e não cria dívida entre os dois. Zero, e não NULL, porque NULL aqui
+  -- já quer dizer outra coisa — lançamento sem pagador definido.
+  case when de_fora then 0
+       else pago_irwin - (valor_total * pct_irwin) end as saldo_irwin,
 
   extract(year  from data)::int            as ano,
   extract(month from data)::int            as mes

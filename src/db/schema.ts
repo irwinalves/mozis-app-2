@@ -179,6 +179,23 @@ export const lancamentos = pgTable(
      */
     ehQuitacao: boolean('eh_quitacao').notNull().default(false),
 
+    /**
+     * Gasto que passou pelo cartão de vocês mas NÃO é de vocês — a conta da
+     * Vivo que a mãe do Irwin reembolsa, a passagem do avô da Maria.
+     *
+     * Fica REGISTRADO e fora das duas contas: não entra no gasto do mês nem
+     * no acerto entre os dois. O registro é o ponto — sem ele, a mesma compra
+     * reaparece na fatura todo mês e alguém tem que lembrar, de novo, que
+     * aquilo não é despesa do casal. Foi exatamente o que aconteceu com a
+     * Vivo: R$ 3.499,00 em dez meses que simplesmente nunca foram lançados,
+     * porque a única saída era não lançar.
+     *
+     * De quem é vai em `gasto_de`. Por que não bastou `gasto_de` sozinho: ele
+     * classifica sem redistribuir — um gasto do André dividido 50/50 continua
+     * 50/50. Aqui a divisão é que não existe.
+     */
+    deFora: boolean('de_fora').notNull().default(false),
+
     /** A série a que este lançamento pertence. NULL = lançamento avulso. */
     serieId: integer('serie_id'),
     /**

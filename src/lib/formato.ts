@@ -55,3 +55,28 @@ export function rotuloParcela(seq: number, total: number | null): string {
   const largura = String(total).length;
   return `${String(seq).padStart(largura, '0')}/${total}`;
 }
+
+/**
+ * Campo de dinheiro estilo caixa eletrônico: a pessoa digita só dígitos e os
+ * centavos se formam da direita para a esquerda. `25000` vira `250,00`.
+ *
+ * Portado do `Form.html` (`mascaraValorInput`), e não reescrito: é a mesma
+ * regra, e duas máscaras de dinheiro no mesmo app divergem no primeiro caso
+ * de borda — o zero à esquerda, o ponto de milhar, o campo vazio.
+ */
+export function mascaraMoeda(texto: string): string {
+  const digitos = String(texto).replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+  if (!digitos) return '';
+  const centavos = Math.max(0, Number(digitos));
+  let d = String(centavos);
+  while (d.length < 3) d = '0' + d;
+  const dec = d.slice(-2);
+  const inteiros = d.slice(0, -2).replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return inteiros + ',' + dec;
+}
+
+/** O inverso: o texto da máscara vira número. */
+export function lerMoeda(texto: string): number {
+  const n = Number(String(texto || '').replace(/\./g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+}

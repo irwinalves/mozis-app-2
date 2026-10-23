@@ -1,0 +1,1 @@
+ALTER TABLE "lancamentos" ADD COLUMN "de_fora" boolean DEFAULT false NOT NULL;

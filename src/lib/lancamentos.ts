@@ -69,6 +69,10 @@ export function pctIrwinDe(
   if (divisao === '100% Irwin') return 1;
   if (divisao === '100% Maria') return 0;
   if (divisao === 'Custom') return (Number(pctCustom) || 0) / 100;
+  // 'De fora' não é gasto do casal: não há parte de ninguém. O número aqui é
+  // inerte — quem mantém a linha fora do acerto é a coluna `de_fora`, lida
+  // pela view; isto só evita que `parte_irwin` apareça com a fatia de renda.
+  if (divisao === 'De fora') return 0;
   return pctIrwinRenda > 0 && pctIrwinRenda < 1 ? pctIrwinRenda : 0.4947;
 }
 

@@ -538,6 +538,11 @@ interface DadosLancamento {
   parcelado?: boolean;
   parcelas?: number | string;
   tipoValor?: 'total' | 'parcela';
+  /**
+   * Gasto que passou pelo cartão de vocês mas não é de vocês — alguém de fora
+   * devolve. Fica registrado e fora das duas contas; ver `lancamentos.de_fora`.
+   */
+  deFora?: boolean;
   repetir?: boolean;
   freqRec?: string;
   fimRec?: string;
@@ -623,13 +628,13 @@ export async function salvarLancamento(dados: DadosLancamento) {
         sql`insert into lancamentos
               (data, descricao, categoria, tipo, fonte, valor_total, divisao,
                pct_irwin_custom, pct_irwin, eh_quitacao, quem_pagou, pago_irwin,
-               obs, recorrente, gasto_de, serie_id, seq)
+               obs, recorrente, gasto_de, de_fora, serie_id, seq)
             values (${formatarData(o.data)}, ${o.descricao}, ${dados.grupo}, ${tipo},
                     ${dados.fonte ?? null}, ${o.valor}, ${dados.divisao},
                     ${pctCustomFracao}, ${pct}, ${ehQuitacaoDe(dados.grupo)},
                     ${quemPagou}, ${pagoIrwin},
                     ${dados.obs ?? null}, ${!!dados.repetir}, ${dados.gastoDe || null},
-                    ${serieId}, ${serieId ? i + 1 : null})
+                    ${!!dados.deFora}, ${serieId}, ${serieId ? i + 1 : null})
             returning id`,
       );
       ids.push(row.id);
@@ -782,10 +787,14 @@ export async function getDashboard(filtro?: {
   granularidade?: 'mensal' | 'anual';
 }) {
   const granularidade = filtro?.granularidade ?? 'anual';
-  // Investimento e '9 Acerto de Contas' ficam fora de todo relatório de gasto.
+  // Investimento, '9 Acerto de Contas' e o que é de fora ficam fora de todo
+  // relatório de gasto. Os três por motivos diferentes: o primeiro é outro
+  // modelo, o segundo é transferência entre os dois, e o terceiro nem é gasto
+  // do casal — só passou pelo cartão.
   const base = sql`from v_lancamentos
                    where tipo <> 'Investimento'
                      and not eh_quitacao
+                     and not de_fora
                      ${filtro?.dataIni ? sql`and data >= ${filtro.dataIni}` : sql``}
                      ${filtro?.dataFim ? sql`and data <= ${filtro.dataFim}` : sql``}`;
 

@@ -36,9 +36,22 @@ const METODOS = {
   previewParcelas: api.previewParcelas,
   previewRecorrencia: api.previewRecorrencia,
   salvarInvestimento: api.salvarInvestimento,
-  previewImportacao: api.previewImportacao,
-  lancarImportacaoLote: api.lancarImportacaoLote,
 } as const;
+
+/**
+ * `previewImportacao` e `lancarImportacaoLote` SAÍRAM da lista (A21).
+ *
+ * Eram a porta da tela antiga de OFX/CSV, que grava sem criar `importacoes` —
+ * logo, sem desfazer. Em 21/10/2026 entraram por ali 150 linhas, R$ 18.796,35,
+ * da fatura de setembro, todas `Ambos` 50/50 e com descrição crua.
+ *
+ * A tela já não tinha botão nenhum apontando para ela, nem aqui nem em
+ * produção — e mesmo assim foi usada. A explicação que sobra é o app instalado
+ * no celular: ele é PWA, e uma versão em cache do `Form.html` continua tendo a
+ * tela, com o código que chamava estes dois métodos. Esconder o botão não
+ * alcança quem já tem a página velha guardada; fechar a porta do servidor,
+ * sim. É por isso que a A21 diz "deixar de existir, não ficar escondida".
+ */
 
 type Metodo = keyof typeof METODOS;
 

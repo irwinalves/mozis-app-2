@@ -34,13 +34,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { rpc, ErroRpc } from '@/lib/rpc';
-import { brl, numero } from '@/lib/formato';
+import { brl, lerMoeda, mascaraMoeda, numero } from '@/lib/formato';
 
 export type Opcoes = Awaited<ReturnType<typeof import('@/lib/api').getOpcoes>>;
 
 /** Divisões que a tela oferece. A ordem é a da tela, e `Renda` fecha a lista:
  *  ainda não foi usada nenhuma vez em 3.802 lançamentos, mas é para ser. */
-const DIVISOES = ['50/50', '100% Irwin', '100% Maria', 'Custom', 'Renda'] as const;
+const DIVISOES = ['50/50', '100% Irwin', '100% Maria', 'Custom', 'Renda', 'De fora'] as const;
 type Divisao = (typeof DIVISOES)[number];
 
 const ROTULO_DIVISAO: Record<Divisao, string> = {
@@ -49,7 +49,11 @@ const ROTULO_DIVISAO: Record<Divisao, string> = {
   '100% Maria': '100% Maria',
   Custom: 'Valor exato',
   Renda: 'Por renda',
+  'De fora': 'De fora',
 };
+
+/** Quem, fora do casal, pode ser dono de um gasto que passou pelo cartão. */
+const DE_FORA = ['Mãe do Irwin', 'Avô da Maria', 'Outra pessoa'];
 
 type Repeticao = 'nao' | 'parcelado' | 'recorrente';
 
@@ -67,10 +71,8 @@ const COR_CATEGORIA: Record<string, string> = {
   '9 Acerto de Contas': '#8A6D00',
 };
 
-function paraNumero(txt: string): number {
-  const n = parseFloat(String(txt).replace(/\./g, '').replace(',', '.'));
-  return Number.isFinite(n) ? n : 0;
-}
+/** O mesmo leitor do `Form.html`, pelo mesmo motivo: uma implementação só. */
+const paraNumero = lerMoeda;
 
 function arred(n: number): number {
   return Math.round(n * 100) / 100;
@@ -83,6 +85,7 @@ function fracaoDe(divisao: Divisao, pctRenda: number): number | null {
   if (divisao === '100% Irwin') return 1;
   if (divisao === '100% Maria') return 0;
   if (divisao === 'Renda') return pctRenda;
+  if (divisao === 'De fora') return 0;
   return null;
 }
 
@@ -104,6 +107,7 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
   const [divisao, setDivisao] = useState<Divisao>('50/50');
   const [fracao, setFracao] = useState(0.5);
   const [ehAndre, setEhAndre] = useState(false);
+  const [quemDeFora, setQuemDeFora] = useState(DE_FORA[0]);
   const [obs, setObs] = useState('');
 
   const [repeticao, setRepeticao] = useState<Repeticao>('nao');
@@ -206,6 +210,7 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
   );
 
   const ehQuitacao = categoria === '9 Acerto de Contas';
+  const ehFora = divisao === 'De fora';
 
   async function salvar() {
     setErro('');
@@ -223,13 +228,14 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
         fonte: origem,
         valor: total,
         divisao,
+        deFora: ehFora,
         // A coluna guarda FRAÇÃO; a API converte de percentual. Mandar
         // percentual aqui é o contrato — ver `salvarLancamento`.
         pctIrwinCustom: divisao === 'Custom' ? fracao * 100 : null,
         quemPagou: pagador,
         pagoIrwin: pagador === 'Ambos' ? pagoIrwin : null,
         obs: obs.trim() || null,
-        gastoDe: ehAndre ? 'André' : null,
+        gastoDe: ehFora ? quemDeFora : ehAndre ? 'André' : null,
         parcelado: repeticao === 'parcelado',
         /**
          * `parcelas` SÓ vai quando é parcelado.
@@ -287,7 +293,7 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
               type="text"
               inputMode="decimal"
               value={valor}
-              onChange={(e) => mudouValor(e.target.value)}
+              onChange={(e) => mudouValor(mascaraMoeda(e.target.value))}
               placeholder="0,00"
             />
           </label>
@@ -399,7 +405,7 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
                     inputMode="decimal"
                     value={numero(pagoIrwin)}
                     aria-label="Quanto o Irwin pagou"
-                    onChange={(e) => setPagoIrwinManual(Math.min(paraNumero(e.target.value), total))}
+                    onChange={(e) => setPagoIrwinManual(Math.min(lerMoeda(mascaraMoeda(e.target.value)), total))}
                   />
                 </div>
               </div>
@@ -412,7 +418,9 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
                     value={numero(arred(total - pagoIrwin))}
                     aria-label="Quanto a Maria pagou"
                     onChange={(e) =>
-                      setPagoIrwinManual(arred(total - Math.min(paraNumero(e.target.value), total)))
+                      setPagoIrwinManual(
+                        arred(total - Math.min(lerMoeda(mascaraMoeda(e.target.value)), total)),
+                      )
                     }
                   />
                 </div>
@@ -443,6 +451,25 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
           ))}
         </div>
 
+        {ehFora && (
+          <>
+            <label className="campo" style={{ marginTop: 12 }}>
+              <span>De quem é esse gasto</span>
+              <select value={quemDeFora} onChange={(e) => setQuemDeFora(e.target.value)}>
+                {DE_FORA.map((q) => (
+                  <option key={q}>{q}</option>
+                ))}
+              </select>
+            </label>
+            <p className="aviso">
+              Fica <b>registrado e fora das duas contas</b>: não entra no gasto do mês nem no
+              acerto entre vocês. O registro serve para a compra não ser confundida com despesa de
+              vocês toda vez que reaparecer na fatura.
+            </p>
+          </>
+        )}
+
+        {!ehFora && (
         <div className="partes">
           <div className="parte i">
             <div className="quem">Parte do Irwin</div>
@@ -453,7 +480,7 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
                 disabled={divisao !== 'Custom'}
                 value={digitando?.lado === 'irwin' ? digitando.texto : numero(parteIrwin)}
                 aria-label="Parte do Irwin"
-                onChange={(e) => digitouParte('irwin', e.target.value)}
+                onChange={(e) => digitouParte('irwin', mascaraMoeda(e.target.value))}
                 onBlur={() => setDigitando(null)}
               />
             </div>
@@ -468,14 +495,16 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
                 disabled={divisao !== 'Custom'}
                 value={digitando?.lado === 'maria' ? digitando.texto : numero(parteMaria)}
                 aria-label="Parte da Maria"
-                onChange={(e) => digitouParte('maria', e.target.value)}
+                onChange={(e) => digitouParte('maria', mascaraMoeda(e.target.value))}
                 onBlur={() => setDigitando(null)}
               />
             </div>
             <div className="pct">{total > 0 ? ((1 - fracao) * 100).toFixed(1) : '0,0'}%</div>
           </div>
         </div>
+        )}
 
+        {!ehFora && (
         <div className="conta">
           <div className="cab">
             <span>A conta das duas respostas</span>
@@ -500,6 +529,7 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
             <span className="n">R$ {numero(Math.abs(efeito))}</span>
           </div>
         </div>
+        )}
 
         {divisao === 'Renda' && (
           <p className="aviso">
@@ -626,7 +656,13 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
         <div className="dentro">
           <div className="resumo">
             <b>R$ {numero(total)}</b>
-            {repeticao === 'parcelado' ? 'parcelado' : repeticao === 'recorrente' ? 'recorrente' : 'à vista'}
+            {ehFora
+              ? 'de fora'
+              : repeticao === 'parcelado'
+                ? 'parcelado'
+                : repeticao === 'recorrente'
+                  ? 'recorrente'
+                  : 'à vista'}
           </div>
           <button type="button" className="salvar" onClick={salvar} disabled={salvando}>
             {salvando ? 'Salvando…' : 'Salvar'}
