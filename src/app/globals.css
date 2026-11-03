@@ -1560,17 +1560,19 @@ a.btn-linha {
   color: var(--texto2);
   font-weight: 500;
 }
+/* SEM rolagem interna de propósito: no celular, rolagem dentro de rolagem não
+   pega — o dedo arrasta a página e a lista parece ter cinco linhas. A página
+   inteira já rola; a lista cresce com ela. */
 .form-lanc .previa ul {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 188px;
-  overflow-y: auto;
 }
 .form-lanc .previa li {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 9px;
   padding: 7px 11px;
   font-size: 14px;
   border-top: 1px solid var(--borda-card);
@@ -1579,6 +1581,14 @@ a.btn-linha {
   color: var(--texto2);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
+}
+/* QUEBRA, não trunca. O `N/N` fica no fim da descrição, então reticência corta
+   justamente o número da parcela — o dado mais importante da linha. Nome curto
+   ocupa uma linha; nome longo ocupa duas e mostra tudo. */
+.form-lanc .previa li .nm {
+  min-width: 0;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 .form-lanc .previa li .vl {
   font-weight: 500;

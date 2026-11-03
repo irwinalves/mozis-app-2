@@ -620,6 +620,11 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
               {previa.map((p, i) => (
                 <li key={i}>
                   <span className="dt">{p.data}</span>
+                  {/* O NOME é metade da prévia: é a descrição que vai ser
+                      gravada, com o `N/N` que o servidor monta. Sem ele a
+                      lista é só um calendário de valores, e não dá para
+                      conferir o que vai nascer. */}
+                  <span className="nm">{p.descricao}</span>
                   <span className="vl">{brl(p.valor)}</span>
                 </li>
               ))}
