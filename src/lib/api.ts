@@ -237,6 +237,28 @@ export interface FiltrosLista {
   gastoDe?: string;
   categoria?: string;
   quemPagou?: string;
+  /**
+   * Só o que é do casal — e o critério tem DOIS lados, não um.
+   *
+   * Uma linha entra aqui se o CUSTO é repartido (`pct_irwin` entre 0 e 1,
+   * exclusive) ou se o PAGAMENTO foi dos dois (`quem_pagou = 'Ambos'`).
+   * Qualquer um dos dois já faz a linha ser assunto dos dois — e são
+   * independentes: 100% do Irwin pago pelos dois é dividido no pagamento;
+   * 50/50 pago só pela Maria é dividido no custo.
+   *
+   * `de_fora` nunca entra: não é gasto de ninguém daqui.
+   *
+   * O número que explica por que isto existe: na base inteira 98% das linhas
+   * são divididas, então no histórico o filtro esconde quase nada. Mas no
+   * último lote de fatura, 47 das 55 linhas eram 100% de um só. A lista era
+   * compartilhada porque vinha da planilha do casal; com a importação de
+   * fatura ela passa a receber compra pessoal.
+   */
+  dividido?: boolean;
+  /** Início do intervalo de datas, 'YYYY-MM-DD'. Inclusive. */
+  de?: string;
+  /** Fim do intervalo de datas, 'YYYY-MM-DD'. Inclusive. */
+  ate?: string;
 }
 
 function clausulasDe(f: FiltrosLista = {}) {
@@ -262,6 +284,19 @@ function clausulasDe(f: FiltrosLista = {}) {
   else if (f.gastoDe) partes.push(sql`gasto_de = ${f.gastoDe}`);
   if (f.categoria) partes.push(sql`categoria = ${f.categoria}`);
   if (f.quemPagou) partes.push(sql`quem_pagou = ${f.quemPagou}`);
+  // Custo repartido OU pagamento dos dois — ver o comentário em `dividido`.
+  if (f.dividido) {
+    partes.push(
+      sql`de_fora = false
+          and ((pct_irwin > 0 and pct_irwin < 1) or quem_pagou = 'Ambos')`,
+    );
+  }
+  // As datas são comparadas NO POSTGRES, com cast explícito. Fazer isso em JS
+  // já custou caro neste app: o driver devolve `date` à meia-noite UTC e a
+  // comparação silenciosamente nunca excluía nada — os três cortes do acerto
+  // deram idênticos e esconderam R$ 2.719,16. Regra nº 6 do projeto.
+  if (f.de) partes.push(sql`data >= ${f.de}::date`);
+  if (f.ate) partes.push(sql`data <= ${f.ate}::date`);
   if (!partes.length) return sql`true`;
   return partes.reduce((a, b) => sql`${a} and ${b}`);
 }
@@ -279,7 +314,16 @@ export async function ultimosLancamentos(
   );
   const qtdFuturos = Number(n);
 
-  const janela = incluirFuturos ? sql`true` : sql`data <= ${limite}`;
+  /**
+   * Um intervalo de datas pedido à mão MANDA mais que a janela padrão.
+   *
+   * A lista corta no fim do mês corrente e esconde o futuro atrás do
+   * "ver N lançamentos futuros". Mas quem digita "de 01/12 a 31/12" está
+   * pedindo o futuro de propósito — manter o corte devolveria lista vazia
+   * sem explicar por quê, que é o mesmo defeito da prévia que sumia.
+   */
+  const pediuIntervalo = Boolean(filtros.de || filtros.ate);
+  const janela = incluirFuturos || pediuIntervalo ? sql`true` : sql`data <= ${limite}`;
   const filtro = sql`${janela} and ${clausulasDe(filtros)}`;
 
   const linhas = await db.execute<LinhaView>(

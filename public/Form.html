@@ -364,6 +364,11 @@ input.valor-grande{font-size:16px;font-weight:700;letter-spacing:.2px}
    celular, que é melhor que qualquer menu improvisado — e vem com rolagem,
    busca e acessibilidade de graça.
    16px pelo mesmo motivo dos outros campos: abaixo disso o iPhone dá zoom. */
+/* O campo de data cobre o chip, invisível — tocar em qualquer parte abre o
+   calendário nativo. O ✕ fica por cima dele para poder limpar. */
+.fchip input[type=date]{position:absolute;inset:0;width:100%;height:100%;opacity:0;
+      border:none;padding:0;margin:0;cursor:pointer;font-family:inherit;z-index:1}
+.fchip .limpa-data{position:relative;z-index:2}
 .fchip select{position:absolute;inset:0;width:100%;height:100%;opacity:0;
       border:none;padding:0;font-size:16px;cursor:pointer}
 .filtro-resumo{font-size:11.5px;color:var(--texto3);padding:0 0 9px}
@@ -749,7 +754,13 @@ let OPC = null, DASH = null, ULTIMOS = null, EVENTOS = [];
    `function` é içada e `let` não, então `carregarUltimos` — chamada no boot,
    centenas de linhas acima — quebrava com "Cannot access 'FILTROS' before
    initialization". A sintaxe estava correta; só a execução mostrou. */
-let FILTROS = {};
+/* O padrão é DIVIDIDO, e é decisão de produto, não conveniência.
+   A lista era quase toda compartilhada enquanto vinha da planilha do casal —
+   98% das linhas. Com a importação de fatura ela passa a receber compra
+   pessoal: no último lote, 47 das 55 linhas eram 100% de um só. Sem o padrão,
+   o que é dos dois afunda no meio do que é de um. */
+const FILTROS_PADRAO = { dividido: true };
+let FILTROS = Object.assign({}, FILTROS_PADRAO);
 let FILTRO_DASH = { granularidade: 'anual', dataIni: '', dataFim: '' };
 let tabAtiva = 'home', telaAtual = 'home';
 const QTD_RECENTES = 50;
@@ -1068,7 +1079,10 @@ function temFiltro(){
 }
 
 /** Chip de liga/desliga. */
-function fchip(container, rotulo, ligado, classeExtra, srcFoto, onClick){
+/* `semX`: chip que NÃO se desliga sozinho, porque é uma das posições de um
+   controle (Divididos/Todos). O ✕ promete "clique para remover" e ali o
+   clique não remove nada — promessa que a tela não cumpre é defeito. */
+function fchip(container, rotulo, ligado, classeExtra, srcFoto, onClick, semX){
   const b = document.createElement('button');
   b.type = 'button';
   b.className = 'fchip' + (ligado ? ' ' + (classeExtra || 'on') : '');
@@ -1077,7 +1091,7 @@ function fchip(container, rotulo, ligado, classeExtra, srcFoto, onClick){
     b.appendChild(img);
   }
   b.appendChild(document.createTextNode(rotulo));
-  if (ligado){
+  if (ligado && !semX){
     const x = document.createElement('span');
     x.className = 'x'; x.textContent = '✕';
     b.appendChild(x);
@@ -1111,6 +1125,42 @@ function fchipSelect(container, rotulo, valor, opcoes, onChange){
   container.appendChild(l);
 }
 
+/* Chip de data: abre o calendário nativo do celular.
+   Mesmo truque do `fchipSelect` — o campo fica por cima, invisível, ocupando o
+   chip inteiro. É o padrão que já funciona aqui; `showPicker()` não é universal
+   e o iOS ignora em alguns casos. */
+function fchipData(container, rotulo, valor, onChange){
+  const l = document.createElement('label');
+  l.className = 'fchip' + (valor ? ' on' : '');
+  // Com data escolhida o chip mostra A DATA, não o nome do campo — mesma
+  // decisão do chip de categoria: "12/10" informa, "de" repete o óbvio.
+  const partes = valor ? valor.split('-') : null;
+  l.appendChild(document.createTextNode(partes ? partes[2] + '/' + partes[1] : rotulo));
+
+  const inp = document.createElement('input');
+  inp.type = 'date';
+  inp.value = valor;
+  inp.onchange = function(){ onChange(inp.value); };
+
+  if (valor){
+    // O ✕ limpa; o resto do chip reabre o calendário. Precisa vir DEPOIS do
+    // campo na pilha e parar a propagação, senão o clique atravessa e abre o
+    // calendário em vez de limpar.
+    const x = document.createElement('span');
+    x.className = 'x limpa-data';
+    x.textContent = '✕';
+    x.onclick = function(e){ e.preventDefault(); e.stopPropagation(); onChange(''); };
+    l.appendChild(inp);
+    l.appendChild(x);
+  } else {
+    const seta = document.createElement('span');
+    seta.className = 'x'; seta.textContent = '▾';
+    l.appendChild(seta);
+    l.appendChild(inp);
+  }
+  container.appendChild(l);
+}
+
 function montarFiltros(){
   const c = $('filtrosLanc');
   if (!c) return;
@@ -1118,6 +1168,15 @@ function montarFiltros(){
   const alterna = function(campo, valor){
     return function(){ FILTROS[campo] = FILTROS[campo] ? '' : valor; aplicarFiltros(); };
   };
+  /* Divididos e Todos são UM controle de duas posições, não dois filtros que
+     se somam. Por isso não usam `alterna`: um liga, o outro desliga. Sempre
+     um dos dois está aceso, então a tela nunca esconde linha em silêncio. */
+  fchip(c, 'Divididos', !!FILTROS.dividido, 'on', null,
+        function(){ FILTROS.dividido = true;  aplicarFiltros(); }, true);
+  fchip(c, 'Todos',     !FILTROS.dividido,   'on', null,
+        function(){ delete FILTROS.dividido;  aplicarFiltros(); }, true);
+  fchipData(c, 'de',  FILTROS.de  || '', function(v){ FILTROS.de  = v; aplicarFiltros(); });
+  fchipData(c, 'até', FILTROS.ate || '', function(v){ FILTROS.ate = v; aplicarFiltros(); });
   fchip(c, 'André', !!FILTROS.gastoDe, 'on-andre', AVATAR_ANDRE, alterna('gastoDe', 'André'));
   fchip(c, 'Parceladas', !!FILTROS.parcelado, 'on', null, alterna('parcelado', true));
   fchip(c, 'Recorrentes', !!FILTROS.recorrente, 'on', null, alterna('recorrente', true));
@@ -1140,7 +1199,11 @@ function mostrarResumo(resumo){
   el.innerHTML = '<b>' + resumo.qtd + '</b> ' + (resumo.qtd === 1 ? 'lançamento' : 'lançamentos') +
                  ' · <b>' + brl(resumo.soma) + '</b> · ' +
                  '<span class="limpar" id="limparFiltros">limpar</span>';
-  $('limparFiltros').onclick = function(){ FILTROS = {}; aplicarFiltros(); };
+  // Volta ao PADRÃO, não ao vazio: zerar desligaria o "Divididos" de lado,
+  // e a lista passaria a mostrar compra pessoal sem ninguém ter pedido.
+  $('limparFiltros').onclick = function(){
+    FILTROS = Object.assign({}, FILTROS_PADRAO); aplicarFiltros();
+  };
 }
 
 /* Reaplica os filtros no caminho certo: se há busca em curso, refiltra o

@@ -544,11 +544,34 @@ a.item-lanc {
   font-size: 19px;
   font-weight: 500;
 }
+/* Botão de verdade, não um link disfarçado.
+   O `Editar ›` era 13px em texto verde, do tamanho de um rótulo — o Irwin
+   reclamou de não achar onde se mexe na série. Agora é pastilha preenchida,
+   com lápis, e área de toque de 34px.
+   A COR é âmbar e não vermelha de propósito: `--fixa` (#A63A2E) é o selo de
+   despesa Fixa e aparece neste mesmo card; um botão vermelho ao lado dele
+   competiria com o significado que a cor já carrega. Âmbar divide a matriz
+   com `--var`, mas o selo de Variável é texto pequeno, não pastilha cheia —
+   e a forma separa os dois. Para trocar para vermelho, é esta linha só. */
 .serie-cab .editar {
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
   font-weight: 700;
-  color: var(--verde);
+  /* Texto ESCURO, não branco. O âmbar muda de claridade entre os temas —
+     #B8860B no claro, #E6BD5C no escuro — e branco sobre o âmbar claro fica
+     ilegível. Escuro passa nos dois: ~6,5:1 no claro, ~10:1 no escuro. */
+  color: #1b1b1b;
+  background: var(--var);
+  border-radius: 9px;
+  padding: 8px 13px;
+  min-height: 34px;
   white-space: nowrap;
+  box-sizing: border-box;
+}
+.serie-cab .editar svg {
+  flex: 0 0 auto;
 }
 /* Maior que a da lista: aqui ela responde "de quem é esta série", que é
    pergunta de cabeçalho, não de linha. */
