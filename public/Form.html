@@ -1295,7 +1295,10 @@ $('listaUltimos').addEventListener('click', function(e){
   const item = e.target.closest('.item-lanc');
   if (!item) return;
   const linha = Number(item.dataset.linha);
-  if (linha) abrirEdicao(linha);
+  // Editar saiu daqui: é a MESMA tela de Lançar, agora em React, com os campos
+  // preenchidos. `abrirEdicao` reconfigurava o formulário antigo campo por
+  // campo, e foi assim que o `De fora` nasceu no Lançar e sumiu na edição.
+  if (linha) location.href = '/lancamento/' + linha;
 });
 
 function renderUltimos(){

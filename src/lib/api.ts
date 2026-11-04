@@ -543,6 +543,11 @@ export async function obterLancamento(id: number) {
     pagoIrwin: r.pago_irwin === null ? null : Number(r.pago_irwin),
     obs: r.obs,
     gastoDe: r.gasto_de ?? '',
+    /* Sem isto a edição não enxerga o `De fora`, e marcar errado vira
+       definitivo — o campo nasceu no formulário de Lançar e a tela de editar
+       não soube dele. É a regra nº 3 cobrando: enquanto houver mais de um
+       formulário do mesmo objeto, campo novo entra num e some nos outros. */
+    deFora: r.de_fora,
     serieId: s ? s.id : null,
     serieTipo: s ? s.tipo : null,
     serieTotal: s ? s.total : null,
@@ -746,7 +751,7 @@ export async function atualizarLancamento(id: number, dados: DadosLancamento) {
           divisao = ${dados.divisao}, pct_irwin_custom = ${pctCustomFracao},
           pct_irwin = ${pct}, eh_quitacao = ${ehQuitacaoDe(dados.grupo)},
           quem_pagou = ${quemPagouAtual}, pago_irwin = ${pagoIrwin},
-          gasto_de = ${dados.gastoDe || null}
+          gasto_de = ${dados.gastoDe || null}, de_fora = ${!!dados.deFora}
         where id = ${id}`,
   );
   return { ok: true };

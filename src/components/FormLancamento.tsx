@@ -89,26 +89,53 @@ function fracaoDe(divisao: Divisao, pctRenda: number): number | null {
   return null;
 }
 
+/** O que `obterLancamento` devolve — a forma vem da função real, não de um
+ *  tipo escrito à mão que pode discordar dela. */
+export type LancamentoEdicao = Awaited<
+  ReturnType<typeof import('@/lib/api').obterLancamento>
+>;
+
 interface Props {
   opcoes: Opcoes;
+  /**
+   * Presente = EDITAR este lançamento; ausente = criar um novo.
+   *
+   * É só isto que separa os dois modos. Era uma tela inteira à parte no
+   * `Form.html`, com o seu próprio `abrirEdicao` reconfigurando campo por
+   * campo — e foi assim que o `De fora` nasceu no Lançar e sumiu na edição.
+   */
+  lancamento?: LancamentoEdicao;
   /** Para onde voltar depois de salvar. */
   aoSalvar?: () => void;
 }
 
-export default function FormLancamento({ opcoes, aoSalvar }: Props) {
+export default function FormLancamento({ opcoes, lancamento, aoSalvar }: Props) {
   const router = useRouter();
-  const [descricao, setDescricao] = useState('');
-  const [valor, setValor] = useState('');
-  const [data, setData] = useState(opcoes.hoje);
-  const [categoria, setCategoria] = useState('');
-  const [tipo, setTipo] = useState('Variável');
-  const [origem, setOrigem] = useState('Cartão');
-  const [pagador, setPagador] = useState<string>(opcoes.eu ?? 'Irwin');
-  const [divisao, setDivisao] = useState<Divisao>('50/50');
-  const [fracao, setFracao] = useState(0.5);
-  const [ehAndre, setEhAndre] = useState(false);
-  const [quemDeFora, setQuemDeFora] = useState(DE_FORA[0]);
-  const [obs, setObs] = useState('');
+  const ed = lancamento;
+  const editando = Boolean(ed);
+
+  const [descricao, setDescricao] = useState(ed?.descricao ?? '');
+  const [valor, setValor] = useState(ed ? mascaraMoeda(numero(ed.valor)) : '');
+  const [data, setData] = useState(ed?.data ?? opcoes.hoje);
+  const [categoria, setCategoria] = useState(ed?.categoria ?? '');
+  const [tipo, setTipo] = useState(ed?.tipo ?? 'Variável');
+  const [origem, setOrigem] = useState(ed?.fonte ?? 'Cartão');
+  const [pagador, setPagador] = useState<string>(ed?.quemPagou ?? opcoes.eu ?? 'Irwin');
+  const [divisao, setDivisao] = useState<Divisao>(
+    ed ? (ed.deFora ? 'De fora' : ((ed.divisao as Divisao) ?? '50/50')) : '50/50',
+  );
+  const [fracao, setFracao] = useState(() => {
+    if (!ed) return 0.5;
+    if (ed.deFora) return 0;
+    const f = fracaoDe((ed.divisao as Divisao) ?? '50/50', opcoes.pctIrwinRenda);
+    // `Custom` não tem fração fixa: vem do lançamento, em percentual.
+    return f ?? (ed.pctCustom ?? 50) / 100;
+  });
+  const [ehAndre, setEhAndre] = useState(ed?.gastoDe === 'André');
+  const [quemDeFora, setQuemDeFora] = useState(
+    ed?.deFora && ed.gastoDe ? ed.gastoDe : DE_FORA[0],
+  );
+  const [obs, setObs] = useState(ed?.obs ?? '');
 
   const [repeticao, setRepeticao] = useState<Repeticao>('nao');
   const [parcelas, setParcelas] = useState('12');
@@ -117,7 +144,10 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
   const [fimRec, setFimRec] = useState('');
 
   /** `null` = cada um pôs a própria parte, que é o padrão e NÃO gera dívida. */
-  const [pagoIrwinManual, setPagoIrwinManual] = useState<number | null>(null);
+  const [pagoIrwinManual, setPagoIrwinManual] = useState<number | null>(
+    ed && ed.quemPagou === 'Ambos' ? ed.pagoIrwin : null,
+  );
+  const [excluindo, setExcluindo] = useState(false);
 
   const [previa, setPrevia] = useState<{ data: string; descricao: string; valor: number }[]>([]);
   const [salvando, setSalvando] = useState(false);
@@ -225,7 +255,35 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
     if (!categoria) return setErro('Escolha a categoria.');
 
     setSalvando(true);
+
+    /* Os campos do lançamento são os MESMOS nas duas portas — só o verbo muda.
+       `atualizarLancamento` ignora parcelado/repetir, porque editar uma linha
+       nunca reparcela a compra: para isso existe a tela da série. */
+    const campos = {
+      data,
+      descricao: descricao.trim(),
+      grupo: categoria,
+      tipo,
+      fonte: origem,
+      valor: total,
+      divisao,
+      deFora: ehFora,
+      // A coluna guarda FRAÇÃO; a API converte de percentual. Mandar
+      // percentual aqui é o contrato — ver `salvarLancamento`.
+      pctIrwinCustom: divisao === 'Custom' ? fracao * 100 : null,
+      quemPagou: pagador,
+      pagoIrwin: pagador === 'Ambos' ? pagoIrwin : null,
+      obs: obs.trim() || null,
+      gastoDe: ehFora ? quemDeFora : ehAndre ? 'André' : null,
+    };
+
     try {
+      if (ed) {
+        await rpc('atualizarLancamento', ed.linha, campos);
+        if (aoSalvar) aoSalvar();
+        else router.push('/');
+        return;
+      }
       await rpc('salvarLancamento', {
         data,
         descricao: descricao.trim(),
@@ -267,6 +325,26 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
     }
   }
 
+  async function excluir() {
+    if (!ed) return;
+    // Exclusão não se desfaz. A confirmação diz O QUE vai sumir, com valor —
+    // "Tem certeza?" sozinho não dá ao dedo nenhuma informação nova.
+    const ok = window.confirm(
+      `Excluir "${ed.descricao}" de R$ ${numero(ed.valor)}?\n\nIsto não pode ser desfeito.`,
+    );
+    if (!ok) return;
+    setErro('');
+    setExcluindo(true);
+    try {
+      await rpc('excluirLancamento', ed.linha);
+      if (aoSalvar) aoSalvar();
+      else router.push('/');
+    } catch (e) {
+      setErro(e instanceof ErroRpc ? e.message : 'Não deu para excluir.');
+      setExcluindo(false);
+    }
+  }
+
   return (
     <div className="form-lanc">
       <div className="card">
@@ -285,6 +363,10 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
             type="button"
             className="btn-andre"
             aria-pressed={ehAndre}
+            // `title` é dica do mouse e não vira nome acessível de forma
+            // confiável; num app de celular ninguém passa o mouse. Sem o
+            // `aria-label` o botão se anuncia como "botão", sem dizer o quê.
+            aria-label="Gasto do André"
             title="Gasto do André"
             onClick={() => setEhAndre((v) => !v)}
           >
@@ -552,6 +634,22 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
         )}
       </div>
 
+      {/* EDITANDO: a repetição sai da tela, e no lugar entra o caminho para a
+          série. Editar uma linha nunca reparcela a compra — quem faz isso é a
+          tela da série, que mexe nas irmãs junto. Oferecer "Parcelado" aqui
+          seria prometer o que esta porta não cumpre. */}
+      {editando && ed?.serieId ? (
+        <a className="card ir-serie" href={`/serie/${ed.serieId}?de=${ed.linha}`}>
+          <span>
+            {ed.serieTipo === 'recorrencia'
+              ? 'Ver a recorrência inteira'
+              : `Ver as ${ed.serieTotal ?? ed.serieLancamentos} parcelas desta compra`}
+          </span>
+          <span className="seta">›</span>
+        </a>
+      ) : null}
+
+      {!editando && (
       <div className="card">
         <div className="rot">Repetição</div>
         <div className="chips">
@@ -645,6 +743,7 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
           </div>
         )}
       </div>
+      )}
 
       <div className="card">
         <details className="mais">
@@ -677,8 +776,15 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
                   ? 'recorrente'
                   : 'à vista'}
           </div>
-          <button type="button" className="salvar" onClick={salvar} disabled={salvando}>
-            {salvando ? 'Salvando…' : 'Salvar'}
+          {/* Excluir fica à ESQUERDA do Salvar e sem preenchimento: é a ação
+              destrutiva, não pode disputar o dedo com a que se usa sempre. */}
+          {editando && (
+            <button type="button" className="excluir" onClick={excluir} disabled={excluindo || salvando}>
+              {excluindo ? 'Excluindo…' : 'Excluir'}
+            </button>
+          )}
+          <button type="button" className="salvar" onClick={salvar} disabled={salvando || excluindo}>
+            {salvando ? 'Salvando…' : editando ? 'Salvar alterações' : 'Salvar'}
           </button>
         </div>
       </div>

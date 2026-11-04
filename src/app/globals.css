@@ -1701,6 +1701,42 @@ a.btn-linha {
   font-size: 15px;
   font-variant-numeric: tabular-nums;
 }
+/* Excluir é contorno, não pastilha cheia: a ação destrutiva não pode disputar
+   o dedo com a que se usa toda vez. Mesma altura do Salvar para o polegar não
+   precisar mirar diferente. */
+.form-lanc .rodape .excluir {
+  flex: 0 0 auto;
+  border: 1px solid var(--neg);
+  background: transparent;
+  color: var(--neg);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 11px;
+  padding: 0 15px;
+  min-height: 48px;
+  cursor: pointer;
+}
+.form-lanc .rodape .excluir:disabled {
+  opacity: 0.55;
+}
+
+/* O caminho para a série, no lugar que a Repetição ocupa quando se cria. */
+.form-lanc .ir-serie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--texto);
+  text-decoration: none;
+  font-size: 14.5px;
+  font-weight: 500;
+}
+.form-lanc .ir-serie .seta {
+  color: var(--texto3);
+  font-size: 19px;
+  line-height: 1;
+}
 .form-lanc .salvar {
   flex: 1;
   border: none;
