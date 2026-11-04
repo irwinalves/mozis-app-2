@@ -170,7 +170,13 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
   }
 
   const buscarPrevia = useCallback(async () => {
-    if (repeticao === 'nao' || total <= 0 || !descricao) {
+    /* A descrição NÃO entra aqui.
+       Ela entrava, e o efeito era a tela ficar muda: com valor e 12 parcelas
+       preenchidos, quem ainda não tinha digitado o nome não via prévia nenhuma
+       e não tinha como saber por quê. As datas e os valores não dependem do
+       nome — só o rótulo da linha depende, e sem nome ele vira '1/12', que já
+       é a informação que importa. */
+    if (repeticao === 'nao' || total <= 0) {
       setPrevia([]);
       return;
     }
@@ -624,7 +630,9 @@ export default function FormLancamento({ opcoes, aoSalvar }: Props) {
                       gravada, com o `N/N` que o servidor monta. Sem ele a
                       lista é só um calendário de valores, e não dá para
                       conferir o que vai nascer. */}
-                  <span className="nm">{p.descricao}</span>
+                  {/* `trim()` porque sem descrição o servidor devolve ' 1/12',
+                      com o espaço do nome vazio na frente. */}
+                  <span className="nm">{p.descricao.trim()}</span>
                   <span className="vl">{brl(p.valor)}</span>
                 </li>
               ))}
