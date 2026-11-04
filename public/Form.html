@@ -248,6 +248,10 @@ input.valor-grande{font-size:16px;font-weight:700;letter-spacing:.2px}
 .acerto-frase{flex:1;min-width:0;display:flex;align-items:baseline;gap:5px;font-size:15px}
 .acerto-frase .quem{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .acerto-frase b{flex:0 0 auto;font-weight:700;font-size:17px;font-variant-numeric:tabular-nums}
+/* A sigla do mês em 12px, não em 15: maiúscula custa largura, e em 15px
+   'Até 31 MAR' estoura os 75px que sobram ao lado do valor. Medido nos 12
+   meses com valor de quatro dígitos — em 12px todos cabem sem reticência. */
+.acerto-frase .mes{font-size:12px;font-weight:500;letter-spacing:.3px}
 .acerto-proj{font-size:12.5px;color:var(--texto3);margin-top:7px;font-variant-numeric:tabular-nums}
 .acerto-proj .pos{color:var(--pos);font-weight:700}
 .acerto-proj .neg{color:var(--neg);font-weight:700}
@@ -953,6 +957,7 @@ function renderAcerto(){
     const a = ACERTO;
     if (!a) return;
     const nomesMes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const siglasMes = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
     const hoje = new Date();
     const eu = OPC && OPC.eu;
     const compacto = (eu === 'Irwin' || eu === 'Maria');
@@ -963,24 +968,38 @@ function renderAcerto(){
     $('acertoGrid').style.display      = compacto ? 'none' : 'grid';
 
     if (compacto){
-      const t = a.total.saldo;
-      const quiteTotal = Math.abs(t) < 0.005;
-      const devedor = quiteTotal ? null : (t > 0 ? 'Maria' : 'Irwin');
-      $('acAv1').src = quiteTotal ? AVATAR_IRWIN : (devedor === 'Irwin' ? AVATAR_IRWIN : AVATAR_MARIA);
-      $('acAv2').src = quiteTotal ? AVATAR_MARIA : (devedor === 'Irwin' ? AVATAR_MARIA : AVATAR_IRWIN);
-      $('acAv1').alt = quiteTotal ? 'Irwin' : devedor;
-      $('acAv2').alt = quiteTotal ? 'Maria' : (devedor === 'Irwin' ? 'Maria' : 'Irwin');
-      $('acSeta').textContent = quiteTotal ? '=' : '→';
-      // 'Você deve' quando o devedor é quem está olhando: falar na segunda
-      // pessoa evita a tradução mental de ler o próprio nome na tela.
-      $('acFrase').innerHTML = quiteTotal
-        ? '<span class="quem">Vocês estão</span><b>quites</b>'
-        : '<span class="quem">' + (devedor === eu ? 'Você deve' : escapeHtml(devedor) + ' deve') + '</span>' +
-          '<b>R$ ' + formatarValorMascara(Math.abs(t)) + '</b>';
+      /* O NÚMERO GRANDE é o mês que está fechando, não o total.
+         Pedido da Maria, e os números de 04/11/2026 mostram por quê: os três
+         cortes apontavam para lados DIFERENTES — até 30/11 quem devia era o
+         Irwin, em dezembro e no total era ela. A manchete era justamente o
+         corte menos acionável. O total desceu para a linha de apoio, onde
+         dezembro já morava; nada saiu da tela e a altura não mudou. */
+      const m = a.mesAtual.saldo;
+      const quiteMes = Math.abs(m) < 0.005;
+      const devedor = quiteMes ? null : (m > 0 ? 'Maria' : 'Irwin');
+      $('acAv1').src = quiteMes ? AVATAR_IRWIN : (devedor === 'Irwin' ? AVATAR_IRWIN : AVATAR_MARIA);
+      $('acAv2').src = quiteMes ? AVATAR_MARIA : (devedor === 'Irwin' ? AVATAR_MARIA : AVATAR_IRWIN);
+      $('acAv1').alt = quiteMes ? 'Irwin' : devedor;
+      $('acAv2').alt = quiteMes ? 'Maria' : (devedor === 'Irwin' ? 'Maria' : 'Irwin');
+      $('acSeta').textContent = quiteMes ? '=' : '→';
+      /* 'Até 30 NOV' no lugar de 'Você deve'.
+         Medido: entre as fotos e o botão sobram 172px, e o valor nunca trunca,
+         então um valor de quatro dígitos deixa 75px para o texto. 'Maria deve'
+         ocupa 73 — os 2px de folga do comentário lá em cima. Não cabem as duas
+         coisas, e o mês é o que a tela não dizia. Quem passa a dar a direção é
+         o par de fotos com a seta, que é o que o desenho compacto já faz.
+         A sigla vai em 12px (ver `.acerto-frase .mes`): em 15px, 'NOV' custa
+         7px a mais e MARÇO estoura. Com 12px, os 12 meses cabem. */
+      const ultimoDia = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
+      const corte = '<span class="quem">Até ' + ultimoDia +
+                    ' <span class="mes">' + siglasMes[hoje.getMonth()] + '</span></span>';
+      $('acFrase').innerHTML = corte + (quiteMes
+        ? '<b>quites</b>'
+        : '<b>R$ ' + formatarValorMascara(Math.abs(m)) + '</b>');
       $('acProj').innerHTML =
-        projecaoDoCorte('Fechando ' + nomesMes[hoje.getMonth()].toLowerCase(), a.mesAtual.saldo, eu) +
+        projecaoDoCorte(nomesMes[(hoje.getMonth() + 1) % 12].toLowerCase(), a.mesSeguinte.saldo, eu) +
         ' · ' +
-        projecaoDoCorte(nomesMes[(hoje.getMonth() + 1) % 12].toLowerCase(), a.mesSeguinte.saldo, eu);
+        projecaoDoCorte('total', a.total.saldo, eu);
       // Move o botão para a linha do saldo. Mover no DOM preserva o onclick já
       // ligado — recriar o elemento o perderia.
       $('acertoCompacto').appendChild($('btnQuitar'));
