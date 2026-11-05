@@ -211,6 +211,20 @@ export const lancamentos = pgTable(
    * elo, a tela mexe só nas linhas que a pessoa mudou, e o resto fica de pé.
    */
   importacaoLinha: integer('importacao_linha'),
+  /**
+   * Qual PEDAÇO da linha, quando uma linha da fatura virou mais de um
+   * lançamento. `1` para a linha inteira, que é o caso normal.
+   *
+   * Existe porque reabrir um lote agrupa por `importacao_linha` e precisa
+   * saber o que são as N linhas que encontra: N parcelas de uma compra, ou N
+   * pedaços de uma linha dividida. Dava para DEDUZIR — parcelas compartilham
+   * `serie_id`, pedaços não — e foi a opção descartada de propósito: um
+   * pedaço que também é parcelado tem as duas coisas ao mesmo tempo, e a
+   * dedução erra em silêncio. Este projeto já pagou caro por identidade
+   * deduzida duas vezes, na ordem física das linhas da planilha e no sufixo
+   * de texto das séries. Aqui o dado diz o que é.
+   */
+  importacaoPedaco: integer('importacao_pedaco').notNull().default(1),
     /**
      * A posição na série — o `3` de `3/12`. É o DADO; o texto da descrição é
      * apresentação e continua carregando o sufixo, porque é o que a lista

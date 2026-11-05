@@ -78,6 +78,13 @@
       "when": 1792773583111,
       "tag": "0010_moaning_wind_dancer",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793902084928,
+      "tag": "0011_skinny_puff_adder",
+      "breakpoints": true
     }
   ]
 }

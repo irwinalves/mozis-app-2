@@ -1862,3 +1862,74 @@ a.btn-linha {
   color: var(--texto2);
   line-height: 1.45;
 }
+
+/* ---------------------------------------------------------------------------
+   Quebrar uma linha da fatura em pedaços
+   ---------------------------------------------------------------------------
+   Nasceu da conta da Vivo: R$ 359,90, parte da mãe do Irwin. Sem isto as duas
+   saídas erram — lançar tudo como gasto do casal, ou não lançar, que foi o que
+   aconteceu e tirou a despesa da conta por meses. */
+.divisor {
+  margin-top: 11px;
+  border: 1px solid var(--borda-card);
+  border-radius: 11px;
+  background: var(--suave);
+  padding: 11px 12px;
+}
+.divisor-cab {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto2);
+  font-weight: 500;
+}
+.divisor-cab .tot {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--texto);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.divisor .pedaco {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--borda-card);
+}
+.divisor .pedaco:first-of-type {
+  border-top: none;
+  padding-top: 2px;
+}
+.divisor .tirar {
+  margin-top: 5px;
+  color: var(--neg);
+}
+.divisor-pe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--borda-card);
+}
+/* O `resta` é a trava: pedaços que não somam o valor da linha criam ou
+   destroem dinheiro, e isso não aparece olhando uma linha só depois. */
+.divisor .resta {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--neg);
+  font-variant-numeric: tabular-nums;
+}
+.divisor .resta.ok {
+  color: var(--pos);
+}
+.divisor-pe .botoes {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}

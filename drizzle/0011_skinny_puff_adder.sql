@@ -1,0 +1,1 @@
+ALTER TABLE "lancamentos" ADD COLUMN "importacao_pedaco" integer DEFAULT 1 NOT NULL;

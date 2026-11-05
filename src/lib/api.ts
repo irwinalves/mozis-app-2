@@ -1720,6 +1720,16 @@ export interface LinhaParaLancar {
    * substituir e quais deixar em paz.
    */
   ref?: number | null;
+  /**
+   * Qual pedaço desta linha é — `1` quando a linha não foi dividida.
+   *
+   * Vai junto do `ref` e não no lugar dele: `ref` diz DE QUAL linha da fatura
+   * veio, `pedaco` diz QUAL parte dela. Juntos, reabrir o lote sabe o que
+   * está olhando sem deduzir nada.
+   */
+  pedaco?: number | null;
+  /** `De fora`: registrado e fora das duas contas. */
+  deFora?: boolean;
 }
 
 /**
@@ -1799,6 +1809,8 @@ async function gravarLote(
         serie_id: serieId,
         seq: serieId ? k + 1 : null,
         ref: l.ref ?? null,
+        pedaco: l.pedaco ?? 1,
+        de_fora: !!l.deFora,
       });
       qtd++;
       total += o.valor;
@@ -1820,18 +1832,18 @@ async function gravarLote(
       sql`insert into lancamentos
             (data, descricao, categoria, tipo, cat_original, fonte, valor_total,
              divisao, pct_irwin_custom, pct_irwin, eh_quitacao, quem_pagou,
-             pago_irwin, recorrente, gasto_de, serie_id, seq, importacao_id,
-             importacao_linha)
+             pago_irwin, recorrente, gasto_de, de_fora, serie_id, seq,
+             importacao_id, importacao_linha, importacao_pedaco)
           select r.data::date, r.descricao, r.categoria, r.tipo,
                  'Fatura do cartão', 'Cartão', r.valor::numeric, r.divisao,
                  r.pct_custom::numeric, r.pct::numeric, r.eh_quitacao,
                  r.quem_pagou, r.pago_irwin::numeric, false, r.gasto_de,
-                 r.serie_id, r.seq, ${impId}, r.ref
+                 r.de_fora, r.serie_id, r.seq, ${impId}, r.ref, r.pedaco
           from jsonb_to_recordset(${JSON.stringify(paraGravar)}::jsonb) as r(
             data text, descricao text, categoria text, tipo text, valor text,
             divisao text, pct_custom text, pct text, eh_quitacao boolean,
-            quem_pagou text, pago_irwin text, gasto_de text,
-            serie_id int, seq int, ref int)`,
+            quem_pagou text, pago_irwin text, gasto_de text, de_fora boolean,
+            serie_id int, seq int, ref int, pedaco int)`,
     );
   }
 
@@ -2004,9 +2016,9 @@ export async function estadoDaImportacao(id: number) {
    * (A7) e não serve de referência.
    */
   const linhas = await db.execute<{
-    ref: number; n: number; descricao: string; categoria: string; tipo: string;
-    divisao: string; quem_pagou: string | null; valor: string; total: string;
-  }>(sql`select importacao_linha as ref, count(*)::int as n,
+    ref: number; pedaco: number; n: number; descricao: string; categoria: string;
+    tipo: string; divisao: string; quem_pagou: string | null; valor: string; total: string;
+  }>(sql`select importacao_linha as ref, importacao_pedaco as pedaco, count(*)::int as n,
                 (array_agg(descricao   order by seq nulls first, data, id))[1] as descricao,
                 (array_agg(categoria   order by seq nulls first, data, id))[1] as categoria,
                 (array_agg(tipo        order by seq nulls first, data, id))[1] as tipo,
@@ -2016,14 +2028,36 @@ export async function estadoDaImportacao(id: number) {
                 round(sum(valor_total)::numeric, 2)::text as total
          from v_lancamentos
          where importacao_id = ${id} and importacao_linha is not null
-         group by importacao_linha`);
+         /* Agrupa por LINHA E PEDAÇO. Só por linha, uma linha dividida em dois
+            pedaços de valores diferentes voltaria como "2 parcelas" de uma
+            compra só — e a correção seguinte reescreveria os dois com o mesmo
+            valor unitário, somando ou perdendo dinheiro em silêncio. */
+         group by importacao_linha, importacao_pedaco
+         order by importacao_linha, importacao_pedaco`);
 
-  const atual: Record<number, {
-    parcelas: number; descricao: string; categoria: string; tipo: string;
-    divisao: string; quemPagou: string | null; valor: number; total: number;
-  }> = {};
+  interface PedacoAtual {
+    pedaco: number;
+    parcelas: number;
+    descricao: string;
+    categoria: string;
+    tipo: string;
+    divisao: string;
+    quemPagou: string | null;
+    valor: number;
+    total: number;
+  }
+
+  /**
+   * Por linha da fatura. Os campos de topo são os do PRIMEIRO pedaço, que é a
+   * linha inteira no caso normal — é o que a tela já lia e continua lendo.
+   * `pedacos` só importa para linha dividida, e aí tem todos, inclusive o
+   * primeiro, para a reconstrução não precisar juntar duas fontes.
+   */
+  const atual: Record<number, PedacoAtual & { pedacos: PedacoAtual[] }> = {};
+
   for (const l of linhas) {
-    atual[l.ref] = {
+    const p: PedacoAtual = {
+      pedaco: l.pedaco,
       parcelas: l.n,
       // O sufixo ` N/M` é gerado por `montarParcelas`; o nome da série é o que
       // sobra. Sem tirar, reabrir e regravar somaria um sufixo a cada vez.
@@ -2035,6 +2069,9 @@ export async function estadoDaImportacao(id: number) {
       valor: Number(l.valor),
       total: Number(l.total),
     };
+    const ja = atual[l.ref];
+    if (ja) ja.pedacos.push(p);
+    else atual[l.ref] = { ...p, pedacos: [p] };
   }
 
   return { estado: r.estado, titulo: r.titulo, arquivo: r.arquivo, atual };

@@ -28,7 +28,11 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { rpc } from '@/lib/rpc';
 import type { analisarFatura, previewConciliacao, LinhaParaLancar } from '@/lib/api';
-import { brl, comSinal, dataBR, diaMes } from '@/lib/formato';
+import { brl, comSinal, dataBR, diaMes, lerMoeda, mascaraMoeda, numero } from '@/lib/formato';
+// `DE_FORA` vem do componente compartilhado: a lista de quem pode ser dono de
+// um gasto que não é do casal é UMA, e repeti-la aqui faria a importação e o
+// formulário discordarem no dia em que alguém entrar na lista.
+import { DE_FORA } from '@/components/DivisaoEPagador';
 import { Avatar } from '@/components/Avatar';
 import type { Pessoa } from '@/lib/pessoas';
 
@@ -77,6 +81,19 @@ type Aba = (typeof ABAS)[number]['id'];
  */
 const PADRAO_PAGADOR = 'pagador';
 
+/** Um pedaço de uma linha da fatura. Vira um lançamento próprio. */
+interface Pedaco {
+  valor: number;
+  descricao: string;
+  grupo: string;
+  divisao: string;
+  quemPagou: string;
+  /** `De fora` — registrado, fora das duas contas. */
+  deFora: boolean;
+  /** De quem é, quando `deFora`. */
+  gastoDe: string;
+}
+
 interface Estado {
   marcada: boolean;
   /** Vazio = o nome da fatura vale. A tela mostra o original apagado atrás. */
@@ -107,6 +124,18 @@ interface Estado {
    * e ninguém mais saberia que houve um estorno no meio.
    */
   valorLiquido: number | null;
+  /**
+   * Os pedaços, quando esta linha da fatura foi dividida. `null` = inteira.
+   *
+   * O caso que motivou: a conta da Vivo, R$ 359,90, em que uma parte é da mãe
+   * do Irwin e volta como reembolso. Lançar o total como gasto do casal erra;
+   * não lançar foi o que já aconteceu, e sumiu da conta por meses.
+   *
+   * A soma dos pedaços TEM que fechar com o valor da linha. Não é preciosismo:
+   * dois pedaços que não somam o total criam ou destroem dinheiro, e ninguém
+   * percebe olhando uma linha isolada.
+   */
+  pedacos: Pedaco[] | null;
   /**
    * Ao reabrir um lote: o valor que o LANÇAMENTO tem hoje, que pode não ser
    * mais o da fatura — alguém pode tê-lo corrigido à mão. É ele que é
@@ -217,6 +246,7 @@ export function Importador({
           abaTravada: null,
           valorApp: ladoApp(l.app)?.valor ?? null,
           valorLiquido: null,
+          pedacos: null,
         };
       }
       setEst(inicial);
@@ -243,18 +273,25 @@ export function Importador({
 
   const marcadas = (analise?.linhas ?? []).filter((l) => est[l.i]?.marcada);
 
-  /** Quantos LANÇAMENTOS saem: uma parcelada marcada vira N, não uma. */
-  const quantosLancamentos = marcadas.reduce((n, l) => n + (parcelasDe(l, est[l.i]) ?? 1), 0);
+  /** Quantos LANÇAMENTOS saem: uma parcelada vira N, e uma dividida vira N × pedaços. */
+  const quantosLancamentos = marcadas.reduce(
+    (n, l) => n + (parcelasDe(l, est[l.i]) ?? 1) * (est[l.i]?.pedacos?.length || 1),
+    0,
+  );
   /* A soma usa `valorEfetivo`, a MESMA função que monta o payload.
      Usava `l.valor`, o da fatura, e o rodapé passou a mentir no instante em
      que "lançar o líquido" existiu: a tela dizia R$ 12.037,50 e ia gravar
      R$ 69,14 a menos. Um número que resume o que vai acontecer não pode ser
      calculado por um caminho diferente do que faz acontecer. */
   const somaMarcadas = marcadas.reduce(
-    (s, l) => s + valorEfetivo(l, est[l.i]) * (parcelasDe(l, est[l.i]) ?? 1),
+    (s, l) => s + somaDaLinha(l, est[l.i]) * (parcelasDe(l, est[l.i]) ?? 1),
     0,
   );
   const semPagador = marcadas.filter((l) => !est[l.i]?.quemPagou || !est[l.i]?.divisao);
+  /* Linha dividida cujos pedaços não somam o valor da fatura. A gravação fica
+     travada: gravar assim criaria ou destruiria dinheiro, e a diferença não
+     aparece olhando uma linha isolada depois. */
+  const naoFecham = marcadas.filter((l) => Math.abs(restaDividir(l, est[l.i])) >= 0.005);
 
   const trocar = (i: number, mud: Partial<Estado>) =>
     setEst((s) => ({ ...s, [i]: { ...s[i], ...mud } }));
@@ -267,20 +304,52 @@ export function Importador({
     });
   }
 
-  const umaLinha = (l: Linha, e: Estado): LinhaParaLancar => ({
-    data: l.data,
-    descricao: (e.descricao.trim() || l.descricao).trim(),
-    valor: valorEfetivo(l, e),
-    grupo: e.grupo,
-    tipo: tipoDoGrupo.get(e.grupo),
-    quemPagou: e.quemPagou,
-    divisao: e.divisao,
-    parcelas: parcelasDe(l, e),
-    ref: l.i,
-  });
+  /**
+   * O que esta linha da fatura vira: um lançamento, ou N se foi dividida.
+   *
+   * Devolve sempre uma LISTA. Era uma função que devolvia um objeto, e
+   * transformar em lista aqui — em vez de espalhar `if (pedacos)` por cada
+   * lugar que usa — é o que mantém a soma do rodapé, a contagem e o payload
+   * concordando: todos percorrem a mesma lista.
+   */
+  const comoLancamentos = (l: Linha, e: Estado): LinhaParaLancar[] => {
+    const base = {
+      data: l.data,
+      tipo: undefined as string | undefined,
+      parcelas: parcelasDe(l, e),
+      ref: l.i,
+    };
+    if (e.pedacos?.length) {
+      return e.pedacos.map((p, k) => ({
+        ...base,
+        descricao: (p.descricao.trim() || e.descricao.trim() || l.descricao).trim(),
+        valor: p.valor,
+        grupo: p.grupo,
+        tipo: tipoDoGrupo.get(p.grupo),
+        quemPagou: p.quemPagou,
+        divisao: p.divisao,
+        deFora: p.deFora,
+        gastoDe: p.deFora ? p.gastoDe : null,
+        // 1-based, como `seq`: o pedaço 1 é o primeiro, não o zero.
+        pedaco: k + 1,
+      }));
+    }
+    return [
+      {
+        ...base,
+        descricao: (e.descricao.trim() || l.descricao).trim(),
+        valor: valorEfetivo(l, e),
+        grupo: e.grupo,
+        tipo: tipoDoGrupo.get(e.grupo),
+        quemPagou: e.quemPagou,
+        divisao: e.divisao,
+        pedaco: 1,
+      },
+    ];
+  };
 
   function paraLancar(): LinhaParaLancar[] {
-    return marcadas.map((l) => umaLinha(l, est[l.i]));
+    return marcadas.flatMap((l) => comoLancamentos(l, est[l.i]));
   }
 
   /**
@@ -297,7 +366,7 @@ export function Importador({
       const agora = est[l.i];
       const antes = base[l.i];
       if (!agora || assinaturaLinha(agora) === assinaturaLinha(antes)) continue;
-      if (agora.marcada) linhas.push(umaLinha(l, agora));
+      if (agora.marcada) linhas.push(...comoLancamentos(l, agora));
       else apagar.push(l.i);
     }
     return { linhas, apagar };
@@ -528,6 +597,17 @@ export function Importador({
       </div>
 
       <div className="barra-acao">
+        {naoFecham.length > 0 && (
+          <div className="aviso" style={{ marginTop: 0, marginBottom: 9 }}>
+            <span>⚠</span>
+            <div>
+              {naoFecham.length === 1 ? 'Uma linha dividida não fecha' : `${naoFecham.length} linhas divididas não fecham`}{' '}
+              com o valor da fatura. Gravar assim <b>criaria ou perderia dinheiro</b> sem aparecer
+              em lugar nenhum.
+            </div>
+          </div>
+        )}
+
         {semPagador.length > 0 && (
           <div className="aviso" style={{ marginTop: 0, marginBottom: 9 }}>
             <span>⚠</span>
@@ -544,8 +624,8 @@ export function Importador({
         {edicao ? (
           <>
             <button
-              className={`btn-full ${mudou && !semPagador.length && !ocupado ? 'valido' : ''}`}
-              disabled={!mudou || semPagador.length > 0 || !!ocupado}
+              className={`btn-full ${mudou && !semPagador.length && !naoFecham.length && !ocupado ? 'valido' : ''}`}
+              disabled={!mudou || semPagador.length > 0 || naoFecham.length > 0 || !!ocupado}
               onClick={() => (confirmando ? lancar() : setConfirmando(true))}
             >
               {ocupado ||
@@ -566,8 +646,8 @@ export function Importador({
           </>
         ) : (
           <button
-            className={`btn-full ${marcadas.length && !semPagador.length && !ocupado ? 'valido' : ''}`}
-            disabled={!marcadas.length || semPagador.length > 0 || !!ocupado}
+            className={`btn-full ${marcadas.length && !semPagador.length && !naoFecham.length && !ocupado ? 'valido' : ''}`}
+            disabled={!marcadas.length || semPagador.length > 0 || naoFecham.length > 0 || !!ocupado}
             onClick={lancar}
           >
             {ocupado || `Lançar ${marcadas.length} · ${brl(somaMarcadas)}`}
@@ -962,6 +1042,13 @@ function LinhaFatura({
                 </div>
               </div>
 
+              <Divisor
+                linha={l}
+                estado={e}
+                opcoes={opcoes}
+                onTrocar={onTrocar}
+              />
+
               {e.abaTravada && (
                 <button
                   type="button"
@@ -1151,6 +1238,247 @@ function valorEfetivo(l: Linha, e: Estado | undefined): number {
   return e?.valorLiquido ?? e?.valorAtual ?? l.valor;
 }
 
+/**
+ * Quebrar uma linha da fatura em pedaços.
+ *
+ * O caso que mandou fazer: a conta da Vivo, R$ 359,90, em que parte é da mãe
+ * do Irwin e volta como reembolso. Sem isto, as duas saídas erram — lançar
+ * tudo como gasto do casal, ou não lançar, que foi o que aconteceu e tirou a
+ * despesa da conta por meses.
+ *
+ * O `resta` é a trava e não é preciosismo: pedaços que não somam o valor da
+ * linha criam ou destroem dinheiro, e isso não aparece olhando uma linha só.
+ * Enquanto não fechar, a tela diz quanto falta e não deixa concluir.
+ */
+function Divisor({
+  linha: l,
+  estado: e,
+  opcoes,
+  onTrocar,
+}: {
+  linha: Linha;
+  estado: Estado;
+  opcoes: Opcoes;
+  onTrocar: (m: Partial<Estado>) => void;
+}) {
+  const total = baseDaDivisao(l, e);
+  const pedacos = e.pedacos;
+  const resta = restaDividir(l, e);
+
+  if (!pedacos) {
+    return (
+      <button
+        type="button"
+        className="btn-linha"
+        onClick={() =>
+          onTrocar({
+            /* Nasce com DOIS pedaços, não um: quem toca em "dividir" já quer
+               dois, e abrir com um só obrigaria a um segundo toque para
+               chegar ao estado que era a intenção. O primeiro leva o valor
+               inteiro e o segundo nasce zerado, então o `resta` já aponta
+               exatamente o que falta decidir. */
+            pedacos: [
+              {
+                valor: total,
+                descricao: e.descricao.trim() || l.descricao,
+                grupo: e.grupo,
+                divisao: e.divisao,
+                quemPagou: e.quemPagou,
+                deFora: false,
+                gastoDe: '',
+              },
+              {
+                valor: 0,
+                descricao: '',
+                grupo: e.grupo,
+                divisao: e.divisao,
+                quemPagou: e.quemPagou,
+                deFora: false,
+                gastoDe: '',
+              },
+            ],
+          })
+        }
+      >
+        Dividir esta linha
+      </button>
+    );
+  }
+
+  const mexer = (k: number, m: Partial<Pedaco>) =>
+    onTrocar({ pedacos: pedacos.map((p, i) => (i === k ? { ...p, ...m } : p)) });
+
+  return (
+    <div className="divisor">
+      <div className="divisor-cab">
+        <span>Pedaços desta linha</span>
+        <span className="tot">{brl(total)}</span>
+      </div>
+
+      {pedacos.map((p, k) => (
+        <div className="pedaco" key={k}>
+          <div className="grade">
+            <div className="campo">
+              <label>Valor</label>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={numero(p.valor)}
+                onChange={(ev) => mexer(k, { valor: lerMoeda(mascaraMoeda(ev.target.value)) })}
+              />
+            </div>
+            <div className="campo">
+              <label>Nome</label>
+              <input
+                type="text"
+                value={p.descricao}
+                placeholder={e.descricao.trim() || l.descricao}
+                onChange={(ev) => mexer(k, { descricao: ev.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="grade">
+            <div className="campo">
+              <label>Categoria</label>
+              <select value={p.grupo} onChange={(ev) => mexer(k, { grupo: ev.target.value })}>
+                {opcoes.gruposLancar.map((g) => (
+                  <option key={g.nome} value={g.nome}>
+                    {g.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="campo">
+              <label>Divisão</label>
+              <select
+                value={p.deFora ? 'De fora' : p.divisao}
+                onChange={(ev) => {
+                  const v = ev.target.value;
+                  mexer(k, {
+                    deFora: v === 'De fora',
+                    divisao: v,
+                    gastoDe: v === 'De fora' ? p.gastoDe || DE_FORA[0] : '',
+                  });
+                }}
+              >
+                <option value="">—</option>
+                {opcoes.divisoes
+                  .filter((d) => d !== 'Custom')
+                  .map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                <option value="De fora">De fora</option>
+              </select>
+            </div>
+          </div>
+
+          {p.deFora && (
+            <div className="campo">
+              <label>De quem é esse gasto</label>
+              <select value={p.gastoDe} onChange={(ev) => mexer(k, { gastoDe: ev.target.value })}>
+                {DE_FORA.map((q) => (
+                  <option key={q}>{q}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {pedacos.length > 2 && (
+            <button
+              type="button"
+              className="link tirar"
+              onClick={() => onTrocar({ pedacos: pedacos.filter((_, i) => i !== k) })}
+            >
+              tirar este pedaço
+            </button>
+          )}
+        </div>
+      ))}
+
+      <div className="divisor-pe">
+        <span className={'resta' + (Math.abs(resta) < 0.005 ? ' ok' : '')}>
+          {Math.abs(resta) < 0.005
+            ? 'fecha com a linha ✓'
+            : resta > 0
+              ? `falta distribuir ${brl(resta)}`
+              : `passou ${brl(-resta)} do valor da linha`}
+        </span>
+        <span className="botoes">
+          {Math.abs(resta) >= 0.005 && pedacos.length > 0 && (
+            <button
+              type="button"
+              className="link"
+              onClick={() =>
+                mexer(pedacos.length - 1, {
+                  valor: arred(pedacos[pedacos.length - 1].valor + resta),
+                })
+              }
+            >
+              jogar no último
+            </button>
+          )}
+          <button
+            type="button"
+            className="link"
+            onClick={() =>
+              onTrocar({
+                pedacos: [
+                  ...pedacos,
+                  {
+                    valor: 0,
+                    descricao: '',
+                    grupo: e.grupo,
+                    divisao: e.divisao,
+                    quemPagou: e.quemPagou,
+                    deFora: false,
+                    gastoDe: '',
+                  },
+                ],
+              })
+            }
+          >
+            + pedaço
+          </button>
+          <button type="button" className="link" onClick={() => onTrocar({ pedacos: null })}>
+            não dividir
+          </button>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** O que a linha soma: o valor efetivo, ou a soma dos pedaços. */
+function somaDaLinha(l: Linha, e: Estado | undefined): number {
+  if (e?.pedacos?.length) return arred(e.pedacos.reduce((a, p) => a + p.valor, 0));
+  return valorEfetivo(l, e);
+}
+
+/**
+ * O valor que os pedaços TÊM que somar.
+ *
+ * Não é `valorEfetivo`. Aquele cai em `valorAtual`, que quer dizer "o que o
+ * lançamento tem hoje no banco" — e numa linha dividida não existe UM
+ * lançamento, existem N. Ao reabrir, `valorAtual` vinha com o valor do
+ * primeiro pedaço (R$ 200 dos R$ 359,90 da Vivo) e a conta nunca fechava: a
+ * tela acusava "não fecha" numa divisão que estava perfeita.
+ *
+ * A base é o valor da LINHA DA FATURA — ou o líquido, quando um estorno
+ * parcial já reduziu o que aquela linha vale.
+ */
+function baseDaDivisao(l: Linha, e: Estado | undefined): number {
+  return e?.valorLiquido ?? l.valor;
+}
+
+/** Quanto ainda falta distribuir para os pedaços fecharem com a linha. */
+function restaDividir(l: Linha, e: Estado | undefined): number {
+  if (!e?.pedacos?.length) return 0;
+  return arred(baseDaDivisao(l, e) - e.pedacos.reduce((a, p) => a + p.valor, 0));
+}
+
 function abaDe(l: Linha, e: Estado | undefined): Aba {
   // A trava vem primeiro: uma linha sendo editada não muda de aba embaixo do
   // dedo de quem a está editando.
@@ -1224,6 +1552,7 @@ function aoReabrir(salvo: EstadoSalvo, atual: AtualDoLote): Record<number, Estad
       aberta: false,
       abaTravada: null,
       valorLiquido: e.valorLiquido ?? null,
+      pedacos: e.pedacos ?? null,
     };
 
     if (!a) {
@@ -1266,6 +1595,10 @@ function assinaturaLinha(e: Estado | undefined): string {
     // Sem isto, decidir "lançar o líquido" não contaria como mudança e o
     // diferencial deixaria a linha de fora — a correção sumiria em silêncio.
     e.valorLiquido ?? '',
+    // Os pedaços entram na assinatura inteiros: mudar o valor de um sem que a
+    // linha mude de nome ou categoria continua sendo uma mudança, e sem isto o
+    // diferencial não a veria.
+    e.pedacos ? JSON.stringify(e.pedacos) : '',
   ].join('|');
 }
 
