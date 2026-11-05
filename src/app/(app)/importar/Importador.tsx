@@ -60,6 +60,10 @@ const ABAS = [
   { id: 'app', rotulo: 'Já no app' },
   { id: 'parc', rotulo: 'Parcelados' },
   { id: 'novos', rotulo: 'Novos' },
+  /* Estornos é aba e não seção recolhível porque ali se DECIDE, não se lê.
+     Enquanto era só aviso, a fatura dizia "houve uma devolução" e não havia
+     o que fazer a respeito na mesma tela. */
+  { id: 'est', rotulo: 'Estornos' },
 ] as const;
 type Aba = (typeof ABAS)[number]['id'];
 
@@ -93,6 +97,16 @@ interface Estado {
   abaTravada: Aba | null;
   /** O valor que o app tem agora — muda quando se adota o da fatura. */
   valorApp: number | null;
+  /**
+   * O valor DEPOIS do estorno parcial, quando alguém mandou lançar o líquido.
+   *
+   * Separado de `valorAtual` de propósito: aquele é "o que o lançamento tem
+   * hoje no banco" e serve para não desfazer correção alheia ao regravar o
+   * lote. Este é uma decisão tomada NESTA revisão. Misturar os dois faria o
+   * líquido sobreviver a um reabrir como se fosse o valor original da fatura,
+   * e ninguém mais saberia que houve um estorno no meio.
+   */
+  valorLiquido: number | null;
   /**
    * Ao reabrir um lote: o valor que o LANÇAMENTO tem hoje, que pode não ser
    * mais o da fatura — alguém pode tê-lo corrigido à mão. É ele que é
@@ -202,6 +216,7 @@ export function Importador({
           forcadaNova: false,
           abaTravada: null,
           valorApp: ladoApp(l.app)?.valor ?? null,
+          valorLiquido: null,
         };
       }
       setEst(inicial);
@@ -221,7 +236,7 @@ export function Importador({
   // `est` entra na dependência porque `forcadaNova` e `abaTravada` mudam a aba
   // de uma linha.
   const porAba = useMemo(() => {
-    const m: Record<Aba, Linha[]> = { app: [], parc: [], novos: [] };
+    const m: Record<Aba, Linha[]> = { app: [], parc: [], novos: [], est: [] };
     for (const l of analise?.linhas ?? []) m[abaDe(l, est[l.i])].push(l);
     return m;
   }, [analise, est]);
@@ -230,8 +245,13 @@ export function Importador({
 
   /** Quantos LANÇAMENTOS saem: uma parcelada marcada vira N, não uma. */
   const quantosLancamentos = marcadas.reduce((n, l) => n + (parcelasDe(l, est[l.i]) ?? 1), 0);
+  /* A soma usa `valorEfetivo`, a MESMA função que monta o payload.
+     Usava `l.valor`, o da fatura, e o rodapé passou a mentir no instante em
+     que "lançar o líquido" existiu: a tela dizia R$ 12.037,50 e ia gravar
+     R$ 69,14 a menos. Um número que resume o que vai acontecer não pode ser
+     calculado por um caminho diferente do que faz acontecer. */
   const somaMarcadas = marcadas.reduce(
-    (s, l) => s + l.valor * (parcelasDe(l, est[l.i]) ?? 1),
+    (s, l) => s + valorEfetivo(l, est[l.i]) * (parcelasDe(l, est[l.i]) ?? 1),
     0,
   );
   const semPagador = marcadas.filter((l) => !est[l.i]?.quemPagou || !est[l.i]?.divisao);
@@ -250,8 +270,7 @@ export function Importador({
   const umaLinha = (l: Linha, e: Estado): LinhaParaLancar => ({
     data: l.data,
     descricao: (e.descricao.trim() || l.descricao).trim(),
-    // O valor de hoje, quando existe — ver `valorAtual`.
-    valor: e.valorAtual ?? l.valor,
+    valor: valorEfetivo(l, e),
     grupo: e.grupo,
     tipo: tipoDoGrupo.get(e.grupo),
     quemPagou: e.quemPagou,
@@ -428,8 +447,6 @@ export function Importador({
             </div>
           )}
 
-          <Estornos analise={analise} />
-
           <div className="abas">
             {ABAS.map((a) => (
               <button
@@ -439,7 +456,7 @@ export function Importador({
                 onClick={() => setAba(a.id)}
               >
                 {a.rotulo}
-                <b>{porAba[a.id].length}</b>
+                <b>{a.id === 'est' ? (analise.estornos ?? []).length : porAba[a.id].length}</b>
               </button>
             ))}
           </div>
@@ -462,7 +479,21 @@ export function Importador({
               e a categoria.
             </div>
           )}
+          {aba === 'est' && (
+            <div className="dica dica-aba">
+              O que o cartão devolveu nesta fatura, e a compra de cada devolução. Decida aqui: a
+              compra cancelada <b>não é lançada</b>, e a devolvida em parte <b>entra pelo
+              líquido</b>.
+            </div>
+          )}
 
+          {aba === 'est' ? (
+            <PainelEstornos
+              analise={analise}
+              est={est}
+              onTrocar={trocar}
+            />
+          ) : (
           <div className="card" style={{ paddingTop: 6, paddingBottom: 6 }}>
             <div className="titulo-lista">
               <span>{lista.filter((l) => est[l.i]?.marcada).length} marcadas</span>
@@ -492,6 +523,7 @@ export function Importador({
               ))
             )}
           </div>
+          )}
         </div>
       </div>
 
@@ -565,7 +597,15 @@ export function Importador({
  * Os de centavos vão para uma linha só no rodapé. Dar peso igual a −R$ 0,01 e
  * a −R$ 1.188,00 é transformar um aviso em parede.
  */
-function Estornos({ analise }: { analise: Analise }) {
+function PainelEstornos({
+  analise,
+  est,
+  onTrocar,
+}: {
+  analise: Analise;
+  est: Record<number, Estado>;
+  onTrocar: (i: number, m: Partial<Estado>) => void;
+}) {
   /*
    * `?? []` não é paranoia: um lote importado ANTES desta seção existir
    * guardou um `estado` sem o campo, e a edição reabre exatamente esse JSON.
@@ -573,60 +613,137 @@ function Estornos({ analise }: { analise: Analise }) {
    * importação antiga é justamente quem quer corrigi-la.
    */
   const todos = analise.estornos ?? [];
-  if (!todos.length) return null;
+  const porI = new Map(analise.linhas.map((l) => [l.i, l]));
 
-  const miudos = todos.filter((e) => Math.abs(e.negativa.valor) < 1);
-  const graudos = todos.filter((e) => Math.abs(e.negativa.valor) >= 1);
+  if (!todos.length) {
+    return (
+      <div className="card">
+        <div className="vazio">Nenhuma devolução nesta fatura.</div>
+      </div>
+    );
+  }
+
   const soma = todos.reduce((a, e) => a + Math.abs(e.negativa.valor), 0);
 
   return (
-    <details className="estornos" open>
-      <summary className="cabe">
-        <span className="chev" aria-hidden>
-          ›
-        </span>
+    <div className="card painel-est">
+      <div className="titulo-lista">
         <span>
-          {todos.length === 1 ? 'Estorno nesta fatura' : 'Estornos nesta fatura'}
+          {todos.length} {todos.length === 1 ? 'devolução' : 'devoluções'}
         </span>
-        <span className="soma">
-          {todos.length} · −{brl(soma)}
-        </span>
-      </summary>
+        <span className="soma-est">−{brl(soma)}</span>
+      </div>
 
-      {graudos.map((e, k) => {
+      {todos.map((e, k) => {
         const v = e.vinculo;
+        const refs = v.tipo === 'solto' ? [] : v.refs;
+        const alvos = refs.map((i) => porI.get(i)).filter(Boolean) as Linha[];
+        const bruto = Math.abs(e.negativa.valor);
+
+        /* INTEGRAL e LINHA: a compra foi cancelada, então não se lança.
+           A ação é desmarcar — e é reversível, porque desmarcar não apaga
+           nada: só tira a linha do que vai ser gravado. */
+        const todasFora = alvos.length > 0 && alvos.every((l) => !est[l.i]?.marcada);
+        const cancela = v.tipo === 'integral' || v.tipo === 'linha';
+
+        /* PARCIAL: o cartão devolveu PARTE. Com uma candidata só, dá para
+           oferecer o líquido. Com várias, a tela PERGUNTA em vez de adivinhar:
+           na fatura de setembro o estorno Apple de R$ 3,50 tinha seis compras
+           Apple no mês e não casava com o valor de nenhuma. Chutar ali seria
+           mexer no dinheiro de vocês por conta própria (C7). */
+        const umaSo = v.tipo === 'parcial' && alvos.length === 1 ? alvos[0] : null;
+
         return (
-          <div key={k} className={`est${v.tipo === 'integral' ? ' forte' : ''}`}>
-            <span className="q">−{brl(Math.abs(e.negativa.valor))}</span>
-            <span className="t">
-              <span className="loja">{e.negativa.descricao}</span>
-              <span className="diz">
-                {v.tipo === 'integral'
-                  ? `cancela a compra inteira — ${v.refs.length} ${v.refs.length === 1 ? 'linha' : 'linhas'} de ${brl(v.valor / v.refs.length)}`
-                  : v.tipo === 'linha'
-                    ? 'cancela uma compra desta fatura, de mesmo valor'
-                    : v.tipo === 'parcial'
-                      ? `devolveu parte · ${v.refs.length} ${v.refs.length === 1 ? 'compra soma' : 'compras somam'} ${brl(v.valor)}`
-                      : 'não corresponde a compra nesta fatura'}
-              </span>
-            </span>
+          <div key={k} className={'est-item' + (cancela ? ' forte' : '')}>
+            <div className="est-topo">
+              <span className="est-valor">−{brl(bruto)}</span>
+              <span className="est-nome">{e.negativa.descricao}</span>
+            </div>
+
+            <div className="est-diz">
+              {v.tipo === 'integral'
+                ? `Cancela a compra inteira — ${refs.length} ${refs.length === 1 ? 'linha' : 'linhas'}`
+                : v.tipo === 'linha'
+                  ? 'Cancela uma compra desta fatura, de mesmo valor'
+                  : v.tipo === 'parcial'
+                    ? `Devolveu parte · ${alvos.length} ${alvos.length === 1 ? 'compra do mesmo lojista' : 'compras do mesmo lojista'}`
+                    : 'Não corresponde a nenhuma compra desta fatura'}
+            </div>
+
+            {alvos.length > 0 && (
+              <ul className="est-alvos">
+                {alvos.map((l) => {
+                  const liq = est[l.i]?.valorLiquido;
+                  return (
+                    <li key={l.i} className={est[l.i]?.marcada ? '' : 'fora'}>
+                      <span className="nm">{est[l.i]?.descricao?.trim() || l.descricao}</span>
+                      <span className="vl">
+                        {liq != null ? (
+                          <>
+                            <s>{brl(l.valor)}</s> {brl(liq)}
+                          </>
+                        ) : (
+                          brl(l.valor)
+                        )}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            <div className="est-acoes">
+              {cancela && (
+                <button
+                  type="button"
+                  className={todasFora ? 'feito' : ''}
+                  onClick={() =>
+                    alvos.forEach((l) => onTrocar(l.i, { marcada: !todasFora }))
+                  }
+                >
+                  {todasFora
+                    ? `✓ Fora do lote (${alvos.length})`
+                    : `Não lançar ${alvos.length === 1 ? 'esta compra' : `estas ${alvos.length}`}`}
+                </button>
+              )}
+
+              {umaSo && (
+                <button
+                  type="button"
+                  className={est[umaSo.i]?.valorLiquido != null ? 'feito' : ''}
+                  onClick={() =>
+                    onTrocar(umaSo.i, {
+                      valorLiquido:
+                        est[umaSo.i]?.valorLiquido != null
+                          ? null
+                          : Math.round((umaSo.valor - bruto) * 100) / 100,
+                    })
+                  }
+                >
+                  {est[umaSo.i]?.valorLiquido != null
+                    ? `✓ Lançando ${brl(est[umaSo.i].valorLiquido as number)}`
+                    : `Lançar o líquido, ${brl(umaSo.valor - bruto)}`}
+                </button>
+              )}
+
+              {v.tipo === 'parcial' && alvos.length > 1 && (
+                <span className="est-pergunta">
+                  Qual delas foi reduzida? Abra a linha na aba de origem e ajuste o valor —
+                  o app não escolhe por você.
+                </span>
+              )}
+
+              {v.tipo === 'solto' && (
+                <span className="est-pergunta">
+                  Compra de outro mês, ou ajuste do banco. Nada a fazer aqui.
+                </span>
+              )}
+            </div>
           </div>
         );
       })}
-
-      {miudos.length > 0 && (
-        <div className="menores">
-          + {miudos.length} de centavos ({miudos.map((e) => lojaCurta(e.negativa.descricao)).join(', ')})
-        </div>
-      )}
-    </details>
+    </div>
   );
-}
-
-/** O começo do nome, para caber na linha dos miúdos. */
-function lojaCurta(s: string): string {
-  const limpo = s.replace(/^(cancelamento( parcial)? de compra|estorno)\s*-?\s*/i, '');
-  return limpo.split(/[*\s]/).filter(Boolean)[0] ?? limpo;
 }
 
 // ---------------------------------------------------------------------------
@@ -1017,6 +1134,23 @@ function Conciliacao({
 
 // ---------------------------------------------------------------------------
 
+/**
+ * O valor que esta linha vai gravar.
+ *
+ * A ordem é uma decisão, não acaso:
+ * 1. `valorLiquido` — decidido NESTA revisão, na aba de estornos;
+ * 2. `valorAtual` — o que o lançamento tem hoje no banco, ao reabrir um lote,
+ *    para não desfazer correção que alguém fez à mão depois;
+ * 3. o valor da fatura.
+ *
+ * Existe como função, e não repetida em cada lugar, porque a soma do rodapé e
+ * o payload da gravação TÊM que concordar. Enquanto eram dois cálculos, não
+ * concordavam.
+ */
+function valorEfetivo(l: Linha, e: Estado | undefined): number {
+  return e?.valorLiquido ?? e?.valorAtual ?? l.valor;
+}
+
 function abaDe(l: Linha, e: Estado | undefined): Aba {
   // A trava vem primeiro: uma linha sendo editada não muda de aba embaixo do
   // dedo de quem a está editando.
@@ -1080,7 +1214,17 @@ function aoReabrir(salvo: EstadoSalvo, atual: AtualDoLote): Record<number, Estad
   for (const [k, e] of Object.entries(salvo.est)) {
     const ref = Number(k);
     const a = atual[ref];
-    const limpo = { ...e, descricao: e.descricao ?? '', aberta: false, abaTravada: null };
+    // `valorLiquido ?? null` normaliza o JSON de um lote gravado ANTES deste
+    // campo existir — é a mesma guarda que `analise.estornos ?? []` precisou,
+    // e pelo mesmo motivo: quem reabre um lote antigo é justamente quem quer
+    // corrigi-lo.
+    const limpo = {
+      ...e,
+      descricao: e.descricao ?? '',
+      aberta: false,
+      abaTravada: null,
+      valorLiquido: e.valorLiquido ?? null,
+    };
 
     if (!a) {
       dentro[ref] = { ...limpo, marcada: false };
@@ -1119,6 +1263,9 @@ function assinaturaLinha(e: Estado | undefined): string {
   return [
     e.marcada, e.descricao ?? '', e.grupo, e.divisao, e.quemPagou,
     e.forcadaNova, e.valorAtual ?? '',
+    // Sem isto, decidir "lançar o líquido" não contaria como mudança e o
+    // diferencial deixaria a linha de fora — a correção sumiria em silêncio.
+    e.valorLiquido ?? '',
   ].join('|');
 }
 

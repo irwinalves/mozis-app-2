@@ -1752,3 +1752,113 @@ a.btn-linha {
 .form-lanc .salvar:disabled {
   opacity: 0.6;
 }
+
+/* ---------------------------------------------------------------------------
+   Aba de estornos — aqui se DECIDE, não se lê
+   ---------------------------------------------------------------------------
+   Era uma seção recolhível que apenas avisava "houve uma devolução". A fatura
+   de setembro mostrou por que isso não bastava: cinco negativos, cinco casos
+   diferentes, e nenhum deles tratável na mesma tela. */
+.painel-est .soma-est {
+  color: var(--neg);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.painel-est .est-item {
+  padding: 11px 0;
+  border-top: 1px solid var(--borda-card);
+}
+.painel-est .est-item:first-of-type {
+  border-top: none;
+}
+.painel-est .est-topo {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+.painel-est .est-valor {
+  flex: 0 0 auto;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--neg);
+  font-variant-numeric: tabular-nums;
+}
+.painel-est .est-nome {
+  min-width: 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.painel-est .est-diz {
+  margin-top: 3px;
+  font-size: 12.5px;
+  color: var(--texto2);
+  line-height: 1.4;
+}
+/* A compra a que a devolução se refere. Mostrar o par lado a lado é o pedido
+   inteiro: sem a compra, o valor negativo não diz nada. */
+.painel-est .est-alvos {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0 0 0 11px;
+  border-left: 2px solid var(--borda-card);
+}
+.painel-est .est-alvos li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  padding: 3px 0;
+}
+.painel-est .est-alvos li .nm {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.painel-est .est-alvos li .vl {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+/* Riscado = esta linha não vai ser gravada. O estado da decisão fica visível
+   no próprio par, não só no botão. */
+.painel-est .est-alvos li.fora .nm,
+.painel-est .est-alvos li.fora .vl {
+  text-decoration: line-through;
+  color: var(--texto3);
+}
+.painel-est .est-alvos s {
+  color: var(--texto3);
+  margin-right: 5px;
+}
+.painel-est .est-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+}
+.painel-est .est-acoes button {
+  border: 1px solid var(--borda-input);
+  background: var(--bg);
+  color: var(--texto);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 9px;
+  padding: 8px 12px;
+  min-height: 38px;
+  cursor: pointer;
+}
+.painel-est .est-acoes button.feito {
+  background: var(--verde);
+  border-color: var(--verde);
+  color: #fff;
+  font-weight: 700;
+}
+/* Onde o app NÃO decide, ele diz por quê — e não oferece botão nenhum, para
+   não parecer que existe uma resposta pronta escondida atrás dele (C7). */
+.painel-est .est-pergunta {
+  font-size: 12.5px;
+  color: var(--texto2);
+  line-height: 1.45;
+}
