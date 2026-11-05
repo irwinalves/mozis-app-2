@@ -16,10 +16,26 @@ import { rpc } from '@/lib/rpc';
 import type { obterSerie, EscopoSerie, MudancasSerie } from '@/lib/api';
 import { brl, comSinal, dataBR, numero } from '@/lib/formato';
 import { Avatar } from '@/components/Avatar';
+import DivisaoEPagador, {
+  DE_FORA,
+  fracaoDe,
+  type Divisao,
+  type Reparticao,
+} from '@/components/DivisaoEPagador';
 import type { Pessoa } from '@/lib/pessoas';
 
 type Serie = Awaited<ReturnType<typeof obterSerie>>;
-type Opcoes = { gruposLancar: { nome: string }[]; origens: string[]; divisoes: string[]; pagadores: string[] };
+/* `pctIrwinRenda` entrou junto com o bloco de rateio compartilhado: a divisão
+   `Renda` precisa da proporção para calcular, e ela vem de `getOpcoes`, que é
+   a fonte única. Reescrever o tipo à mão aqui foi o que permitiu ele ficar
+   menor que a realidade por tanto tempo. */
+type Opcoes = {
+  gruposLancar: { nome: string }[];
+  origens: string[];
+  divisoes: string[];
+  pagadores: string[];
+  pctIrwinRenda: number;
+};
 type Preview = Awaited<ReturnType<typeof import('@/lib/api').previewEdicaoSerie>>;
 
 const MES_EXT = [
@@ -70,12 +86,26 @@ export function EditorSerie({
     grupo: c.categoria,
     tipo: c.tipo,
     fonte: c.fonte ?? '',
-    divisao: c.divisao,
-    quemPagou: c.quemPagou ?? '',
     valor: String(numero(serie.valorUnitario)),
     valorTotal: '',
     dataFim: serie.regra?.dataFim ?? '',
     ativo: serie.regra?.ativo ?? true,
+  });
+
+  /* O rateio vem do MESMO componente da tela de lançar. Antes eram dois
+     `select` — "Como dividir" e "Quem paga" — sem valor exato, sem `De fora` e
+     sem a conta das duas respostas. Era a reclamação do Irwin: "é praticamente
+     a mesma tela de um lançamento". */
+  const [reparticao, setReparticao] = useState<Reparticao>(() => {
+    const divisao: Divisao = c.deFora ? 'De fora' : ((c.divisao as Divisao) ?? '50/50');
+    const fixa = fracaoDe(divisao, opcoes.pctIrwinRenda);
+    return {
+      pagador: c.quemPagou ?? '',
+      divisao,
+      fracao: fixa ?? (c.pctIrwinCustom ?? 50) / 100,
+      quemDeFora: c.deFora && c.gastoDe ? c.gastoDe : DE_FORA[0],
+      pagoIrwinManual: null,
+    };
   });
 
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -91,8 +121,21 @@ export function EditorSerie({
     if (f.grupo !== c.categoria) m.grupo = f.grupo;
     if (f.tipo !== c.tipo) m.tipo = f.tipo;
     if (f.fonte !== (c.fonte ?? '')) m.fonte = f.fonte || null;
-    if (f.divisao !== c.divisao) m.divisao = f.divisao;
-    if (f.quemPagou !== (c.quemPagou ?? '')) m.quemPagou = f.quemPagou;
+    const ehFora = reparticao.divisao === 'De fora';
+    if (reparticao.divisao !== (c.deFora ? 'De fora' : c.divisao)) {
+      m.divisao = reparticao.divisao;
+      m.deFora = ehFora;
+    }
+    if (reparticao.pagador !== (c.quemPagou ?? '')) m.quemPagou = reparticao.pagador;
+    // `Custom` manda a FRAÇÃO como percentual — é o contrato de `MudancasSerie`.
+    if (
+      reparticao.divisao === 'Custom' &&
+      Math.abs(reparticao.fracao * 100 - (c.pctIrwinCustom ?? 50)) >= 0.005
+    ) {
+      m.pctIrwinCustom = reparticao.fracao * 100;
+    }
+    const gastoDeNovo = ehFora ? reparticao.quemDeFora : null;
+    if (ehFora && gastoDeNovo !== (c.gastoDe ?? null)) m.gastoDe = gastoDeNovo;
     if (modoValor === 'total') {
       if (f.valorTotal.trim()) m.valorTotal = paraNumero(f.valorTotal);
     } else if (Math.abs(paraNumero(f.valor) - serie.valorUnitario) >= 0.005) {
@@ -103,7 +146,7 @@ export function EditorSerie({
       if (f.ativo !== serie.regra.ativo) m.ativo = f.ativo;
     }
     return m;
-  }, [f, modoValor, serie, c]);
+  }, [f, reparticao, modoValor, serie, c]);
 
   const temMudanca = Object.keys(mudancas).length > 0;
 
@@ -350,30 +393,17 @@ export function EditorSerie({
                   ))}
                 </select>
               </div>
-              <div className="campo">
-                <label>Como dividir</label>
-                <select value={f.divisao} onChange={(e) => setF({ ...f, divisao: e.target.value })}>
-                  {opcoes.divisoes.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-              </div>
             </div>
 
-            <div className="campo" style={{ marginTop: 9 }}>
-              <label>Quem paga</label>
-              <select
-                value={f.quemPagou}
-                onChange={(e) => setF({ ...f, quemPagou: e.target.value })}
-              >
-                {opcoes.pagadores.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
+            <div className="form-lanc rateio-serie">
+              <DivisaoEPagador
+                total={paraNumero(f.valor) || serie.valorUnitario}
+                valor={reparticao}
+                aoMudar={setReparticao}
+                pagadores={opcoes.pagadores}
+                pctIrwinRenda={opcoes.pctIrwinRenda}
+                permitePagoManual={false}
+              />
             </div>
 
             {serie.regra && (

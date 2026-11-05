@@ -35,28 +35,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { rpc, ErroRpc } from '@/lib/rpc';
 import { brl, lerMoeda, mascaraMoeda, numero } from '@/lib/formato';
+import DivisaoEPagador, {
+  DE_FORA,
+  fracaoDe,
+  pagoIrwinDe,
+  type Divisao,
+  type Reparticao,
+} from '@/components/DivisaoEPagador';
 
 export type Opcoes = Awaited<ReturnType<typeof import('@/lib/api').getOpcoes>>;
 
 /** Divisões que a tela oferece. A ordem é a da tela, e `Renda` fecha a lista:
  *  ainda não foi usada nenhuma vez em 3.802 lançamentos, mas é para ser. */
-const DIVISOES = ['50/50', '100% Irwin', '100% Maria', 'Custom', 'Renda', 'De fora'] as const;
-type Divisao = (typeof DIVISOES)[number];
-
-const ROTULO_DIVISAO: Record<Divisao, string> = {
-  '50/50': '50/50',
-  '100% Irwin': '100% Irwin',
-  '100% Maria': '100% Maria',
-  Custom: 'Valor exato',
-  Renda: 'Por renda',
-  'De fora': 'De fora',
-};
-
-/** Quem, fora do casal, pode ser dono de um gasto que passou pelo cartão. */
-const DE_FORA = ['Mãe do Irwin', 'Avô da Maria', 'Outra pessoa'];
-
-type Repeticao = 'nao' | 'parcelado' | 'recorrente';
-
 /** A cor é da CATEGORIA, não do estado do botão: é ela que volta nos gráficos
  *  do mês, então mudar aqui desalinha o relatório. */
 const COR_CATEGORIA: Record<string, string> = {
@@ -71,22 +61,13 @@ const COR_CATEGORIA: Record<string, string> = {
   '9 Acerto de Contas': '#8A6D00',
 };
 
+type Repeticao = 'nao' | 'parcelado' | 'recorrente';
+
 /** O mesmo leitor do `Form.html`, pelo mesmo motivo: uma implementação só. */
 const paraNumero = lerMoeda;
 
 function arred(n: number): number {
   return Math.round(n * 100) / 100;
-}
-
-/** A fração do Irwin para cada divisão. `Custom` não entra aqui porque é
- *  justamente a que o usuário define — ela vem do estado. */
-function fracaoDe(divisao: Divisao, pctRenda: number): number | null {
-  if (divisao === '50/50') return 0.5;
-  if (divisao === '100% Irwin') return 1;
-  if (divisao === '100% Maria') return 0;
-  if (divisao === 'Renda') return pctRenda;
-  if (divisao === 'De fora') return 0;
-  return null;
 }
 
 /** O que `obterLancamento` devolve — a forma vem da função real, não de um
@@ -120,21 +101,37 @@ export default function FormLancamento({ opcoes, lancamento, aoSalvar }: Props) 
   const [categoria, setCategoria] = useState(ed?.categoria ?? '');
   const [tipo, setTipo] = useState(ed?.tipo ?? 'Variável');
   const [origem, setOrigem] = useState(ed?.fonte ?? 'Cartão');
-  const [pagador, setPagador] = useState<string>(ed?.quemPagou ?? opcoes.eu ?? 'Irwin');
-  const [divisao, setDivisao] = useState<Divisao>(
-    ed ? (ed.deFora ? 'De fora' : ((ed.divisao as Divisao) ?? '50/50')) : '50/50',
-  );
-  const [fracao, setFracao] = useState(() => {
-    if (!ed) return 0.5;
-    if (ed.deFora) return 0;
-    const f = fracaoDe((ed.divisao as Divisao) ?? '50/50', opcoes.pctIrwinRenda);
-    // `Custom` não tem fração fixa: vem do lançamento, em percentual.
-    return f ?? (ed.pctCustom ?? 50) / 100;
+  /**
+   * As respostas das duas perguntas, num objeto só.
+   *
+   * Eram cinco `useState` separados aqui dentro. Viraram um porque agora quem
+   * desenha é `DivisaoEPagador`, compartilhado com a edição de série e a
+   * revisão de importação — e um componente controlado devolve a resposta
+   * inteira, não cinco pedaços que as telas teriam que recombinar cada uma do
+   * seu jeito.
+   */
+  const [reparticao, setReparticao] = useState<Reparticao>(() => {
+    if (!ed) {
+      return {
+        pagador: opcoes.eu ?? 'Irwin',
+        divisao: '50/50',
+        fracao: 0.5,
+        quemDeFora: DE_FORA[0],
+        pagoIrwinManual: null,
+      };
+    }
+    const divisao: Divisao = ed.deFora ? 'De fora' : ((ed.divisao as Divisao) ?? '50/50');
+    const fixa = fracaoDe(divisao, opcoes.pctIrwinRenda);
+    return {
+      pagador: ed.quemPagou ?? opcoes.eu ?? 'Irwin',
+      divisao,
+      // `Custom` não tem fração fixa: vem do lançamento, em percentual.
+      fracao: fixa ?? (ed.pctCustom ?? 50) / 100,
+      quemDeFora: ed.deFora && ed.gastoDe ? ed.gastoDe : DE_FORA[0],
+      pagoIrwinManual: ed.quemPagou === 'Ambos' ? ed.pagoIrwin : null,
+    };
   });
   const [ehAndre, setEhAndre] = useState(ed?.gastoDe === 'André');
-  const [quemDeFora, setQuemDeFora] = useState(
-    ed?.deFora && ed.gastoDe ? ed.gastoDe : DE_FORA[0],
-  );
   const [obs, setObs] = useState(ed?.obs ?? '');
 
   const [repeticao, setRepeticao] = useState<Repeticao>('nao');
@@ -143,10 +140,6 @@ export default function FormLancamento({ opcoes, lancamento, aoSalvar }: Props) 
   const [freq, setFreq] = useState('mensal');
   const [fimRec, setFimRec] = useState('');
 
-  /** `null` = cada um pôs a própria parte, que é o padrão e NÃO gera dívida. */
-  const [pagoIrwinManual, setPagoIrwinManual] = useState<number | null>(
-    ed && ed.quemPagou === 'Ambos' ? ed.pagoIrwin : null,
-  );
   const [excluindo, setExcluindo] = useState(false);
 
   const [previa, setPrevia] = useState<{ data: string; descricao: string; valor: number }[]>([]);
@@ -154,35 +147,11 @@ export default function FormLancamento({ opcoes, lancamento, aoSalvar }: Props) 
   const [erro, setErro] = useState('');
   const [avisoValor, setAvisoValor] = useState(false);
 
-  /**
-   * O texto cru do campo que está sob o dedo.
-   *
-   * Sem isto, reescrever os dois lados a cada tecla faz o cursor pular e
-   * atropela o que está sendo digitado — `1` vira `1,00` antes de virar `10`.
-   * O outro lado continua derivado da fração, que é a verdade.
-   */
-  const [digitando, setDigitando] = useState<{ lado: 'irwin' | 'maria'; texto: string } | null>(null);
   const totalAnterior = useRef(0);
 
   const total = paraNumero(valor);
-  const parteIrwin = arred(total * fracao);
-  const parteMaria = arred(total - parteIrwin);
-
-  const pagoIrwin =
-    pagador === 'Irwin' ? total
-    : pagador === 'Maria' ? 0
-    : (pagoIrwinManual ?? parteIrwin);
-
-  /** O acerto é esta subtração, e nada mais: o que a pessoa desembolsou menos
-   *  o que lhe cabe. Mostrar aqui é a C1 aplicada ao formulário. */
-  const efeito = arred(pagoIrwin - parteIrwin);
-
-  function escolherDivisao(d: Divisao) {
-    setDivisao(d);
-    const f = fracaoDe(d, opcoes.pctIrwinRenda);
-    if (f !== null) setFracao(f);
-    setDigitando(null);
-  }
+  const parteIrwin = arred(total * reparticao.fracao);
+  const pagoIrwin = pagoIrwinDe(reparticao, total, parteIrwin);
 
   /**
    * Mudar o total mantém a PROPORÇÃO, não o valor digitado — foi a decisão de
@@ -191,7 +160,7 @@ export default function FormLancamento({ opcoes, lancamento, aoSalvar }: Props) 
    */
   function mudouValor(texto: string) {
     const novo = paraNumero(texto);
-    if (divisao === 'Custom' && totalAnterior.current > 0 && novo > 0 && novo !== totalAnterior.current) {
+    if (reparticao.divisao === 'Custom' && totalAnterior.current > 0 && novo > 0 && novo !== totalAnterior.current) {
       setAvisoValor(true);
       setTimeout(() => setAvisoValor(false), 4500);
     }
@@ -233,20 +202,13 @@ export default function FormLancamento({ opcoes, lancamento, aoSalvar }: Props) 
     return () => clearTimeout(t);
   }, [buscarPrevia]);
 
-  function digitouParte(qual: 'irwin' | 'maria', texto: string) {
-    setDigitando({ lado: qual, texto });
-    if (total <= 0) return;
-    const v = Math.min(Math.max(paraNumero(texto), 0), total);
-    setFracao((qual === 'irwin' ? v : total - v) / total);
-  }
-
   const categorias = useMemo(
     () => opcoes.gruposLancar.map((g) => g.nome),
     [opcoes.gruposLancar],
   );
 
   const ehQuitacao = categoria === '9 Acerto de Contas';
-  const ehFora = divisao === 'De fora';
+  const ehFora = reparticao.divisao === 'De fora';
 
   async function salvar() {
     setErro('');
@@ -266,15 +228,15 @@ export default function FormLancamento({ opcoes, lancamento, aoSalvar }: Props) 
       tipo,
       fonte: origem,
       valor: total,
-      divisao,
+      divisao: reparticao.divisao,
       deFora: ehFora,
       // A coluna guarda FRAÇÃO; a API converte de percentual. Mandar
       // percentual aqui é o contrato — ver `salvarLancamento`.
-      pctIrwinCustom: divisao === 'Custom' ? fracao * 100 : null,
-      quemPagou: pagador,
-      pagoIrwin: pagador === 'Ambos' ? pagoIrwin : null,
+      pctIrwinCustom: reparticao.divisao === 'Custom' ? reparticao.fracao * 100 : null,
+      quemPagou: reparticao.pagador,
+      pagoIrwin: reparticao.pagador === 'Ambos' ? pagoIrwin : null,
       obs: obs.trim() || null,
-      gastoDe: ehFora ? quemDeFora : ehAndre ? 'André' : null,
+      gastoDe: ehFora ? reparticao.quemDeFora : ehAndre ? 'André' : null,
     };
 
     try {
@@ -291,15 +253,15 @@ export default function FormLancamento({ opcoes, lancamento, aoSalvar }: Props) 
         tipo,
         fonte: origem,
         valor: total,
-        divisao,
+        divisao: reparticao.divisao,
         deFora: ehFora,
         // A coluna guarda FRAÇÃO; a API converte de percentual. Mandar
         // percentual aqui é o contrato — ver `salvarLancamento`.
-        pctIrwinCustom: divisao === 'Custom' ? fracao * 100 : null,
-        quemPagou: pagador,
-        pagoIrwin: pagador === 'Ambos' ? pagoIrwin : null,
+        pctIrwinCustom: reparticao.divisao === 'Custom' ? reparticao.fracao * 100 : null,
+        quemPagou: reparticao.pagador,
+        pagoIrwin: reparticao.pagador === 'Ambos' ? pagoIrwin : null,
         obs: obs.trim() || null,
-        gastoDe: ehFora ? quemDeFora : ehAndre ? 'André' : null,
+        gastoDe: ehFora ? reparticao.quemDeFora : ehAndre ? 'André' : null,
         parcelado: repeticao === 'parcelado',
         /**
          * `parcelas` SÓ vai quando é parcelado.
@@ -454,185 +416,14 @@ export default function FormLancamento({ opcoes, lancamento, aoSalvar }: Props) 
         <p className="nota">Banco cobre tudo que sai da conta: Pix, TED, débito automático, boleto.</p>
       </div>
 
-      <div className="card">
-        <p className="duas">
-          São <b>duas perguntas diferentes</b>, e as duas mexem no acerto de jeitos opostos: de
-          quem <b>saiu o dinheiro</b>, e de quem <b>é o gasto</b>.
-        </p>
-
-        <div className="rot">
-          1 · Quem pagou <span className="leve">de quem saiu o dinheiro</span>
-        </div>
-        <div className="chips">
-          {opcoes.pagadoresLancar.map((p) => (
-            <button
-              key={p}
-              type="button"
-              className="chip"
-              aria-pressed={pagador === p}
-              onClick={() => {
-                setPagador(p);
-                setPagoIrwinManual(null);
-              }}
-            >
-              <i className={'pt ' + (p === 'Irwin' ? 'i' : p === 'Maria' ? 'm' : 'duo')} />
-              {p === 'Ambos' ? 'Os dois' : p}
-            </button>
-          ))}
-        </div>
-
-        {pagador === 'Ambos' && (
-          <>
-            <div className="rot sep">Quanto cada um pagou</div>
-            <div className="partes">
-              <div className="parte i">
-                <div className="quem">Irwin pagou</div>
-                <div className="moeda">
-                  <span className="cifra">R$</span>
-                  <input
-                    inputMode="decimal"
-                    value={numero(pagoIrwin)}
-                    aria-label="Quanto o Irwin pagou"
-                    onChange={(e) => setPagoIrwinManual(Math.min(lerMoeda(mascaraMoeda(e.target.value)), total))}
-                  />
-                </div>
-              </div>
-              <div className="parte m">
-                <div className="quem">Maria pagou</div>
-                <div className="moeda">
-                  <span className="cifra">R$</span>
-                  <input
-                    inputMode="decimal"
-                    value={numero(arred(total - pagoIrwin))}
-                    aria-label="Quanto a Maria pagou"
-                    onChange={(e) =>
-                      setPagoIrwinManual(
-                        arred(total - Math.min(lerMoeda(mascaraMoeda(e.target.value)), total)),
-                      )
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-            <p className="nota">
-              Por padrão cada um paga a própria parte, e aí <b>não nasce dívida</b>. Mexa aqui se
-              um cobriu o outro.
-            </p>
-          </>
-        )}
-
-        <div className="rot sep">
-          2 · De quem é o gasto <span className="leve">como dividir o custo</span>
-        </div>
-        <div className="chips">
-          {DIVISOES.map((d) => (
-            <button
-              key={d}
-              type="button"
-              className="chip"
-              aria-pressed={divisao === d}
-              onClick={() => escolherDivisao(d)}
-            >
-              {ROTULO_DIVISAO[d]}
-              {d === 'Renda' && <small>a definir</small>}
-            </button>
-          ))}
-        </div>
-
-        {ehFora && (
-          <>
-            <label className="campo" style={{ marginTop: 12 }}>
-              <span>De quem é esse gasto</span>
-              <select value={quemDeFora} onChange={(e) => setQuemDeFora(e.target.value)}>
-                {DE_FORA.map((q) => (
-                  <option key={q}>{q}</option>
-                ))}
-              </select>
-            </label>
-            <p className="aviso">
-              Fica <b>registrado e fora das duas contas</b>: não entra no gasto do mês nem no
-              acerto entre vocês. O registro serve para a compra não ser confundida com despesa de
-              vocês toda vez que reaparecer na fatura.
-            </p>
-          </>
-        )}
-
-        {!ehFora && (
-        <div className="partes">
-          <div className="parte i">
-            <div className="quem">Parte do Irwin</div>
-            <div className="moeda">
-              <span className="cifra">R$</span>
-              <input
-                inputMode="decimal"
-                disabled={divisao !== 'Custom'}
-                value={digitando?.lado === 'irwin' ? digitando.texto : numero(parteIrwin)}
-                aria-label="Parte do Irwin"
-                onChange={(e) => digitouParte('irwin', mascaraMoeda(e.target.value))}
-                onBlur={() => setDigitando(null)}
-              />
-            </div>
-            <div className="pct">{total > 0 ? (fracao * 100).toFixed(1) : '0,0'}%</div>
-          </div>
-          <div className="parte m">
-            <div className="quem">Parte da Maria</div>
-            <div className="moeda">
-              <span className="cifra">R$</span>
-              <input
-                inputMode="decimal"
-                disabled={divisao !== 'Custom'}
-                value={digitando?.lado === 'maria' ? digitando.texto : numero(parteMaria)}
-                aria-label="Parte da Maria"
-                onChange={(e) => digitouParte('maria', mascaraMoeda(e.target.value))}
-                onBlur={() => setDigitando(null)}
-              />
-            </div>
-            <div className="pct">{total > 0 ? ((1 - fracao) * 100).toFixed(1) : '0,0'}%</div>
-          </div>
-        </div>
-        )}
-
-        {!ehFora && (
-        <div className="conta">
-          <div className="cab">
-            <span>A conta das duas respostas</span>
-            <span>Irwin</span>
-          </div>
-          <div>
-            <span>Irwin pagou</span>
-            <span className="n">R$ {numero(pagoIrwin)}</span>
-          </div>
-          <div>
-            <span>Ele deve</span>
-            <span className="n">− R$ {numero(parteIrwin)}</span>
-          </div>
-          <div className="fecho">
-            <span>
-              {efeito === 0
-                ? 'Não mexe no acerto'
-                : efeito > 0
-                  ? 'A Maria passa a dever'
-                  : 'O Irwin passa a dever'}
-            </span>
-            <span className="n">R$ {numero(Math.abs(efeito))}</span>
-          </div>
-        </div>
-        )}
-
-        {divisao === 'Renda' && (
-          <p className="aviso">
-            A proporção de renda está em <b>{(opcoes.pctIrwinRenda * 100).toFixed(2)}%</b> para o
-            Irwin, herdada da planilha. Enquanto vocês não definirem a de agora, confira o número
-            antes de salvar.
-          </p>
-        )}
-        {avisoValor && (
-          <p className="aviso">
-            O valor total mudou. A proporção que você definiu foi mantida, então os reais
-            acompanharam.
-          </p>
-        )}
-      </div>
+      <DivisaoEPagador
+        total={total}
+        valor={reparticao}
+        aoMudar={setReparticao}
+        pagadores={opcoes.pagadoresLancar}
+        pctIrwinRenda={opcoes.pctIrwinRenda}
+        avisoValor={avisoValor}
+      />
 
       {/* EDITANDO: a repetição sai da tela, e no lugar entra o caminho para a
           série. Editar uma linha nunca reparcela a compra — quem faz isso é a

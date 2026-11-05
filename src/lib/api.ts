@@ -1045,6 +1045,7 @@ interface LinhaSerie {
   pago_irwin: string | null;
   saldo_irwin: string | null;
   gasto_de: string | null;
+  de_fora: boolean | null;
 }
 
 /** O valor que mais se repete. É o que a tela mostra como “o valor da série”. */
@@ -1125,7 +1126,7 @@ export async function obterSerie(id: number, ancora?: number, pessoa: Pessoa | n
 
   const linhas = await db.execute<LinhaSerie & Record<string, unknown>>(
     sql`select id, seq, data, descricao, categoria, tipo, fonte, valor_total, divisao,
-               pct_irwin_custom, quem_pagou, pago_irwin, saldo_irwin, gasto_de
+               pct_irwin_custom, quem_pagou, pago_irwin, saldo_irwin, gasto_de, de_fora
         from v_lancamentos where serie_id = ${id}
         order by data, id`,
   );
@@ -1213,6 +1214,13 @@ export async function obterSerie(id: number, ancora?: number, pessoa: Pessoa | n
           fonte: atual.fonte,
           divisao: atual.divisao,
           quemPagou: atual.quem_pagou,
+          // Sem estes três a tela de série não consegue PREENCHER o bloco de
+          // rateio: abriria propondo 50/50 numa série que é 70/30, e o botão
+          // nasceria aceso oferecendo uma mudança que ninguém pediu.
+          pctIrwinCustom:
+            atual.pct_irwin_custom === null ? null : Number(atual.pct_irwin_custom) * 100,
+          deFora: atual.de_fora ?? false,
+          gastoDe: atual.gasto_de ?? null,
         }
       : { categoria: '', tipo: '', fonte: null, divisao: '50/50', quemPagou: null },
     variam: camposQueVariam(linhas),
@@ -1276,6 +1284,15 @@ export interface MudancasSerie {
   pctIrwinCustom?: number | string | null;
   quemPagou?: string | null;
   gastoDe?: string | null;
+  /**
+   * `De fora` também vale para série inteira.
+   *
+   * Faltava, e o sintoma era o mesmo do lançamento avulso: a divisão podia
+   * virar 'De fora' na tela e a coluna continuava `false`, deixando a série
+   * mexendo no acerto. Regra nº 3 — o campo tem que existir nas quatro portas
+   * ou não existe em nenhuma.
+   */
+  deFora?: boolean;
   /** Valor de UMA parcela/ocorrência. */
   valor?: number | string;
   /**
@@ -1294,7 +1311,7 @@ async function linhasDoEscopo(serieId: number, escopo: EscopoSerie, ancoraId?: n
 
   const todas = await db.execute<LinhaSerie & Record<string, unknown>>(
     sql`select id, seq, data, descricao, categoria, tipo, fonte, valor_total, divisao,
-               pct_irwin_custom, quem_pagou, pago_irwin, saldo_irwin, gasto_de
+               pct_irwin_custom, quem_pagou, pago_irwin, saldo_irwin, gasto_de, de_fora
         from v_lancamentos where serie_id = ${serieId} order by data, id`,
   );
 
@@ -1360,6 +1377,10 @@ function aplicarMudancas(
     quemPagou,
     pagoIrwin,
     gastoDe: m.gastoDe !== undefined ? m.gastoDe || null : l.gasto_de,
+    // A divisão manda: escolher 'De fora' na tela JÁ quer dizer de_fora. Ler
+    // só `m.deFora` deixaria os dois discordando quando a tela mudasse um sem
+    // o outro — e discordar aqui significa série fora do acerto sem aviso.
+    deFora: divisao === 'De fora' ? true : (m.deFora ?? l.de_fora ?? false),
     saldoIrwin: (pagoIrwin ?? 0) - valorDaLinha * pct,
   };
 }
@@ -1533,7 +1554,7 @@ export async function atualizarSerie(
               pct_irwin_custom = ${d.pctCustomFracao}, pct_irwin = ${d.pct},
               eh_quitacao = ${ehQuitacaoDe(d.categoria)},
               quem_pagou = ${d.quemPagou}, pago_irwin = ${d.pagoIrwin},
-              gasto_de = ${d.gastoDe}
+              gasto_de = ${d.gastoDe}, de_fora = ${d.deFora}
             where id = ${alvo[i].id}`,
       );
     }
