@@ -90,6 +90,29 @@ function exigirPagador(quemPagou: unknown): string {
   return q;
 }
 
+/**
+ * `De fora` exige o nome de quem é o gasto — a mesma lógica do pagador
+ * obrigatório, aplicada à outra conta.
+ *
+ * Sem o nome o lançamento fica fora das duas contas E fora da dívida de
+ * terceiro: desaparece de tudo, silenciosamente. Era exatamente esse silêncio
+ * que fazia a Vivo da mãe do Irwin não ser lançada.
+ *
+ * A trava é no servidor e não só na tela porque as três portas de gravação
+ * (salvar, editar, importar em lote) chegam aqui, e foi assim que o pagador
+ * obrigatório pegou os casos que a tela deixava passar.
+ */
+function exigirDonoSeDeFora(deFora: unknown, gastoDe: unknown): string | null {
+  if (!deFora) return String(gastoDe ?? '').trim() || null;
+  const nome = String(gastoDe ?? '').trim();
+  if (!nome) {
+    throw new Error(
+      'Diga de quem é o gasto — sem o nome, "De fora" sai das suas contas e também da dívida de quem deve devolver.',
+    );
+  }
+  return nome;
+}
+
 interface LinhaView extends Record<string, unknown> {
   id: number;
   data: Date | string;
@@ -479,16 +502,30 @@ export async function getAcertoContas() {
     return Number(saldo);
   }
 
-  const [mesAtual, mesSeguinte, total] = await Promise.all([
+  /* A dívida de terceiro vem junto, e não numa chamada própria, por um motivo
+     só: a tela inicial não vai pedir duas coisas para desenhar uma linha. Ela
+     é contabilmente OUTRA conta — `de_fora` já zerou o efeito destes gastos no
+     acerto do casal — e a tela diz isso com todas as letras. Vem aqui porque
+     este é o método que o Início já chama. */
+  const [mesAtual, mesSeguinte, total, terceiros] = await Promise.all([
     saldoAte(0),
     saldoAte(1),
     saldoAte(null),
+    db.execute<{ aberto: string; pessoas: number }>(
+      sql`select coalesce(sum(saldo), 0)::text as aberto,
+                 count(*)::int as pessoas
+            from v_terceiros where saldo > 0.005`,
+    ),
   ]);
 
   return {
     mesAtual: { saldo: mesAtual, situacao: situacaoDoSaldo(mesAtual) },
     mesSeguinte: { saldo: mesSeguinte, situacao: situacaoDoSaldo(mesSeguinte) },
     total: { saldo: total, situacao: situacaoDoSaldo(total) },
+    terceiros: {
+      aberto: Number(terceiros[0]?.aberto ?? 0),
+      pessoas: Number(terceiros[0]?.pessoas ?? 0),
+    },
   };
 }
 
@@ -609,6 +646,7 @@ export async function salvarLancamento(dados: DadosLancamento) {
   if (!dados.grupo) throw new Error('Escolha a categoria.');
   if (!dados.tipo) throw new Error('Escolha o tipo.');
   const quemPagou = exigirPagador(dados.quemPagou);
+  exigirDonoSeDeFora(dados.deFora, dados.gastoDe);
 
   // Todo gasto recorrente é Fixa.
   const tipo = dados.repetir ? 'Fixa' : dados.tipo;
@@ -740,6 +778,7 @@ export async function salvarLancamento(dados: DadosLancamento) {
 
 export async function atualizarLancamento(id: number, dados: DadosLancamento) {
   const quemPagouAtual = exigirPagador(dados.quemPagou);
+  exigirDonoSeDeFora(dados.deFora, dados.gastoDe);
   const pct = pctIrwinDe(dados.divisao, Number(dados.pctIrwinCustom));
   const valor = arred(Number(dados.valor));
   const parteIrwin = arred(valor * pct);
@@ -1451,7 +1490,10 @@ function aplicarMudancas(
     pct,
     quemPagou,
     pagoIrwin,
-    gastoDe: m.gastoDe !== undefined ? m.gastoDe || null : l.gasto_de,
+    gastoDe: exigirDonoSeDeFora(
+      divisao === 'De fora' ? true : (m.deFora ?? l.de_fora ?? false),
+      m.gastoDe !== undefined ? m.gastoDe : l.gasto_de,
+    ),
     // A divisão manda: escolher 'De fora' na tela JÁ quer dizer de_fora. Ler
     // só `m.deFora` deixaria os dois discordando quando a tela mudasse um sem
     // o outro — e discordar aqui significa série fora do acerto sem aviso.
@@ -2059,6 +2101,9 @@ export async function lancarFatura(
   },
 ) {
   if (!linhas.length) throw new Error('Nada marcado para lançar.');
+  // Um lote de 86 linhas é onde um `De fora` sem dono passa despercebido: a
+  // linha fica fora das duas contas e fora da dívida, e ninguém reconfere 86.
+  for (const l of linhas) exigirDonoSeDeFora(l.deFora, l.gastoDe);
   for (const l of linhas) exigirPagador(l.quemPagou);
 
   const pctRenda = await pctDaRenda();
@@ -2364,4 +2409,153 @@ export async function conciliarValor(idLancamento: number, novoValor: number) {
         where id = ${idLancamento}`,
   );
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Terceiros — quem pagamos e quem nos deve
+//
+// A dívida de um terceiro NÃO é gravada em nenhum lugar: ela sai de
+// `v_terceiros`, que soma os lançamentos `de_fora` dele e desconta as
+// devoluções. Ver o cabeçalho da tabela `reembolsos` para o porquê.
+//
+// Nada aqui toca o acerto entre Irwin e Maria. `de_fora` já zera o
+// `saldo_irwin` do lançamento, e `reembolsos` é tabela própria — de propósito,
+// e não por falta de alternativa: encaixar a devolução de um terceiro em
+// `acerto_contas` funcionaria na aritmética de hoje e explodiria no primeiro
+// `quem_pagou = 'Irwin'` com `para_quem` fora do casal, somando a dívida da
+// mãe dele ao que a Maria deve. Tabela separada não tem como errar isso.
+// ---------------------------------------------------------------------------
+
+export interface Terceiro {
+  pessoa: string;
+  adiantado: number;
+  devolvido: number;
+  saldo: number;
+  lancamentos: number;
+  devolucoes: number;
+  primeiroGasto: string | null;
+  ultimoGasto: string | null;
+  ultimaDevolucao: string | null;
+}
+
+/** Todos os terceiros com movimento, quem deve primeiro. */
+export async function listarTerceiros(): Promise<Terceiro[]> {
+  const linhas = await db.execute<{
+    pessoa: string;
+    adiantado: string;
+    devolvido: string;
+    saldo: string;
+    lancamentos: number;
+    devolucoes: number;
+    primeiro_gasto: unknown;
+    ultimo_gasto: unknown;
+    ultima_devolucao: unknown;
+  }>(sql`select * from v_terceiros order by saldo desc, pessoa`);
+
+  return linhas.map((r) => ({
+    pessoa: r.pessoa,
+    adiantado: Number(r.adiantado),
+    devolvido: Number(r.devolvido),
+    saldo: Number(r.saldo),
+    lancamentos: Number(r.lancamentos),
+    devolucoes: Number(r.devolucoes),
+    primeiroGasto: r.primeiro_gasto ? isoDaLinha(r.primeiro_gasto) : null,
+    ultimoGasto: r.ultimo_gasto ? isoDaLinha(r.ultimo_gasto) : null,
+    ultimaDevolucao: r.ultima_devolucao ? isoDaLinha(r.ultima_devolucao) : null,
+  }));
+}
+
+/**
+ * O extrato de uma pessoa: os gastos que passaram pelo nosso cartão e as
+ * devoluções, numa linha do tempo só.
+ *
+ * Duas listas separadas obrigariam quem olha a intercalar as datas de cabeça
+ * para responder "ela pagou aquele mês?" — que é a única pergunta que se faz
+ * nesta tela.
+ */
+export async function extratoTerceiro(pessoa: string) {
+  const [gastos, devolucoes] = await Promise.all([
+    db.execute<{ id: number; data: unknown; descricao: string; valor_total: string; quem_pagou: string | null }>(
+      sql`select id, data, descricao, valor_total, quem_pagou
+            from lancamentos
+           where de_fora and gasto_de = ${pessoa}
+           order by data desc, id desc`,
+    ),
+    db.execute<{ id: number; data: unknown; valor: string; para_quem: string; obs: string | null }>(
+      sql`select id, data, valor, para_quem, obs from reembolsos
+           where pessoa = ${pessoa} order by data desc, id desc`,
+    ),
+  ]);
+
+  const [t] = await listarTerceirosDe(pessoa);
+  return {
+    pessoa,
+    saldo: t?.saldo ?? 0,
+    adiantado: t?.adiantado ?? 0,
+    devolvido: t?.devolvido ?? 0,
+    gastos: gastos.map((g) => ({
+      id: g.id,
+      data: isoDaLinha(g.data),
+      descricao: g.descricao,
+      valor: Number(g.valor_total),
+      quemPagou: g.quem_pagou,
+    })),
+    devolucoes: devolucoes.map((d) => ({
+      id: d.id,
+      data: isoDaLinha(d.data),
+      valor: Number(d.valor),
+      paraQuem: d.para_quem,
+      obs: d.obs,
+    })),
+  };
+}
+
+async function listarTerceirosDe(pessoa: string): Promise<Terceiro[]> {
+  const todos = await listarTerceiros();
+  return todos.filter((t) => t.pessoa === pessoa);
+}
+
+/**
+ * Registra que um terceiro devolveu dinheiro.
+ *
+ * `paraQuem` é obrigatório pela mesma razão que o pagador de um lançamento é
+ * (A4): sem saber quem recebeu, a devolução some do controle de quem adiantou.
+ * O valor pode ser maior que o saldo — a mãe pode adiantar o mês que vem — e
+ * por isso não há trava, só o saldo negativo aparecendo na tela.
+ */
+export async function registrarReembolso(dados: {
+  pessoa: string;
+  paraQuem: string;
+  valor: number;
+  data: string;
+  obs?: string | null;
+  lancamentoId?: number | null;
+}) {
+  const pessoa = String(dados.pessoa ?? '').trim();
+  if (!pessoa) throw new Error('Diga de quem é a devolução.');
+
+  const paraQuem = String(dados.paraQuem ?? '').trim();
+  if (paraQuem !== 'Irwin' && paraQuem !== 'Maria')
+    throw new Error('Diga quem recebeu a devolução.');
+
+  const valor = arred(Number(dados.valor));
+  if (!(valor > 0)) throw new Error('O valor da devolução tem que ser maior que zero.');
+
+  if (!dados.data) throw new Error('Diga a data da devolução.');
+
+  const [r] = await db.execute<{ id: number }>(
+    sql`insert into reembolsos (data, pessoa, para_quem, valor, obs, lancamento_id)
+        values (${dados.data}::date, ${pessoa}, ${paraQuem}, ${valor},
+                ${dados.obs?.trim() || null}, ${dados.lancamentoId ?? null})
+        returning id`,
+  );
+  return { id: r.id, saldo: (await listarTerceirosDe(pessoa))[0]?.saldo ?? 0 };
+}
+
+export async function excluirReembolso(id: number) {
+  const [r] = await db.execute<{ pessoa: string }>(
+    sql`delete from reembolsos where id = ${id} returning pessoa`,
+  );
+  if (!r) throw new Error('Devolução não encontrada.');
+  return { ok: true, pessoa: r.pessoa };
 }

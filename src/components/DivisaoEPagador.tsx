@@ -46,7 +46,19 @@ export const ROTULO_DIVISAO: Record<Divisao, string> = {
 };
 
 /** Quem pode ser dono de um gasto que não é do casal. */
-export const DE_FORA = ['Mãe do Irwin', 'Avô da Maria', 'Outra pessoa'];
+/**
+ * Os terceiros conhecidos. Atalho, não lista fechada: quem não está aqui entra
+ * por `Outra pessoa`, que pede o nome.
+ *
+ * `Outra pessoa` SAIU desta lista quando a dívida de terceiro passou a ser
+ * agrupada por este campo (`v_terceiros`). Como rótulo gravado, ela virava uma
+ * pessoa só no saldo — somando o que a mãe deve com o que um amigo deve. Como
+ * opção que pede o nome, resolve o mesmo caso sem criar o saldo sem dono.
+ */
+export const DE_FORA = ['Mãe do Irwin', 'Avô da Maria'];
+
+/** Rótulo da opção que abre o campo de nome. Nunca é gravado. */
+export const OUTRA = 'Outra pessoa';
 
 const arred = (v: number) => Math.round(v * 100) / 100;
 
@@ -257,18 +269,40 @@ export default function DivisaoEPagador({
           <label className="campo" style={{ marginTop: 12 }}>
             <span>De quem é esse gasto</span>
             <select
-              value={r.quemDeFora}
-              onChange={(e) => aoMudar({ ...r, quemDeFora: e.target.value })}
+              value={DE_FORA.includes(r.quemDeFora) ? r.quemDeFora : OUTRA}
+              onChange={(e) =>
+                aoMudar({ ...r, quemDeFora: e.target.value === OUTRA ? '' : e.target.value })
+              }
             >
               {DE_FORA.map((q) => (
                 <option key={q}>{q}</option>
               ))}
+              <option value={OUTRA}>{OUTRA}</option>
             </select>
           </label>
+
+          {/* O NOME É OBRIGATÓRIO, e não é burocracia: a dívida de terceiro é
+              agrupada por este campo. Um "Outra pessoa" genérico somaria numa
+              linha só o que a mãe do Irwin deve e o que um amigo deve, e um
+              saldo de duas pessoas diferentes não serve para cobrar nenhuma
+              das duas. Ver `v_terceiros`. */}
+          {!DE_FORA.includes(r.quemDeFora) && (
+            <label className="campo">
+              <span>Nome de quem é</span>
+              <input
+                type="text"
+                value={r.quemDeFora}
+                placeholder="Quem vai devolver"
+                onChange={(e) => aoMudar({ ...r, quemDeFora: e.target.value })}
+              />
+            </label>
+          )}
+
           <p className="aviso">
             Fica <b>registrado e fora das duas contas</b>: não entra no gasto do mês nem no acerto
             entre vocês. O registro serve para a compra não ser confundida com despesa de vocês
-            toda vez que reaparecer na fatura.
+            toda vez que reaparecer na fatura. A dívida aparece em{' '}
+            <b>Quem nos deve</b>, e é lá que a devolução é registrada.
           </p>
         </>
       )}

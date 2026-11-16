@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // `docs/` é material de referência, não código do app: o handoff de design
+    // tem um scaffold copiado que roda no navegador com `React` global, e ele
+    // nunca entra no bundle. Lintá-lo falha a bateria por algo que não é defeito.
+    "docs/**",
   ]),
 ]);
 

@@ -1975,3 +1975,123 @@ a.btn-linha {
   color: var(--neg);
   font-weight: 700;
 }
+
+/* =====================================================================
+   Terceiros — quem nos deve
+
+   Reaproveita `card`, `card suave`, `titulo-lista`, `vazio` e `aviso`: é a
+   mesma gramática das outras telas, e inventar um visual próprio aqui faria
+   parecer outro app. O que é novo é só a linha pessoa + saldo.
+   ===================================================================== */
+
+.terceiros .t-rot {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--texto2);
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+/* O saldo é o número que a tela existe para mostrar: 26px, tabular, e com a
+   cor dizendo a direção. Sem `tabular-nums` duas pessoas com valores de
+   tamanhos diferentes desalinham a vírgula e a comparação fica mais lenta. */
+.terceiros .terceiro-saldo {
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+.terceiros .terceiro-saldo.pos { color: var(--pos); }
+.terceiros .terceiro-saldo.neg { color: var(--neg); }
+
+.terceiros .terceiro-conta {
+  margin-top: 5px;
+  font-size: 12.5px;
+  color: var(--texto3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A linha é a mesma forma da lista de lançamentos: nome e meta à esquerda,
+   número à direita, separador entre linhas e nenhum na última. */
+.terceiros .linha-terceiro {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--borda-card);
+  text-decoration: none;
+  color: inherit;
+}
+.terceiros .linha-terceiro:last-child { border-bottom: none; }
+
+.terceiros .lt-nome { flex: 1; min-width: 0; }
+.terceiros .lt-nome b {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.terceiros .lt-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--texto3);
+}
+
+.terceiros .lt-saldo {
+  flex: 0 0 auto;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--texto2);
+}
+.terceiros .lt-saldo.pos { color: var(--pos); }
+.terceiros .lt-saldo.neg { color: var(--neg); }
+
+.terceiros .form-devolucao { padding: 8px 0 4px; }
+.terceiros .form-devolucao .grade { margin-bottom: 11px; }
+
+/* Irwin e Maria como dois botões e não um `select`: são duas opções, sempre as
+   mesmas, e um menu de duas entradas custa dois toques onde um basta. */
+.terceiros .escolhas { display: flex; gap: 8px; }
+.terceiros .escolhas button {
+  flex: 1;
+  padding: 9px;
+  border: 1px solid var(--borda-input);
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.terceiros .escolhas button.on {
+  border-color: var(--verde);
+  background: var(--verde);
+  color: #fff;
+  font-weight: 700;
+}
+
+.terceiros .acoes-devolucao {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+.terceiros .acoes-devolucao .btn-linha { margin-top: 0; }
+
+.terceiros .t-erro {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #fff;
+  background: var(--fixa, #a63a2e);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.terceiros .linha-terceiro .tirar {
+  flex: 0 0 auto;
+  color: var(--neg);
+}

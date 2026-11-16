@@ -102,3 +102,57 @@ select
 from series s
 left join lancamentos l on l.serie_id = s.id
 group by s.id, s.tipo, s.descricao, s.total, s.recorrencia_id, s.origem;
+
+-- =====================================================================
+-- v_terceiros
+--
+-- Quanto cada pessoa de fora deve ao casal, derivado — nunca gravado.
+--
+-- adiantado  = soma dos lançamentos `de_fora` dela (passou pelo nosso cartão)
+-- devolvido  = soma das devoluções registradas em `reembolsos`
+-- saldo      = adiantado − devolvido   (positivo = ela deve)
+--
+-- POR QUE DERIVAR E NÃO GUARDAR
+--
+-- Um saldo gravado precisa concordar com as linhas que o formam, e quando
+-- discorda não há como saber qual dos dois está certo. É a mesma razão pela
+-- qual `Saldo Irwin` era fórmula na planilha e não número digitado.
+--
+-- FULL JOIN e não LEFT: a pessoa pode aparecer só de um lado. Com LEFT a
+-- partir dos lançamentos, uma devolução de alguém sem `de_fora` nenhum
+-- desapareceria da tela — e uma devolução sem dívida é justamente o que
+-- alguém vai querer conferir.
+-- =====================================================================
+
+drop view if exists v_terceiros;
+
+create view v_terceiros as
+with adiantado as (
+  select gasto_de as pessoa,
+         sum(valor_total)  as valor,
+         count(*)::int     as lancamentos,
+         min(data)         as primeiro,
+         max(data)         as ultimo
+    from lancamentos
+   where de_fora and coalesce(gasto_de, '') <> ''
+   group by gasto_de
+), devolvido as (
+  select pessoa,
+         sum(valor)     as valor,
+         count(*)::int  as devolucoes,
+         max(data)      as ultima
+    from reembolsos
+   group by pessoa
+)
+select
+  coalesce(a.pessoa, d.pessoa)                            as pessoa,
+  coalesce(a.valor, 0)                                    as adiantado,
+  coalesce(d.valor, 0)                                    as devolvido,
+  coalesce(a.valor, 0) - coalesce(d.valor, 0)             as saldo,
+  coalesce(a.lancamentos, 0)                              as lancamentos,
+  coalesce(d.devolucoes, 0)                               as devolucoes,
+  a.primeiro                                              as primeiro_gasto,
+  a.ultimo                                                as ultimo_gasto,
+  d.ultima                                                as ultima_devolucao
+from adiantado a
+full join devolvido d on d.pessoa = a.pessoa;

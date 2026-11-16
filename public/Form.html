@@ -253,6 +253,15 @@ input.valor-grande{font-size:16px;font-weight:700;letter-spacing:.2px}
    meses com valor de quatro dígitos — em 12px todos cabem sem reticência. */
 .acerto-frase .mes{font-size:12px;font-weight:500;letter-spacing:.3px}
 .acerto-proj{font-size:12.5px;color:var(--texto3);margin-top:7px;font-variant-numeric:tabular-nums}
+/* Dívida de terceiro: linha discreta, e só quando existe. Não é card porque
+   não é da mesma conta do acerto — misturar as duas coisas num bloco só faria
+   parecer que uma soma na outra. Fica fora do card de propósito. */
+a.linha-terceiros{display:flex;align-items:center;gap:8px;margin:-4px 0 10px;padding:9px 12px;
+  border:1px solid var(--borda-card);border-radius:12px;background:var(--bg);
+  text-decoration:none;color:inherit;font-size:13px}
+a.linha-terceiros .q{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--texto2)}
+a.linha-terceiros b{flex:0 0 auto;font-weight:700;font-size:14px;color:var(--pos);font-variant-numeric:tabular-nums}
+a.linha-terceiros .seta{flex:0 0 auto;color:var(--texto3)}
 .acerto-proj .pos{color:var(--pos);font-weight:700}
 .acerto-proj .neg{color:var(--neg);font-weight:700}
 .acerto-linha .avatar-acerto{width:22px;height:22px;flex:0 0 22px}
@@ -515,6 +524,11 @@ select#classeInvest{margin-top:0}
             </div>
           </div>
         </div>
+        <a class="linha-terceiros" id="linhaTerceiros" href="/terceiros" style="display:none">
+          <span class="q" id="terceirosTexto"></span>
+          <b id="terceirosValor"></b>
+          <span class="seta">›</span>
+        </a>
         <div class="card">
           <label style="display:block;font-size:12px;color:var(--texto2);margin-bottom:8px">Lançamentos recentes</label>
           <input type="text" id="buscaLanc" class="busca-lanc" placeholder="Buscar por nome, data ou valor">
@@ -1025,6 +1039,22 @@ function renderAcerto(){
 
     const quite = Math.abs(a.mesAtual.saldo) < 0.005;
     $('btnQuitar').style.display = quite ? 'none' : 'block';
+
+    /* A linha de terceiros só aparece quando alguém deve. Vazia ela seria
+       ruído permanente numa tela em que cada pixel foi disputado: o card do
+       acerto desceu de 161px para 81px justamente para caber mais lançamento.
+       E ela diz "fora do acerto" porque o número fica ao lado do saldo do
+       casal, e dois números vizinhos são lidos como somáveis. */
+    const t = a.terceiros;
+    if (t && t.pessoas > 0){
+      $('terceirosTexto').textContent =
+        (t.pessoas === 1 ? 'Terceiro a receber' : t.pessoas + ' terceiros a receber') +
+        ' · fora do acerto';
+      $('terceirosValor').textContent = 'R$ ' + formatarValorMascara(t.aberto);
+      $('linhaTerceiros').style.display = 'flex';
+    } else {
+      $('linhaTerceiros').style.display = 'none';
+    }
   }
 }
 

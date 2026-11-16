@@ -393,6 +393,63 @@ mão: `Mensalidade - Plano Do Cartão` contra a recorrência `Anuidade Cartão`.
 **Como provar:** importar uma fatura com um gasto já coberto por regra ativa no mesmo
 mês. A linha tem que chegar na aba "Já no app", não em "Novos".
 
+### A23. `De fora` sem dono desaparece de tudo
+
+**Regra:** um lançamento marcado `de_fora` **exige** o nome de quem é o gasto
+(`gasto_de`), recusado nas três portas — salvar, editar e importar em lote.
+
+**Se violada:** `de_fora` zera o `saldo_irwin` da linha, então ela não entra no acerto do
+casal. A dívida de terceiro é agrupada por `gasto_de`, então sem o nome ela também não
+entra ali. A linha fica registrada e **invisível nas duas contas** — o pior caso
+possível, porque a tela não acusa nada.
+
+É a A4 aplicada à outra conta, e tem a mesma origem: o lançamento sem pagador também
+sumia do acerto em silêncio, e foram 19 linhas até alguém notar.
+
+> Consequência de desenho: `Outra pessoa` deixou de ser rótulo gravável. Como valor em
+> `gasto_de` ela virava uma pessoa só no saldo, somando o que a mãe do Irwin deve ao que
+> um amigo deve — um saldo de duas pessoas não serve para cobrar nenhuma das duas. Hoje
+> ela é a opção que **pede o nome**.
+
+**Como provar:** `scripts/invariantes.ts`, check `de-fora-tem-dono`. Plantar uma linha
+`de_fora` com `gasto_de` nulo: o check tem que falhar nomeando a linha. Verificado em
+16/11/2026 plantando `SEMENTE orfã`, R$ 99,00 — acusou.
+
+### A24. `De fora` nunca mexe no acerto do casal, e a dívida dele é derivada
+
+**Regra:** duas coisas que andam juntas.
+
+1. A soma do efeito no acerto dos lançamentos `de_fora` é **exatamente zero**. É conta
+   com outra pessoa, não dívida entre os dois.
+2. Quanto um terceiro deve **não é gravado em lugar nenhum**: sai de `v_terceiros`, que
+   soma os `de_fora` dele e desconta as devoluções da tabela `reembolsos`.
+
+**Se violada:** (1) gastos de terceiro passariam a criar dívida entre Irwin e Maria —
+medido com três linhas semeadas, R$ 299,00 de dívida que a regra evita. (2) um saldo
+gravado precisa concordar com as linhas que o formam, e quando discorda não há como
+saber qual dos dois está certo. É a mesma razão pela qual `Saldo Irwin` era fórmula na
+planilha, não número digitado.
+
+> Por que `reembolsos` é tabela própria e não uma linha em `acerto_contas`: encaixar a
+> devolução de um terceiro lá funcionaria na aritmética de hoje e explodiria no primeiro
+> `quem_pagou = 'Irwin'` com `para_quem` fora do casal — o `case` do acerto somaria a
+> dívida da mãe dele ao que a Maria deve. Tabela separada não tem como errar isso.
+
+**O caso que mandou fazer:** a conta da Vivo da mãe do Irwin. Ele paga, ela devolve.
+Antes disto a única saída era **não lançar**: R$ 3.499,00 em dez meses fora do app,
+porque marcar `de_fora` tirava o gasto das contas sem criar o crédito.
+
+**Como provar:** `scripts/invariantes.ts`, checks `de-fora-nao-mexe-no-acerto` e
+`terceiros-derivado` — o segundo recalcula o saldo de cada pessoa por fora da view.
+Verificado ponta a ponta em 16/11/2026: lançar R$ 200 `De fora` não moveu o acerto
+(R$ 5.015,99 antes e depois), a dívida apareceu, duas devoluções zeraram.
+
+> **Armadilha que isto já cobrou:** o check `acerto-dois-caminhos` falhou no dia em que
+> `de_fora` ganhou o primeiro dado. Não era defeito do app — o segundo caminho tinha
+> sido escrito antes da coluna existir e parou de encodar a mesma regra. **O que precisa
+> ser independente num check de dois caminhos é a implementação, não a regra:** um
+> segundo caminho que ignora uma regra do primeiro não verifica, só discorda.
+
 ## Parte B — Leitura, ordem e identidade
 
 Invariantes de arquitetura. Independem de qual é o banco.

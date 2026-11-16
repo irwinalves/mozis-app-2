@@ -372,3 +372,52 @@ export const patrimonio = pgTable('patrimonio', {
   dividas: numeric('dividas', { precision: 14, scale: 2 }),
   patrimonioLiquido: numeric('patrimonio_liquido', { precision: 14, scale: 2 }),
 });
+
+/**
+ * Devolução de um terceiro — a outra metade do `de_fora`.
+ *
+ * POR QUE PRECISA EXISTIR, E POR QUE `de_fora` SOZINHO NÃO BASTA
+ *
+ * `de_fora` diz que a compra passou pelo cartão e não é gasto do casal. Não
+ * diz se o dinheiro já voltou. São dois estados bem diferentes, e eles têm
+ * exemplo real cada um:
+ *
+ *   - a conta da Vivo da mãe do Irwin — ele paga, ela devolve **depois**;
+ *   - a passagem do avô da Maria — o dinheiro veio **antes**, em espécie.
+ *
+ * Nos dois o lançamento é idêntico. O que muda é o saldo, e sem este registro
+ * o app não tem como distinguir "ela me deve R$ 200" de "já está pago". Foi
+ * essa a lacuna que fez a Vivo nunca ser lançada: R$ 3.499,00 em dez meses,
+ * porque a única saída era não lançar.
+ *
+ * A DÍVIDA NÃO É GRAVADA, É DERIVADA
+ *
+ * Aqui só entra o que voltou. Quanto a pessoa deve sai de
+ * `v_terceiros`: soma dos `de_fora` dela menos soma das devoluções. Gravar o
+ * saldo criaria uma segunda verdade que precisa concordar com a primeira — o
+ * mesmo erro que a coluna `Saldo Irwin` da planilha evitou sendo fórmula.
+ *
+ * ISTO NÃO MEXE NO ACERTO DO CASAL. Nem pode: `de_fora` já zera o
+ * `saldo_irwin` do lançamento, e o acerto entre os dois lê só `v_lancamentos`
+ * e `acerto_contas`. Dívida de terceiro é outra conta, com outra pessoa.
+ */
+export const reembolsos = pgTable('reembolsos', {
+  id: serial('id').primaryKey(),
+  data: date('data').notNull(),
+  /** Quem devolveu. Casa com `lancamentos.gasto_de`. */
+  pessoa: text('pessoa').notNull(),
+  /** Quem recebeu de volta — `Irwin` ou `Maria`. */
+  paraQuem: text('para_quem').notNull(),
+  valor: numeric('valor', { precision: 12, scale: 2 }).notNull(),
+  obs: text('obs'),
+  /**
+   * O lançamento que esta devolução quita, quando é uma só.
+   *
+   * Opcional de propósito: a mãe devolve R$ 600 cobrindo três meses de Vivo, e
+   * amarrar isso a uma linha só seria mentira. O saldo nunca depende deste
+   * campo — ele serve para a tela conseguir dizer "esta devolução é daquele
+   * gasto" quando por acaso é.
+   */
+  lancamentoId: integer('lancamento_id'),
+  criadoEm: timestamp('criado_em', { withTimezone: true }).defaultNow(),
+});

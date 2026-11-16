@@ -36,6 +36,12 @@ const METODOS = {
   // A porta pela qual a importação corrige um lançamento ANTIGO por estorno
   // parcial. Só reduz valor e carimba a Obs — ver `ajustarValorLancamento`.
   ajustarValorLancamento: api.ajustarValorLancamento,
+  // Terceiros: a dívida de quem não é do casal. Nenhum destes toca o acerto
+  // entre Irwin e Maria — ver o cabeçalho do bloco em `api.ts`.
+  listarTerceiros: api.listarTerceiros,
+  extratoTerceiro: api.extratoTerceiro,
+  registrarReembolso: api.registrarReembolso,
+  excluirReembolso: api.excluirReembolso,
   previewParcelas: api.previewParcelas,
   previewRecorrencia: api.previewRecorrencia,
   salvarInvestimento: api.salvarInvestimento,

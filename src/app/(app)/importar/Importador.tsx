@@ -32,7 +32,7 @@ import { brl, comSinal, dataBR, diaMes, lerMoeda, mascaraMoeda, numero } from '@
 // `DE_FORA` vem do componente compartilhado: a lista de quem pode ser dono de
 // um gasto que não é do casal é UMA, e repeti-la aqui faria a importação e o
 // formulário discordarem no dia em que alguém entrar na lista.
-import { DE_FORA } from '@/components/DivisaoEPagador';
+import { DE_FORA, OUTRA } from '@/components/DivisaoEPagador';
 import { Avatar } from '@/components/Avatar';
 import type { Pessoa } from '@/lib/pessoas';
 
@@ -1490,14 +1490,35 @@ function Divisor({
           </div>
 
           {p.deFora && (
-            <div className="campo">
-              <label>De quem é esse gasto</label>
-              <select value={p.gastoDe} onChange={(ev) => mexer(k, { gastoDe: ev.target.value })}>
-                {DE_FORA.map((q) => (
-                  <option key={q}>{q}</option>
-                ))}
-              </select>
-            </div>
+            <>
+              <div className="campo">
+                <label>De quem é esse gasto</label>
+                <select
+                  value={DE_FORA.includes(p.gastoDe) ? p.gastoDe : OUTRA}
+                  onChange={(ev) =>
+                    mexer(k, { gastoDe: ev.target.value === OUTRA ? '' : ev.target.value })
+                  }
+                >
+                  {DE_FORA.map((q) => (
+                    <option key={q}>{q}</option>
+                  ))}
+                  <option value={OUTRA}>{OUTRA}</option>
+                </select>
+              </div>
+              {/* O nome é o que agrupa a dívida em `v_terceiros`. Sem ele o
+                  saldo não tem dono e não serve para cobrar ninguém. */}
+              {!DE_FORA.includes(p.gastoDe) && (
+                <div className="campo">
+                  <label>Nome de quem é</label>
+                  <input
+                    type="text"
+                    value={p.gastoDe}
+                    placeholder="Quem vai devolver"
+                    onChange={(ev) => mexer(k, { gastoDe: ev.target.value })}
+                  />
+                </div>
+              )}
+            </>
           )}
 
           {pedacos.length > 2 && (

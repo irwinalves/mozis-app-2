@@ -179,9 +179,18 @@ const invariantes: Invariante[] = [
       // Caminho 2: das colunas CRUAS, refazendo a aritmética aqui. Não olha a
       // view nem `pct_irwin` derivado — se a view tiver um erro de sinal ou de
       // parêntese, este caminho não o herda.
-      const cruas = await sql<{ valor_total: string; pago_irwin: string | null; pct_irwin: string }[]>`
-        select valor_total, pago_irwin, pct_irwin from lancamentos`;
+      //
+      // `de_fora` entra aqui porque ESTE CHECK FALHOU no dia em que a coluna
+      // ganhou o primeiro dado: o segundo caminho tinha sido escrito antes de
+      // ela existir e parou de encodar a mesma regra, acusando um delta de
+      // R$ 299,00 que não era defeito do app — era defeito do check. O que
+      // precisa ser independente é a IMPLEMENTAÇÃO, não a regra; um segundo
+      // caminho que ignora uma regra do primeiro não verifica, só discorda.
+      const cruas = await sql<
+        { valor_total: string; pago_irwin: string | null; pct_irwin: string; de_fora: boolean }[]
+      >`select valor_total, pago_irwin, pct_irwin, de_fora from lancamentos`;
       const viaTs = cruas.reduce((acc, l) => {
+        if (l.de_fora) return acc; // não é gasto do casal: não cria dívida entre os dois
         if (l.pago_irwin === null) return acc; // sem pagador fica fora do acerto
         return acc + (Number(l.pago_irwin) - Number(l.valor_total) * Number(l.pct_irwin));
       }, 0);
@@ -559,6 +568,116 @@ const invariantes: Invariante[] = [
         severidade: 'defeito',
         medida: `${divergentes.length} descrição(ões) em desacordo com o dado · ${reconstruidas} série(s) com numeração reconstruída por heurística`,
         exemplos: divergentes.map((d) => `#${d.id} "${d.descricao}" mas seq=${d.seq} de ${d.total}`),
+      };
+    },
+  },
+
+  {
+    id: 'de-fora-tem-dono',
+    regra: 'A4, aplicada à outra conta — `De fora` sem nome desaparece de tudo',
+    pergunta: 'Todo lançamento `de_fora` diz de quem é o gasto?',
+    checar: async () => {
+      // Sem `gasto_de` a linha sai das duas contas (de_fora zera o
+      // `saldo_irwin`) E sai da dívida de terceiro, que é agrupada por este
+      // campo. É o pior dos casos: dinheiro que não aparece em lugar nenhum.
+      const orfas = await sql<{ id: number; data: string; descricao: string; valor_total: string }[]>`
+        select id, data::text as data, descricao, valor_total from lancamentos
+        where de_fora and coalesce(gasto_de, '') = ''
+        order by data desc limit 8`;
+      const [{ n }] = await sql<{ n: string }[]>`
+        select count(*)::text as n from lancamentos where de_fora`;
+      return {
+        ok: orfas.length === 0,
+        severidade: 'defeito',
+        medida: `${n} lançamento(s) de fora · ${orfas.length} sem dono`,
+        exemplos: orfas.map(
+          (l) => `#${l.id} ${l.data} ${l.descricao} ${brl(Number(l.valor_total))} — sem gasto_de`,
+        ),
+      };
+    },
+  },
+
+  {
+    id: 'de-fora-nao-mexe-no-acerto',
+    regra: '`de_fora` fica fora do acerto do casal — é conta com outra pessoa',
+    pergunta: 'A soma do efeito no acerto dos lançamentos `de_fora` é exatamente zero?',
+    checar: async () => {
+      // Dois caminhos independentes para a mesma grandeza: a view (que aplica
+      // o `case when de_fora then 0`) e a aritmética crua do que o acerto
+      // seria sem a regra. O segundo número é quanto de dívida entre os dois
+      // a regra está evitando — se ele for zero, o check não prova nada, e
+      // dizer isso é mais honesto que mostrar dois zeros iguais.
+      const [{ pela_view, sem_a_regra }] = await sql<{ pela_view: string; sem_a_regra: string }[]>`
+        select coalesce(sum(v.saldo_irwin), 0)::text as pela_view,
+               coalesce(sum(l.pago_irwin - (l.valor_total * l.pct_irwin)), 0)::text as sem_a_regra
+          from v_lancamentos v join lancamentos l on l.id = v.id
+         where l.de_fora`;
+      const pela = Number(pela_view);
+      const sem = Number(sem_a_regra);
+      return {
+        ok: Math.abs(pela) < TOLERANCIA,
+        severidade: 'defeito',
+        medida:
+          `efeito no acerto: ${brl(pela)} · dívida entre os dois que a regra evita: ${brl(sem)}` +
+          (Math.abs(sem) < TOLERANCIA ? ' (nenhuma ainda — o check não discrimina)' : ''),
+      };
+    },
+  },
+
+  {
+    id: 'terceiros-derivado',
+    regra: 'A dívida de terceiro é derivada, nunca gravada',
+    pergunta: '`v_terceiros` concorda com a soma crua dos lançamentos e das devoluções?',
+    checar: async () => {
+      // A view calcula o saldo por um caminho (dois CTEs e um full join); aqui
+      // a mesma grandeza é recalculada por fora, pessoa por pessoa. Se as duas
+      // discordam, há um número para investigar — e é esta a razão de o saldo
+      // não ser coluna: coluna gravada não tem segundo caminho.
+      const linhas = await sql<
+        { pessoa: string; saldo_view: string; saldo_cru: string }[]
+      >`
+        with pessoas as (
+          select distinct pessoa from (
+            select gasto_de as pessoa from lancamentos where de_fora and coalesce(gasto_de,'') <> ''
+            union all select pessoa from reembolsos
+          ) x
+        )
+        select p.pessoa,
+               (select saldo from v_terceiros t where t.pessoa = p.pessoa)::text as saldo_view,
+               (coalesce((select sum(valor_total) from lancamentos
+                           where de_fora and gasto_de = p.pessoa), 0)
+                - coalesce((select sum(valor) from reembolsos
+                             where pessoa = p.pessoa), 0))::text as saldo_cru
+          from pessoas p`;
+
+      const fora = linhas.filter(
+        (l) => Math.abs(Number(l.saldo_view) - Number(l.saldo_cru)) >= TOLERANCIA,
+      );
+      const [{ n }] = await sql<{ n: string }[]>`select count(*)::text as n from reembolsos`;
+      return {
+        ok: fora.length === 0,
+        severidade: 'defeito',
+        medida: `${linhas.length} pessoa(s) de fora · ${n} devolução(ões) registrada(s) · ${fora.length} divergência(s)`,
+        exemplos: fora.map(
+          (l) => `${l.pessoa}: view ${brl(Number(l.saldo_view))} ≠ cru ${brl(Number(l.saldo_cru))}`,
+        ),
+      };
+    },
+  },
+
+  {
+    id: 'reembolso-tem-recebedor',
+    regra: 'A devolução diz quem recebeu — senão não controla nada',
+    pergunta: 'Toda devolução aponta para Irwin ou Maria?',
+    checar: async () => {
+      const fora = await sql<{ id: number; pessoa: string; para_quem: string; valor: string }[]>`
+        select id, pessoa, para_quem, valor from reembolsos
+        where para_quem not in ('Irwin', 'Maria') limit 8`;
+      return {
+        ok: fora.length === 0,
+        severidade: 'defeito',
+        medida: `${fora.length} devolução(ões) sem recebedor válido`,
+        exemplos: fora.map((r) => `#${r.id} ${r.pessoa} → "${r.para_quem}"`),
       };
     },
   },
