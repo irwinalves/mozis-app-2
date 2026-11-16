@@ -677,6 +677,81 @@ export function Importador({
  * Os de centavos vão para uma linha só no rodapé. Dar peso igual a −R$ 0,01 e
  * a −R$ 1.188,00 é transformar um aviso em parede.
  */
+/**
+ * O que uma devolução cancela entre os lançamentos JÁ GRAVADOS, e o botão.
+ *
+ * Separado do resto do painel porque a natureza da ação é outra: aqui a
+ * importação mexe em dado FORA do próprio lote. Toda ação pede confirmação
+ * dizendo id, data e valor, e nenhuma acontece em lote.
+ */
+function AchadoNoAppUI({
+  achado,
+  jaFeito,
+  aoFazer,
+}: {
+  achado: NonNullable<Analise['estornosNoApp']>[number]['achado'];
+  jaFeito: boolean;
+  aoFazer: (o: { tipo: 'excluir' | 'ajustar'; ids: number[]; valor?: number }) => void;
+}) {
+  if (achado.tipo === 'nada') return null;
+
+  if (achado.tipo === 'semEncaixe') {
+    return (
+      <div className="est-app">
+        <div className="rot">No app, do mesmo lojista</div>
+        <div className="est-pergunta">
+          {achado.ids.length} lançamento{achado.ids.length === 1 ? '' : 's'} de{' '}
+          {achado.valores.slice(0, 4).map((v) => brl(v)).join(', ')}
+          {achado.valores.length > 4 ? '…' : ''}. <b>Nenhum valor encaixa</b> com esta devolução —
+          o app não escolhe por você.
+        </div>
+      </div>
+    );
+  }
+
+  const rotulo =
+    achado.tipo === 'serie'
+      ? `A compra inteira está no app: ${achado.ids.length} parcelas, ${brl(achado.valor)}`
+      : achado.tipo === 'lancamento'
+        ? `Está no app: 1 lançamento de ${brl(achado.valor)}`
+        : achado.tipo === 'parcelas'
+          ? `A fatura cancelou ${achado.canceladas} parcelas de ${brl(achado.valorParcela)}. O app tem ${achado.noApp} lançada${achado.noApp === 1 ? '' : 's'}.`
+          : `Está no app por ${brl(achado.valorAtual)}`;
+
+  return (
+    <div className="est-app">
+      <div className="rot">
+        No app
+        {achado.confianca === 'media' && <span className="confia">confira antes</span>}
+      </div>
+      <div className="est-diz">{rotulo}</div>
+      <div className="est-acoes">
+        {achado.tipo === 'parcial' ? (
+          <button
+            type="button"
+            className={jaFeito ? 'feito' : 'perigo'}
+            disabled={jaFeito}
+            onClick={() => aoFazer({ tipo: 'ajustar', ids: achado.ids, valor: achado.valorSugerido })}
+          >
+            {jaFeito ? '✓ Ajustado' : `Baixar para ${brl(achado.valorSugerido)}`}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={jaFeito ? 'feito' : 'perigo'}
+            disabled={jaFeito}
+            onClick={() => aoFazer({ tipo: 'excluir', ids: achado.ids })}
+          >
+            {jaFeito
+              ? '✓ Excluído'
+              : `Excluir ${achado.ids.length === 1 ? 'o lançamento' : `os ${achado.ids.length} lançamentos`}`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PainelEstornos({
   analise,
   est,
@@ -686,6 +761,35 @@ function PainelEstornos({
   est: Record<number, Estado>;
   onTrocar: (i: number, m: Partial<Estado>) => void;
 }) {
+  /* O que já foi feito nos lançamentos antigos, nesta sessão. Fica aqui e não
+     no estado da linha porque não é propriedade de linha nenhuma da fatura —
+     é um efeito já aplicado no banco, e o botão não pode voltar atrás
+     sozinho: desfazer uma exclusão é relançar, não desclicar. */
+  const [feitos, setFeitos] = useState<Record<number, true>>({});
+  const [erroApp, setErroApp] = useState('');
+  const noApp = new Map((analise.estornosNoApp ?? []).map((x) => [x.i, x.achado]));
+
+  async function agir(
+    k: number,
+    o: { tipo: 'excluir' | 'ajustar'; ids: number[]; valor?: number },
+  ) {
+    const texto =
+      o.tipo === 'excluir'
+        ? `Excluir ${o.ids.length === 1 ? 'o lançamento' : `os ${o.ids.length} lançamentos`} de uma compra cancelada?\n\nIsto mexe em dado que JÁ ESTÁ no app, fora desta importação, e não pode ser desfeito.`
+        : `Baixar o valor para ${brl(o.valor ?? 0)}?\n\nIsto mexe em um lançamento que JÁ ESTÁ no app, fora desta importação.`;
+    if (!window.confirm(texto)) return;
+    setErroApp('');
+    try {
+      if (o.tipo === 'excluir') {
+        for (const id of o.ids) await rpc('excluirLancamento', id);
+      } else {
+        await rpc('ajustarValorLancamento', o.ids[0], o.valor, 'Estorno parcial na fatura');
+      }
+      setFeitos((f) => ({ ...f, [k]: true }));
+    } catch (e) {
+      setErroApp(e instanceof Error ? e.message : 'Não deu para aplicar.');
+    }
+  }
   /*
    * `?? []` não é paranoia: um lote importado ANTES desta seção existir
    * guardou um `estado` sem o campo, e a edição reabre exatamente esse JSON.
@@ -813,15 +917,25 @@ function PainelEstornos({
                 </span>
               )}
 
-              {v.tipo === 'solto' && (
+              {v.tipo === 'solto' && !noApp.get(k) && (
                 <span className="est-pergunta">
                   Compra de outro mês, ou ajuste do banco. Nada a fazer aqui.
                 </span>
               )}
             </div>
+
+            {/* O par pode estar no APP, não na fatura — é o caso Hering. */}
+            {noApp.get(k) && (
+              <AchadoNoAppUI
+                achado={noApp.get(k)!}
+                jaFeito={!!feitos[k]}
+                aoFazer={(o) => agir(k, o)}
+              />
+            )}
           </div>
         );
       })}
+      {erroApp && <p className="erro">{erroApp}</p>}
     </div>
   );
 }

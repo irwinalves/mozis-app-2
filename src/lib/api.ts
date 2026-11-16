@@ -31,6 +31,12 @@ import {
   type CategoriaKw,
 } from './importacao';
 import { ligarEstornos } from './estornos';
+import {
+  acharNoApp,
+  agruparIguais,
+  type EstornoNoApp,
+  type LancamentoNoApp,
+} from './estornosNoApp';
 import { lerFaturaXlsx } from './faturaArquivo';
 import {
   cruzar,
@@ -757,6 +763,56 @@ export async function atualizarLancamento(id: number, dados: DadosLancamento) {
   return { ok: true };
 }
 
+/**
+ * Baixar o valor de um lançamento ANTIGO por causa de um estorno parcial.
+ *
+ * É a primeira porta pela qual a importação mexe em dado fora do próprio
+ * lote, e por isso ela é estreita de propósito: muda `valor_total` e carimba
+ * a Obs, mais nada. Categoria, divisão, pagador e data ficam onde estão —
+ * quem quiser mudá-los abre o lançamento.
+ *
+ * `pago_irwin` ACOMPANHA, e não acompanhar seria o defeito silencioso: um
+ * lançamento de R$ 134,70 pago inteiro pelo Irwin que vira R$ 65,56 com
+ * `pago_irwin` em 134,70 passa a dizer que ele desembolsou mais do que a
+ * compra custou, e o acerto sai errado sem nada na tela indicar.
+ */
+export async function ajustarValorLancamento(
+  id: number,
+  novoValor: number | string,
+  motivo?: string,
+) {
+  const valor = arred(Number(novoValor));
+  if (!(valor > 0)) throw new Error('O valor novo precisa ser maior que zero.');
+
+  const [l] = await db.execute<LinhaView>(sql`select * from v_lancamentos where id = ${id}`);
+  if (!l) throw new Error('Lançamento não encontrado.');
+
+  const anterior = Number(l.valor_total);
+  if (valor > anterior + 0.005) {
+    throw new Error(
+      `Este caminho só REDUZ o valor: ${brlTexto(anterior)} não pode virar ${brlTexto(valor)}.`,
+    );
+  }
+
+  const pct = Number(l.pct_irwin);
+  const parteIrwin = arred(valor * pct);
+  const pagoIrwin = pagoIrwinDe(l.quem_pagou as never, valor, parteIrwin, null);
+
+  const carimbo = `${motivo ?? 'Ajustado por estorno'} · de ${brlTexto(anterior)} para ${brlTexto(valor)}`;
+  const obs = l.obs ? `${l.obs}\n${carimbo}` : carimbo;
+
+  await db.execute(
+    sql`update lancamentos
+        set valor_total = ${valor}, pago_irwin = ${pagoIrwin}, obs = ${obs}
+        where id = ${id}`,
+  );
+  return { ok: true, anterior, valor };
+}
+
+function brlTexto(v: number): string {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
 export async function excluirLancamento(id: number) {
   // B2 — sem assinatura de conteúdo, de propósito.
   //
@@ -764,9 +820,28 @@ export async function excluirLancamento(id: number) {
   // linha era identificada pela posição, que muda quando a planilha é
   // reordenada. Aqui `id` é chave primária estável — o problema não existe, e
   // portar o contorno seria copiar um remendo achando que é regra.
-  const r = await db.execute(sql`delete from lancamentos where id = ${id} returning id`);
-  if (!r.length) throw new Error('Lançamento não encontrado.');
-  return { ok: true };
+  return db.transaction(async (tx) => {
+    const [antes] = await tx.execute<{ serie_id: number | null }>(
+      sql`select serie_id from lancamentos where id = ${id}`,
+    );
+    if (!antes) throw new Error('Lançamento não encontrado.');
+
+    await tx.execute(sql`delete from lancamentos where id = ${id}`);
+
+    /* A série morre junto quando fica vazia.
+       `apagarLinhasDe` já fazia isto no caminho da importação; esta porta
+       não fazia, e aí excluir as três parcelas de uma compra cancelada
+       deixava a série para trás, sem nenhum membro. A tela da série passava
+       a abrir vazia e o invariante de numeração contava uma série a mais.
+       Pego ao excluir o Hering pela aba de estornos. */
+    if (antes.serie_id !== null) {
+      await tx.execute(
+        sql`delete from series where id = ${antes.serie_id}
+            and not exists (select 1 from lancamentos where serie_id = ${antes.serie_id})`,
+      );
+    }
+    return { ok: true };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1664,6 +1739,101 @@ export async function analisarFatura(arquivoB64: string, nomeArquivo: string) {
     r.descartadas,
   );
 
+  /**
+   * O que cada devolução cancela entre os lançamentos JÁ GRAVADOS.
+   *
+   * `ligarEstornos` só olha para a própria fatura, e isso deixa de fora o
+   * caso mais caro: a compra foi lançada meses atrás e o cancelamento chega
+   * agora. Em outubro/2026 são três `Canc Parcela Sem Juros - Hering` de
+   * R$ 141,58 — um parcelamento 3x cancelado inteiro, cuja primeira parcela
+   * está lançada no app desde 28/07. Sem este cruzamento a tela diz "não
+   * corresponde a nenhuma compra desta fatura" e o lançamento de uma compra
+   * que não existe mais fica para sempre no resultado do mês.
+   *
+   * Busca pelo VALOR, nos últimos 24 meses. O filtro por valor existe para
+   * não trazer a base inteira para a memória; quem decide se é a mesma compra
+   * é o lojista, dentro de `acharNoApp` — valor sozinho nunca propõe nada.
+   */
+  /**
+   * Quais devoluções a fatura NÃO explica sozinha.
+   *
+   * Não basta pegar as `solto`. Em outubro vêm TRÊS `Canc Parcela Sem Juros -
+   * Hering` de R$ 141,58 e a fatura tem UMA linha Hering de R$ 141,58 — a
+   * parcela 3 de 3. As três se ligam àquela mesma linha e nenhuma fica
+   * `solto`, mas duas parcelas continuam lançadas no app, de faturas
+   * anteriores. Se o critério fosse `solto`, o caso que motivou tudo isto
+   * passaria batido.
+   *
+   * Por isso a conta é por GRUPO de devoluções idênticas: quantas vieram,
+   * menos quantas linhas distintas desta fatura elas cobrem. O que sobra é o
+   * que se procura no app.
+   */
+  const porGrupo = agruparIguais(
+    estornos.map((e, i) => ({ i, descricao: e.negativa.descricao, valor: e.negativa.valor })),
+  );
+  const semParNaFatura = porGrupo
+    .map((g) => {
+      /* Só desconta a linha da fatura que AINDA NÃO ESTÁ no app.
+         Uma linha que o cruzamento marcou como já lançada não resolve a
+         devolução: ela É um dos lançamentos que precisam sair. Descontá-la
+         fazia a tela dizer "cancelou 2" quando foram 3, e deixar uma parcela
+         de pé. O teste com a fatura de outubro pegou exatamente isso. */
+      const refs = new Set<number>();
+      for (const it of g.itens) {
+        const v = estornos[(it as { i: number }).i].vinculo;
+        if (v.tipo === 'solto') continue;
+        for (const r of v.refs) {
+          const t = classificadas[r]?.situacao.tipo;
+          if (t !== 'jaLancado' && t !== 'suspeita') refs.add(r);
+        }
+      }
+      return { g, faltam: g.vezes - refs.size };
+    })
+    .filter(({ faltam }) => faltam > 0);
+
+  let estornosNoApp: EstornoNoApp[] = [];
+  if (semParNaFatura.length) {
+    const alvos = semParNaFatura.flatMap(({ g, faltam }) => [g.valorUnit, g.valorUnit * faltam]);
+    /* `in` e não `= any()`: o template de SQL renderiza um array JS como
+       tupla — `($1, $2)` — que é exatamente o que `in` espera e o que
+       `= any()` recusa, porque ANY pede um array de verdade.
+       (O comentário mora aqui e não dentro do SQL: crase dentro de template
+       string fecha a string, e o arquivo deixa de compilar.) */
+    const valores = [...new Set(alvos.map((v) => Number(v.toFixed(2))))];
+    const candidatos = await db.execute<{
+      id: number; data: string | Date; descricao: string; valor_total: string;
+      serie_id: number | null; serie_qtd: number | null; serie_total: string | null;
+    }>(
+      sql`select l.id, l.data, l.descricao, l.valor_total, l.serie_id,
+                 s.lancamentos as serie_qtd, s.soma::text as serie_total
+          from v_lancamentos l
+          left join (select serie_id, count(*) as lancamentos, sum(valor_total) as soma
+                     from v_lancamentos where serie_id is not null group by serie_id) s
+                 on s.serie_id = l.serie_id
+          where l.data >= (current_date - interval '24 months')
+            and (round(l.valor_total, 2) in ${valores}
+                 or round(s.soma, 2) in ${valores})`,
+    );
+    const lancs: LancamentoNoApp[] = candidatos.map((c) => ({
+      id: c.id,
+      data: isoDaLinha(c.data),
+      descricao: c.descricao,
+      valor: Number(c.valor_total),
+      serieId: c.serie_id,
+      serieQtd: c.serie_qtd,
+      serieTotal: c.serie_total === null ? null : Number(c.serie_total),
+    }));
+    estornosNoApp = semParNaFatura.map(({ g, faltam }) => ({
+      // O índice do PRIMEIRO estorno do grupo: três Hering idênticos são uma
+      // pergunta só, e a tela precisa saber a qual linha pendurar a resposta.
+      i: (g.itens[0] as { i: number }).i,
+      // `faltam`, não `vezes`: o que se procura no app é o que a fatura não
+      // explicou. Das três parcelas canceladas do Hering, uma está nesta
+      // fatura e duas estão lá atrás.
+      achado: acharNoApp(g.itens[0].descricao, g.valorUnit, faltam, lancs),
+    }));
+  }
+
   /** As linhas que um estorno INTEGRAL cobre — nascem desmarcadas. */
   const estornadas = new Set<number>();
   for (const e of estornos) {
@@ -1675,6 +1845,7 @@ export async function analisarFatura(arquivoB64: string, nomeArquivo: string) {
     total: r.total,
     descartadas: r.descartadas,
     estornos,
+    estornosNoApp,
     linhas: classificadas.map((c, i) => {
       const idApp = 'lancamentoId' in c.situacao ? c.situacao.lancamentoId : null;
       const app = idApp !== null ? (doApp.get(idApp) ?? null) : null;

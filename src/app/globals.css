@@ -1933,3 +1933,45 @@ a.btn-linha {
   gap: 12px;
   flex-wrap: wrap;
 }
+
+/* O par de uma devolução que está no APP, não na fatura.
+   Fica visualmente apartado do resto do item porque a natureza da ação é
+   outra: aqui a importação mexe em dado fora do próprio lote. */
+.painel-est .est-app {
+  margin-top: 10px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: var(--bg);
+  border: 1px solid var(--borda-card);
+}
+.painel-est .est-app .rot {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--texto2);
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+/* "confira antes" é confiança média: o app achou, mas não tem certeza. Dizer
+   isso é a C7 — a tela não finge saber mais do que sabe. */
+.painel-est .est-app .confia {
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1b1b1b;
+  background: var(--var);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+/* Botão que apaga ou altera dado antigo: contorno vermelho, nunca preenchido.
+   Preenchido ele competiria com o verde de "pronto", e esta ação não é a que
+   se usa toda vez — é a que se usa com cuidado. */
+.painel-est .est-acoes button.perigo {
+  border-color: var(--neg);
+  color: var(--neg);
+  font-weight: 700;
+}

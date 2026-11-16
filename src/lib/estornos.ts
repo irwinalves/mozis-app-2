@@ -76,7 +76,16 @@ export function lojista(s: string): string {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/^(cancelamento( parcial)? de compra|estorno|reducao|credito)\s*-?\s*/, '');
+    /* 3. **O banco tem mais de um jeito de dizer "cancelei".** A lista era
+     *    `cancelamento de compra`, `estorno`, `reducao` e `credito`, e a
+     *    fatura de outubro trouxe `Canc Parcela Sem Juros - Heringblumenaubr`,
+     *    que não casava com nenhum: o prefixo ficava, e o lojista devolvido
+     *    era `canc` — igual para TODO cancelamento de parcela, de qualquer
+     *    loja. Com isso o Hering não casava nem dentro da própria fatura. */
+    .replace(
+      /^(canc(elamento)?( parcial)?( de compra| parcela sem juros)?|estorno|devolucao|reducao|credito)\s*-?\s*/,
+      '',
+    );
   const depoisDoAsterisco = limpo.split('*').pop() ?? limpo;
   return (
     depoisDoAsterisco

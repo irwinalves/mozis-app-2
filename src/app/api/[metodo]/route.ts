@@ -33,6 +33,9 @@ const METODOS = {
   obterLancamento: api.obterLancamento,
   atualizarLancamento: api.atualizarLancamento,
   excluirLancamento: api.excluirLancamento,
+  // A porta pela qual a importação corrige um lançamento ANTIGO por estorno
+  // parcial. Só reduz valor e carimba a Obs — ver `ajustarValorLancamento`.
+  ajustarValorLancamento: api.ajustarValorLancamento,
   previewParcelas: api.previewParcelas,
   previewRecorrencia: api.previewRecorrencia,
   salvarInvestimento: api.salvarInvestimento,
