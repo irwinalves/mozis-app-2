@@ -88,9 +88,18 @@ interface Props {
   lancamento?: LancamentoEdicao;
   /** Para onde voltar depois de salvar. */
   aoSalvar?: () => void;
+  /**
+   * O que vai ANTES do primeiro card, dentro da área rolável.
+   *
+   * Existe por causa do botão de importar fatura: ele é só da tela Lançar —
+   * não faz sentido editando um lançamento que já existe — mas precisa rolar
+   * junto com o formulário. Fora daqui ele viraria faixa fixa entre o
+   * cabeçalho e a rolagem, comendo altura de tela no celular o tempo todo.
+   */
+  topo?: React.ReactNode;
 }
 
-export default function FormLancamento({ opcoes, lancamento, aoSalvar }: Props) {
+export default function FormLancamento({ opcoes, lancamento, aoSalvar, topo }: Props) {
   const router = useRouter();
   const ed = lancamento;
   const editando = Boolean(ed);
@@ -309,6 +318,7 @@ export default function FormLancamento({ opcoes, lancamento, aoSalvar }: Props) 
 
   return (
     <div className="form-lanc">
+      {topo}
       <div className="card">
         <div className="linha-desc">
           <label className="campo">

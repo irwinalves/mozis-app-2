@@ -1321,6 +1321,28 @@ a.btn-linha {
   -webkit-overflow-scrolling: touch;
   padding: 0 13px 96px;
 }
+/* O botão de importar fatura, no topo do Lançar.
+   Mesmas medidas e mesma cor do `.btn-importar` do `Form.html`: quem já usava
+   o app não tem nada para reaprender. É um link, não um botão, porque o que
+   ele faz é ir para outra tela — e assim abre em nova aba com o toque longo. */
+.form-lanc .btn-importar {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: 12px;
+  border: 1px solid var(--borda-input);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--bg);
+  color: var(--verde);
+  font-weight: 500;
+  font-size: 14px;
+  font-family: inherit;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
 .form-lanc .campo > span {
   display: block;
   font-size: 13px;
