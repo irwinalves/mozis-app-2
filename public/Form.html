@@ -541,99 +541,6 @@ select#classeInvest{margin-top:0}
       </div>
     </div>
 
-    <!-- LANÇAR -->
-    <div class="screen" id="screen-new">
-      <div class="pad">
-        <div class="msg-erro" id="erroLanc"></div>
-        <button class="btn-importar" id="btnImportar">↥ Importar fatura do cartão</button>
-        <div class="card">
-          <div class="row">
-            <div class="campo"><label>Data</label><input type="date" id="fData"></div>
-            <div class="campo"><label>Valor</label>
-              <div class="valor-wrap"><span class="prefixo">R$</span><input type="text" id="fValor" class="valor-grande" inputmode="decimal" placeholder="0,00"></div>
-            </div>
-          </div>
-          <div class="campo"><label>Descrição</label>
-            <div class="linha-desc">
-              <input type="text" id="fDescricao" placeholder="Ex.: Supermercado">
-              <button type="button" class="btn-andre" id="btnAndre" aria-pressed="false" title="Gasto do André">
-                <img id="imgBtnAndre" alt="André">
-              </button>
-            </div>
-          </div>
-          <div class="campo"><label>Categoria</label><div class="chips" id="chipsCategoria"></div></div>
-          <div class="campo" id="campoTipo" style="margin-bottom:0"><label>Tipo</label><div class="chips" id="chipsTipo"></div></div>
-        </div>
-        <div class="card">
-          <div class="campo"><label>Origem</label><div class="chips" id="chipsOrigem"></div></div>
-          <div class="campo"><label>Quem pagou</label><div class="chips" id="chipsPagador"></div>
-            <div id="boxRateio" style="display:none;margin-top:12px">
-              <div class="row">
-                <div class="tile" style="background:var(--irwin-l);text-align:left">
-                  <div class="rotulo" style="color:var(--irwin)">Irwin pagou</div>
-                  <div class="valor-wrap" style="margin-top:2px"><span class="prefixo" style="color:var(--irwin)">R$</span><input type="text" id="fPagoIrwin" class="valor-rateio" inputmode="decimal" placeholder="0,00" style="color:var(--irwin)"></div>
-                </div>
-                <div class="tile" style="background:var(--maria-l);text-align:left">
-                  <div class="rotulo" style="color:var(--maria)">Maria pagou</div>
-                  <div class="valor-wrap" style="margin-top:2px"><span class="prefixo" style="color:var(--maria)">R$</span><input type="text" id="fPagoMaria" class="valor-rateio" inputmode="decimal" placeholder="0,00" style="color:var(--maria)"></div>
-                </div>
-              </div>
-              <button type="button" class="btn-metade" id="btnMetadeCada">Metade cada</button>
-              <div class="confere-rateio" id="confereRateio"></div>
-            </div>
-          </div>
-          <div class="campo"><label>Como dividir</label><div class="chips" id="chipsDivisao"></div>
-            <div id="boxCustom" style="display:none;margin-top:10px">
-              <label style="font-size:12px;color:var(--texto2)" id="labelCustom">Irwin 50%</label>
-              <input type="range" id="fPctCustom" min="0" max="100" step="1" value="50" style="width:100%;accent-color:var(--verde)">
-            </div>
-          </div>
-          <div class="row" style="margin-top:14px">
-            <div class="tile" style="background:var(--irwin-l)"><div class="rotulo" style="color:var(--irwin)">Parte Irwin</div><div class="valor" style="color:var(--irwin)" id="valParteIrwin">R$ 0,00</div></div>
-            <div class="tile" style="background:var(--maria-l)"><div class="rotulo" style="color:var(--maria)">Parte Maria</div><div class="valor" style="color:var(--maria)" id="valParteMaria">R$ 0,00</div></div>
-          </div>
-        </div>
-        <div class="card" id="cardParcelar">
-          <div class="switch-row">
-            <b>Parcelar esse gasto</b>
-            <span class="toggle"><input type="checkbox" id="fParcelado"><span class="trilho"></span></span>
-          </div>
-          <div id="boxParcelas" style="display:none;margin-top:14px;padding-top:14px;border-top:1px dashed var(--borda-card)">
-            <div class="row">
-              <div class="campo">
-                <label>Nº de parcelas</label>
-                <div class="stepper"><button type="button" id="btnMenosParc">−</button><b id="lblNParc">2</b><button type="button" id="btnMaisParc">+</button></div>
-              </div>
-              <div class="campo">
-                <label>O valor acima é</label>
-                <div class="chips" id="chipsTipoValor"></div>
-              </div>
-            </div>
-            <div class="preview" id="previewParcelas" style="display:none"></div>
-          </div>
-        </div>
-        <div class="card" id="cardRepetir">
-          <div class="switch-row">
-            <b>Repetir esse gasto</b>
-            <span class="toggle"><input type="checkbox" id="fRepetir"><span class="trilho"></span></span>
-          </div>
-          <div id="boxRepetir" style="display:none;margin-top:14px;padding-top:14px;border-top:1px dashed var(--borda-card)">
-            <div class="campo"><label>Frequência</label><div class="chips" id="chipsFreqRec"></div></div>
-            <div class="switch-row" style="margin-bottom:14px">
-              <b style="font-size:13px;font-weight:500">Repetir indefinidamente (sem data fim)</b>
-              <span class="toggle"><input type="checkbox" id="fSemFimRec"><span class="trilho"></span></span>
-            </div>
-            <div class="campo" id="campoFimRec" style="margin-bottom:0"><label>Repetir até</label><input type="date" id="fFimRec"></div>
-            <div class="preview" id="previewRec" style="display:none"></div>
-          </div>
-        </div>
-      </div>
-      <div class="barra-acao">
-        <button class="btn-full" id="btnSalvarLanc" disabled>Salvar</button>
-        <a class="btn-serie" id="linkSerie" style="display:none"><span id="linkSerieTxt"></span><span class="seta">→</span></a>
-        <button class="btn-full" id="btnExcluirLanc" style="display:none;margin-top:8px;background:#8C2A1E">Excluir lançamento</button>
-      </div>
-    </div>
 
     <!-- INVESTIR -->
     <div class="screen" id="screen-invest">
@@ -812,7 +719,6 @@ function mascaraValorInput(el){
 function lerValor(id){
   return Number(String($(id).value || '').replace(/\./g, '').replace(',', '.')) || 0;
 }
-mascaraValorInput($('fValor'));
 mascaraValorInput($('iValor'));
 $('avatarHeaderIrwin').src = AVATAR_IRWIN;
 $('avatarHeaderMaria').src = AVATAR_MARIA;
@@ -873,12 +779,7 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', fun
 /* ---------------- boot ---------------- */
 google.script.run.withSuccessHandler(function(o){
   OPC = o;
-  // `LF` foi criado antes desta resposta, quando ainda não se sabia quem estava
-  // olhando — refazer agora é o que faz "Quem pagou" nascer marcado.
-  LF = lfVazio();
-  montarForm();
   montarInvest();
-  resetarDataHoje();
   resetarDataInvestHoje();
   $('boot').style.display = 'none';
   $('app').style.display = 'flex';
@@ -914,23 +815,16 @@ document.querySelectorAll('#tabbar button').forEach(function(b){
     tabAtiva = b.dataset.tab; irPara(b.dataset.tab);
   };
 });
-/* A fatura do cartão passou a ter tela própria em React: ela lê o `.xlsx`
-   exportado pelo banco, cruza com o que já está no app e pede validação linha a
-   linha. A tela antiga (`irPara('import')`) só lia OFX e CSV colados, e nunca
-   soube de quem era o cartão nem qual parcela era — continua no arquivo, mas
-   fora do caminho, à espera da decisão de aposentá-la na migração. */
-$('btnImportar').onclick = function(){ location.href = '/importar'; };
 $('btnVoltar').onclick = function(){ irPara('home'); };
 
 function irPara(tela){
-  if (telaAtual === 'new' && tela !== 'new' && EDITANDO) cancelarEdicao();
   telaAtual = tela;
   document.querySelectorAll('.screen').forEach((s) => s.classList.remove('on'));
   $('screen-' + tela).classList.add('on');
   document.querySelectorAll('#tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tabAtiva));
-  $('btnVoltar').style.display = (tela === 'import' || (tela === 'new' && EDITANDO)) ? 'inline' : 'none';
-  $('headerTitulo').textContent = (tela === 'new' && EDITANDO) ? 'Editar lançamento' : {
-    home: 'Início', new: 'Novo lançamento', invest: 'Novo investimento',
+  $('btnVoltar').style.display = tela === 'import' ? 'inline' : 'none';
+  $('headerTitulo').textContent = {
+    home: 'Início', invest: 'Novo investimento',
     dashboard: 'Dashboard', import: 'Importar extrato'
   }[tela];
   if (tela === 'dashboard') carregarDashboard();
@@ -1058,34 +952,14 @@ function renderAcerto(){
   }
 }
 
-$('btnAndre').onclick = function(){
-  LF.gastoDe = LF.gastoDe ? '' : 'André';
-  montarForm();
-};
-
+/* Quitar abre o Lançar em React, e NÃO leva o valor na URL.
+   Quem monta a quitação é o servidor, do mesmo `getAcertoContas()` que acabou de
+   desenhar este card: o saldo tem uma fonte só. Levar o número por aqui criaria
+   a segunda — e poria dinheiro do casal no histórico do navegador e no log do
+   servidor, que é onde ele não precisa estar. */
 $('btnQuitar').onclick = function(){
-  if (!ACERTO || !OPC || Math.abs(ACERTO.mesAtual.saldo) < 0.005) return;
-  const saldo = ACERTO.mesAtual.saldo;
-  const devedor = saldo > 0 ? 'Maria' : 'Irwin';
-  const credor  = saldo > 0 ? 'Irwin' : 'Maria';
-  const catAcerto = OPC.gruposLancar.find(function(g){ return g.nome.indexOf('9 ') === 0; }) || OPC.gruposLancar[OPC.gruposLancar.length - 1];
-
-  LF = {
-    categoria: catAcerto.nome, tipo: catAcerto.tipo || 'Variável', origem: 'Pix',
-    pagador: devedor, divisao: (credor === 'Irwin' ? '100% Irwin' : '100% Maria'),
-    pctCustom: 50, parcelado: false, nParcelas: 2, tipoValor: 'total',
-    repetir: false, freqRec: 'mensal', fimRec: '', semFimRec: false
-  };
-
-  tabAtiva = 'new';
-  irPara('new');
-  montarForm();
-  resetarDataHoje();
-  $('fValor').value = formatarValorMascara(Math.abs(saldo));
-  $('fDescricao').value = 'Quitação de acerto de contas';
-  atualizarPartes();
-  validarLanc();
-  agendarPreview();
+  if (!ACERTO || Math.abs(ACERTO.mesAtual.saldo) < 0.005) return;
+  location.href = '/lancar?quitar=1';
 };
 
 /** Mostra/esconde os dois botões da lista conforme o estado atual. */
@@ -1326,8 +1200,8 @@ $('listaUltimos').addEventListener('click', function(e){
   if (!item) return;
   const linha = Number(item.dataset.linha);
   // Editar saiu daqui: é a MESMA tela de Lançar, agora em React, com os campos
-  // preenchidos. `abrirEdicao` reconfigurava o formulário antigo campo por
-  // campo, e foi assim que o `De fora` nasceu no Lançar e sumiu na edição.
+  // preenchidos. O formulário antigo desta página tinha o seu próprio caminho de
+  // edição, e foi assim que o `De fora` nasceu no Lançar e sumiu na edição.
   if (linha) location.href = '/lancamento/' + linha;
 });
 
@@ -1475,423 +1349,14 @@ const ROTULO_FREQ = { mensal:'mês', quinzenal:'15 dias', semanal:'semana' };
 /* O estado inicial do formulário vivia escrito por extenso em CINCO lugares.
    Acrescentar um campo exigia lembrar dos cinco, e esquecer um daria um defeito
    que só aparece por um caminho específico de navegação. */
-function lfVazio(){
-  return {
-    categoria:'', tipo:'', origem:'Cartão',
-    /* Já vem marcado quem está usando o app: é o pagador mais provável e
-       economiza um toque em quase todo lançamento. Sem sessão identificada fica
-       vazio — e o pagador continua obrigatório, na tela e no servidor. */
-    pagador: (OPC && (OPC.eu === 'Irwin' || OPC.eu === 'Maria')) ? OPC.eu : '',
-    gastoDe:'',
-    divisao:'50/50', pctCustom:50, parcelado:false, nParcelas:2,
-    tipoValor:'total', repetir:false, freqRec:'mensal', fimRec:'', semFimRec:false
-  };
-}
-let LF = lfVazio();
-let debounceParc = null;
-let EDITANDO = null; // { linha } quando editando um lançamento existente; null = lançamento novo
-
-/* A lista pode ter envelhecido: o app guarda o NÚMERO DA LINHA de cada lançamento, e
-   número de linha deixa de valer se a planilha for reordenada. O backend recusa a
-   gravação nesse caso; aqui a lista é recarregada para o próximo toque já acertar. */
-function listaDesatualizada(e){
-  if (String(e && e.message || '').indexOf('desatualizada') === -1) return false;
-  cancelarEdicao();
-  irPara('home');
-  carregarUltimos({ reset: true });
-  return true;
-}
-
-function abrirEdicao(linha){
-  google.script.run.withSuccessHandler(function(d){
-    EDITANDO = { linha: d.linha, assinatura: d.assinatura };
-    LF = {
-      gastoDe: d.gastoDe || '',
-      categoria: d.categoria, tipo: d.tipo, origem: d.fonte || 'Cartão',
-      pagador: d.quemPagou, divisao: d.divisao || '50/50', pctCustom: d.pctCustom || 50,
-      parcelado: false, nParcelas: 2, tipoValor: 'total',
-      repetir: false, freqRec: 'mensal', fimRec: '', semFimRec: false
-    };
-    tabAtiva = 'new';
-    irPara('new');
-    montarForm();
-    $('fData').value = d.data;
-    $('fValor').value = formatarValorMascara(d.valor);
-    $('fDescricao').value = d.descricao;
-    if (d.quemPagou === 'Ambos'){
-      $('fPagoIrwin').value = formatarValorMascara(d.pagoIrwin || 0);
-      sincronizarRateio('irwin');
-    }
-    $('cardParcelar').style.display = 'none';
-    $('cardRepetir').style.display = 'none';
-    $('btnSalvarLanc').textContent = 'Salvar alterações';
-    $('btnExcluirLanc').style.display = 'block';
-    if (d.serieId){
-      var qtd = d.serieTotal || d.serieLancamentos;
-      $('linkSerieTxt').textContent = d.serieTipo === 'recorrencia'
-        ? 'Ver a recorrência inteira'
-        : 'Ver as ' + qtd + ' parcelas desta compra';
-      $('linkSerie').href = '/serie/' + d.serieId + '?de=' + d.linha;
-      $('linkSerie').style.display = 'flex';
-    } else {
-      $('linkSerie').style.display = 'none';
-    }
-    atualizarPartes();
-    validarLanc();
-  }).withFailureHandler(function(e){
-    alert('Não foi possível abrir esse lançamento: ' + e.message);
-  }).obterLancamento(linha);
-}
-
-function cancelarEdicao(){
-  EDITANDO = null;
-  LF = lfVazio();
-  $('fValor').value = ''; $('fDescricao').value = ''; $('fParcelado').checked = false; $('fRepetir').checked = false;
-  $('fSemFimRec').checked = false; $('campoFimRec').style.display = 'block';
-  $('cardParcelar').style.display = '';
-  $('cardRepetir').style.display = '';
-  $('boxParcelas').style.display = 'none';
-  $('boxRepetir').style.display = 'none';
-  $('btnExcluirLanc').style.display = 'none';
-  $('linkSerie').style.display = 'none';
-  $('btnSalvarLanc').textContent = 'Salvar';
-  $('erroLanc').classList.remove('on');
-  montarForm();
-  resetarDataHoje();
-  validarLanc();
-}
-
-/* A data NÃO é redefinida aqui de propósito. montarForm() roda a cada clique de chip
-   (categoria, tipo, origem, quem pagou, divisão), e resetar a data aqui apagava
-   silenciosamente a data que o usuário tinha acabado de escolher — o lançamento ia
-   para a planilha com a data de hoje. Quem zera a data é resetarDataHoje(), chamada
-   só quando o formulário realmente recomeça. */
-function montarForm(){
-  const cCat = $('chipsCategoria'); cCat.innerHTML = '';
-  OPC.gruposLancar.forEach(function(g){
-    chip(cCat, g.nome.replace(/^\d+\s/, ''), g.nome === LF.categoria, (CATS[g.nome]||{}).forte, (CATS[g.nome]||{}).clara, function(){
-      LF.categoria = g.nome; LF.tipo = g.tipo; montarForm(); atualizarPartes(); validarLanc();
-    });
-  });
-
-  if (LF.repetir) LF.tipo = 'Fixa'; // gasto recorrente é sempre fixo
-  const cTipo = $('chipsTipo'); cTipo.innerHTML = '';
-  ['Fixa','Variável'].forEach(function(t){
-    chip(cTipo, t, t === LF.tipo, TIPO_COR[t].forte, TIPO_COR[t].clara, function(){ LF.tipo = t; montarForm(); validarLanc(); });
-  });
-  $('campoTipo').style.opacity = LF.repetir ? '.5' : '';
-  $('campoTipo').title = LF.repetir ? 'Gastos recorrentes são sempre Fixos' : '';
-
-  const cOri = $('chipsOrigem'); cOri.innerHTML = '';
-  OPC.origens.forEach(function(o){
-    const b = chip(cOri, o, o === LF.origem, '#2F5233', 'var(--chip-neutro)', function(){ LF.origem = o; montarForm(); });
-    b.classList.add('seg');
-  });
-
-  const cPag = $('chipsPagador'); cPag.innerHTML = '';
-  const FOTO_PAGADOR = { Irwin: AVATAR_IRWIN, Maria: AVATAR_MARIA, Ambos: '/avatar-ambos-192.png' };
-  OPC.pagadoresLancar.forEach(function(p){
-    chip(cPag, p, p === LF.pagador, PESSOA[p].forte, PESSOA[p].clara,
-         function(){ LF.pagador = p; montarForm(); validarLanc(); }, FOTO_PAGADOR[p]);
-  });
-
-  /* Botão do André. `gastoDe` é texto e não booleano no banco, para uma segunda
-     pessoa não exigir migração — aqui ele guarda o nome ou string vazia. */
-  const btnA = $('btnAndre');
-  $('imgBtnAndre').src = AVATAR_ANDRE;
-  btnA.classList.toggle('on', !!LF.gastoDe);
-  btnA.setAttribute('aria-pressed', LF.gastoDe ? 'true' : 'false');
-  btnA.title = LF.gastoDe ? 'Gasto do André — toque para desmarcar' : 'Marcar como gasto do André';
-  $('boxRateio').style.display = (LF.pagador === 'Ambos') ? 'block' : 'none';
-  if (LF.pagador === 'Ambos') sincronizarRateio();
-
-  const cDiv = $('chipsDivisao'); cDiv.innerHTML = '';
-  OPC.divisoes.forEach(function(d){
-    chip(cDiv, d, d === LF.divisao, '#2F5233', 'var(--chip-neutro)', function(){
-      LF.divisao = d; montarForm(); atualizarPartes();
-    });
-  });
-  $('boxCustom').style.display = (LF.divisao === 'Custom') ? 'block' : 'none';
-  $('fPctCustom').value = LF.pctCustom;
-  $('labelCustom').textContent = 'Irwin ' + LF.pctCustom + '%';
-
-  const cTV = $('chipsTipoValor'); cTV.innerHTML = '';
-  [['total','O total'],['parcela','A parcela']].forEach(function(o){
-    const b = chip(cTV, o[1], LF.tipoValor === o[0], '#2F5233', 'var(--chip-neutro)', function(){ LF.tipoValor = o[0]; montarForm(); agendarPreview(); });
-    b.classList.add('seg');
-  });
-
-  const cFreq = $('chipsFreqRec'); cFreq.innerHTML = '';
-  [['mensal','Mensalmente'],['quinzenal','Quinzenalmente'],['semanal','Semanalmente']].forEach(function(o){
-    chip(cFreq, o[1], LF.freqRec === o[0], '#2F5233', 'var(--chip-neutro)', function(){ LF.freqRec = o[0]; montarForm(); agendarPreviewRec(); });
-  });
-  $('fFimRec').value = LF.fimRec || '';
-  $('fSemFimRec').checked = LF.semFimRec;
-  $('campoFimRec').style.display = LF.semFimRec ? 'none' : 'block';
-
-  atualizarExclusividadeRepeticao();
-  atualizarExclusividadeParcelamento();
-  atualizarPartes();
-}
-
-function atualizarExclusividadeRepeticao(){
-  const bloquear = LF.parcelado;
-  $('cardRepetir').style.opacity = bloquear ? '.45' : '';
-  $('fRepetir').disabled = bloquear;
-  if (bloquear && LF.repetir) {
-    LF.repetir = false; $('fRepetir').checked = false; $('boxRepetir').style.display = 'none';
-    LF.semFimRec = false; $('fSemFimRec').checked = false; $('campoFimRec').style.display = 'block';
-    $('previewRec').style.display = 'none';
-  }
-}
-function atualizarExclusividadeParcelamento(){
-  const bloquear = LF.repetir;
-  $('cardParcelar').style.opacity = bloquear ? '.45' : '';
-  $('fParcelado').disabled = bloquear;
-  if (bloquear && LF.parcelado) {
-    LF.parcelado = false; $('fParcelado').checked = false; $('boxParcelas').style.display = 'none';
-    $('previewParcelas').style.display = 'none';
-  }
-}
-
-$('fPctCustom').oninput = function(){ LF.pctCustom = Number(this.value); $('labelCustom').textContent = 'Irwin ' + LF.pctCustom + '%'; atualizarPartes(); };
-['fValor','fDescricao','fData'].forEach(function(id){ $(id).addEventListener('input', function(){ atualizarPartes(); if (LF.pagador === 'Ambos') sincronizarRateio(); agendarPreview(); agendarPreviewRec(); validarLanc(); }); });
-
-$('fParcelado').onchange = function(){
-  LF.parcelado = this.checked;
-  $('boxParcelas').style.display = LF.parcelado ? 'block' : 'none';
-  atualizarExclusividadeRepeticao();
-  agendarPreview();
-};
-$('btnMenosParc').onclick = function(){ LF.nParcelas = Math.max(2, LF.nParcelas-1); $('lblNParc').textContent = LF.nParcelas; agendarPreview(); };
-$('btnMaisParc').onclick = function(){ LF.nParcelas = Math.min(24, LF.nParcelas+1); $('lblNParc').textContent = LF.nParcelas; agendarPreview(); };
-
-$('fRepetir').onchange = function(){
-  LF.repetir = this.checked;
-  $('boxRepetir').style.display = LF.repetir ? 'block' : 'none';
-  if (LF.repetir && !LF.semFimRec && !LF.fimRec) {
-    const p = ($('fData').value || OPC.hoje).split('-').map(Number);
-    const d = new Date(p[0], p[1] - 1, p[2]);
-    d.setMonth(d.getMonth() + 6);
-    LF.fimRec = d.toISOString().slice(0,10);
-    $('fFimRec').value = LF.fimRec;
-  }
-  atualizarExclusividadeParcelamento();
-  montarForm();
-  agendarPreviewRec();
-  validarLanc();
-};
-$('fSemFimRec').onchange = function(){
-  LF.semFimRec = this.checked;
-  $('campoFimRec').style.display = LF.semFimRec ? 'none' : 'block';
-  agendarPreviewRec();
-  validarLanc();
-};
-$('fFimRec').addEventListener('input', function(){ LF.fimRec = this.value; agendarPreviewRec(); validarLanc(); });
-
-/* ---------------- rateio do pagamento (quem pagou = Ambos) ----------------
-   Só existe um grau de liberdade: o total já foi digitado, então preencher um lado
-   determina o outro. `ladoEditado` guarda qual dos dois o usuário mexeu por último,
-   para que mudar o total depois reajuste o OUTRO e preserve o que ele digitou. */
-let ladoEditado = 'irwin';
-
-function sincronizarRateio(origem){
-  const total = lerValor('fValor');
-  if (origem) ladoEditado = origem;
-  let irwin = lerValor('fPagoIrwin');
-  let maria = lerValor('fPagoMaria');
-
-  if (ladoEditado === 'irwin'){
-    if (irwin > total) irwin = total;              // trava no total
-    maria = arred(total - irwin);
-    $('fPagoIrwin').value = formatarValorMascara(irwin);
-    $('fPagoMaria').value = formatarValorMascara(maria);
-  } else {
-    if (maria > total) maria = total;
-    irwin = arred(total - maria);
-    $('fPagoMaria').value = formatarValorMascara(maria);
-    $('fPagoIrwin').value = formatarValorMascara(irwin);
-  }
-
-  const soma = arred(irwin + maria);
-  const ok = Math.abs(soma - total) < 0.005 && total > 0;
-  const el = $('confereRateio');
-  el.textContent = 'Irwin ' + brl(irwin) + '  +  Maria ' + brl(maria) + '  =  ' + brl(soma) + (ok ? '  ✓' : '');
-  el.classList.toggle('erro', !ok);
-  return ok;
-}
-
-function rateioValido(){
-  if (LF.pagador !== 'Ambos') return true;
-  const total = lerValor('fValor');
-  return total > 0 && Math.abs(arred(lerValor('fPagoIrwin') + lerValor('fPagoMaria')) - total) < 0.005;
-}
-
-mascaraValorInput($('fPagoIrwin'));
-mascaraValorInput($('fPagoMaria'));
-$('fPagoIrwin').addEventListener('input', function(){ sincronizarRateio('irwin'); validarLanc(); });
-$('fPagoMaria').addEventListener('input', function(){ sincronizarRateio('maria'); validarLanc(); });
-$('btnMetadeCada').onclick = function(){
-  const metade = arred(lerValor('fValor') / 2);
-  $('fPagoIrwin').value = formatarValorMascara(metade);
-  sincronizarRateio('irwin');
-  validarLanc();
-};
-
-function calcPct(){
-  switch (LF.divisao){
-    case '50/50': return 50;
-    case 'Renda': return (OPC.pctIrwinRenda||0.4947) * 100;
-    case '100% Irwin': return 100;
-    case '100% Maria': return 0;
-    case 'Custom': return LF.pctCustom;
-    default: return 50;
-  }
-}
-function atualizarPartes(){
-  const v = lerValor('fValor') || 0;
-  const pct = calcPct();
-  const pI = arred(v * pct / 100), pM = arred(v - pI);
-  $('valParteIrwin').textContent = brl(pI);
-  $('valParteMaria').textContent = brl(pM);
-}
-
-function coletarLanc(){
-  return {
-    data: $('fData').value, valor: lerValor('fValor'), descricao: $('fDescricao').value.trim(),
-    grupo: LF.categoria, tipo: LF.tipo, fonte: LF.origem, quemPagou: LF.pagador,
-    gastoDe: LF.gastoDe || null,
-    pagoIrwin: LF.pagador === 'Ambos' ? lerValor('fPagoIrwin') : null,
-    divisao: LF.divisao, pctIrwinCustom: LF.pctCustom,
-    parcelas: LF.parcelado ? LF.nParcelas : 1, tipoValor: LF.tipoValor,
-    repetir: LF.repetir, freqRec: LF.freqRec, fimRec: LF.fimRec, semFimRec: LF.semFimRec
-  };
-}
-
-function agendarPreview(){
-  clearTimeout(debounceParc);
-  if (!LF.parcelado){ $('previewParcelas').style.display = 'none'; return; }
-  const v = lerValor('fValor');
-  if (!(v > 0)){ $('previewParcelas').style.display = 'none'; return; }
-  debounceParc = setTimeout(function(){
-    google.script.run.withSuccessHandler(function(lista){
-      const soma = lista.reduce(function(a,b){ return a+b.valor; }, 0);
-      let h = '<h4>' + lista.length + ' parcelas — uma linha cada</h4><ul>';
-      lista.forEach(function(p){ h += '<li><span>' + p.data + ' · ' + escapeHtml(p.descricao) + '</span><b>' + brl(p.valor) + '</b></li>'; });
-      h += '<li class="tot"><span>Total</span><b>' + brl(soma) + '</b></li></ul>';
-      $('previewParcelas').innerHTML = h;
-      $('previewParcelas').style.display = 'block';
-    }).withFailureHandler(function(){ $('previewParcelas').style.display = 'none'; }).previewParcelas(coletarLanc());
-  }, 300);
-}
-
-let debounceRec = null;
-function agendarPreviewRec(){
-  clearTimeout(debounceRec);
-  if (!LF.repetir){ $('previewRec').style.display = 'none'; return; }
-  const v = lerValor('fValor');
-  if (!(v > 0) || (!LF.semFimRec && !LF.fimRec)){ $('previewRec').style.display = 'none'; return; }
-  debounceRec = setTimeout(function(){
-    google.script.run.withSuccessHandler(function(lista){
-      const soma = lista.reduce(function(a,b){ return a+b.valor; }, 0);
-      const rotuloFreq = ROTULO_FREQ[LF.freqRec] || 'mês';
-      const titulo = LF.semFimRec
-        ? 'Sem data fim — um a cada ' + rotuloFreq + ' (mostrando os próximos ' + lista.length + ')'
-        : lista.length + ' lançamentos — um a cada ' + rotuloFreq;
-      let h = '<h4>' + titulo + '</h4><ul>';
-      lista.slice(0, 12).forEach(function(p){ h += '<li><span>' + p.data + ' · ' + escapeHtml(p.descricao) + '</span><b>' + brl(p.valor) + '</b></li>'; });
-      if (!LF.semFimRec && lista.length > 12) h += '<li><span>… e mais ' + (lista.length - 12) + '</span></li>';
-      h += LF.semFimRec
-        ? '<li class="tot"><span>Continua indefinidamente…</span></li></ul>'
-        : '<li class="tot"><span>Total</span><b>' + brl(soma) + '</b></li></ul>';
-      $('previewRec').innerHTML = h;
-      $('previewRec').style.display = 'block';
-    }).withFailureHandler(function(){ $('previewRec').style.display = 'none'; }).previewRecorrencia(coletarLanc());
-  }, 300);
-}
-
-/* `LF.pagador` entra na validação: sem pagador o lançamento nasce com 'Pago Irwin'
-   vazio e some do acerto de contas sem avisar ninguém. O backend também recusa — isto
-   aqui é só para o botão não prometer o que a gravação vai negar. */
-function validarLanc(){
-  const v = lerValor('fValor');
-  const ok = (v > 0) && $('fDescricao').value.trim() && LF.categoria && LF.tipo && LF.pagador && (!LF.repetir || LF.semFimRec || LF.fimRec) && rateioValido();
-  const b = $('btnSalvarLanc');
-  b.disabled = !ok; b.classList.toggle('valido', !!ok);
-}
-$('fDescricao').addEventListener('input', validarLanc);
-
-$('btnSalvarLanc').onclick = function(){
-  const d = coletarLanc();
-  $('erroLanc').classList.remove('on');
-  const b = this; b.disabled = true;
-
-  if (EDITANDO){
-    b.textContent = 'Salvando…';
-    google.script.run.withSuccessHandler(function(){
-      mostrarSucesso('Lançamento atualizado', escapeHtml(d.descricao) + ' — ' + brl(d.valor));
-      EDITANDO = null;
-      LF = lfVazio();
-      $('fValor').value = ''; $('fDescricao').value = '';
-      $('cardParcelar').style.display = ''; $('cardRepetir').style.display = ''; $('btnExcluirLanc').style.display = 'none';
-      b.textContent = 'Salvar';
-      montarForm(); resetarDataHoje(); validarLanc();
-      carregarUltimos(); carregarAcerto(); DASH = null;
-    }).withFailureHandler(function(e){
-      b.disabled = false; b.textContent = 'Salvar alterações';
-      if (listaDesatualizada(e)) { alert(e.message); return; }
-      $('erroLanc').textContent = e.message; $('erroLanc').classList.add('on');
-    }).atualizarLancamento(EDITANDO.linha, Object.assign({}, d, { assinatura: EDITANDO.assinatura }));
-    return;
-  }
-
-  b.textContent = 'Salvando…';
-  google.script.run.withSuccessHandler(function(r){
-    b.textContent = 'Salvar';
-    const rotuloQtd = LF.repetir ? (r.qtd > 1 ? ' lançamentos' : ' lançamento') : (r.qtd > 1 ? ' parcelas' : ' lançamento');
-    mostrarSucesso('Lançamento salvo', r.qtd + rotuloQtd + ' — ' + brl(r.total));
-    LF = lfVazio();
-    $('fValor').value = ''; $('fDescricao').value = ''; $('fParcelado').checked = false; $('boxParcelas').style.display = 'none';
-    $('fRepetir').checked = false; $('boxRepetir').style.display = 'none';
-    $('fSemFimRec').checked = false; $('campoFimRec').style.display = 'block';
-    montarForm(); resetarDataHoje(); validarLanc();
-    carregarUltimos(); carregarAcerto(); DASH = null;
-  }).withFailureHandler(function(e){
-    b.disabled = false; b.textContent = 'Salvar';
-    $('erroLanc').textContent = e.message; $('erroLanc').classList.add('on');
-  }).salvarLancamento(d);
-};
-
-$('btnExcluirLanc').onclick = function(){
-  if (!EDITANDO) return;
-  if (!confirm('Excluir este lançamento? Essa ação não pode ser desfeita.')) return;
-  const b = this, bS = $('btnSalvarLanc');
-  $('erroLanc').classList.remove('on');
-  b.disabled = true; bS.disabled = true; b.textContent = 'Excluindo…';
-  google.script.run.withSuccessHandler(function(){
-    mostrarSucesso('Lançamento excluído', '');
-    EDITANDO = null;
-    LF = lfVazio();
-    $('fValor').value = ''; $('fDescricao').value = '';
-    $('cardParcelar').style.display = ''; $('cardRepetir').style.display = ''; b.style.display = 'none'; b.disabled = false; b.textContent = 'Excluir lançamento';
-    bS.textContent = 'Salvar';
-    montarForm(); resetarDataHoje(); validarLanc();
-    carregarUltimos(); carregarAcerto(); DASH = null;
-  }).withFailureHandler(function(e){
-    b.disabled = false; bS.disabled = false; b.textContent = 'Excluir lançamento';
-    if (listaDesatualizada(e)) { alert(e.message); return; }
-    $('erroLanc').textContent = e.message; $('erroLanc').classList.add('on');
-  }).excluirLancamento(EDITANDO.linha, EDITANDO.assinatura);
-};
-
 /* ---------------- Investir ---------------- */
 let IF = { movimento:'Aporte', quem:'' };
 
-/** Zera a data para hoje. Só quando o formulário recomeça de verdade — nunca no re-render. */
-function resetarDataHoje(){ $('fData').value = OPC.hoje; }
 function resetarDataInvestHoje(){ $('iData').value = OPC.hoje; }
 
-/* Mesma armadilha do montarForm: não redefinir a data aqui. */
+/* A data NÃO é redefinida aqui de propósito: montarInvest() roda a cada clique de
+   chip, e resetar a data aqui apagaria em silêncio a que o usuário acabou de
+   escolher. Quem zera é resetarDataInvestHoje(), só quando o formulário recomeça. */
 function montarInvest(){
   const s = $('iClasse'); s.innerHTML = '';
   OPC.classesInvestimento.forEach(function(c){

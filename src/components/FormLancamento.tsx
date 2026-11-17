@@ -97,19 +97,49 @@ interface Props {
    * cabeçalho e a rolagem, comendo altura de tela no celular o tempo todo.
    */
   topo?: React.ReactNode;
+  /**
+   * Valores de partida para um lançamento NOVO — não é edição.
+   *
+   * Existe para o Quitar: ele abre esta tela com o acerto já preenchido, do
+   * jeito que o `Form.html` fazia na tela antiga. A diferença é de onde vem o
+   * número: antes a tela de quitação lia o saldo que o card tinha em memória;
+   * agora quem monta isto é o servidor, a partir do MESMO `getAcertoContas()`
+   * que desenha o card. Dois lugares calculando o saldo é como se cria a
+   * divergência que ninguém sabe resolver depois.
+   *
+   * Não vai pela URL de propósito: valor do acerto é dado financeiro do casal,
+   * e URL entra em histórico e em log de servidor. A URL só diz `?quitar=1`.
+   */
+  inicial?: {
+    descricao?: string;
+    valor?: number;
+    categoria?: string;
+    tipo?: string;
+    origem?: string;
+    pagador?: string;
+    divisao?: Divisao;
+  };
 }
 
-export default function FormLancamento({ opcoes, lancamento, aoSalvar, topo }: Props) {
+export default function FormLancamento({
+  opcoes,
+  lancamento,
+  aoSalvar,
+  topo,
+  inicial,
+}: Props) {
   const router = useRouter();
   const ed = lancamento;
   const editando = Boolean(ed);
 
-  const [descricao, setDescricao] = useState(ed?.descricao ?? '');
-  const [valor, setValor] = useState(ed ? mascaraMoeda(numero(ed.valor)) : '');
+  const [descricao, setDescricao] = useState(ed?.descricao ?? inicial?.descricao ?? '');
+  const [valor, setValor] = useState(
+    ed ? mascaraMoeda(numero(ed.valor)) : inicial?.valor ? mascaraMoeda(numero(inicial.valor)) : '',
+  );
   const [data, setData] = useState(ed?.data ?? opcoes.hoje);
-  const [categoria, setCategoria] = useState(ed?.categoria ?? '');
-  const [tipo, setTipo] = useState(ed?.tipo ?? 'Variável');
-  const [origem, setOrigem] = useState(ed?.fonte ?? 'Cartão');
+  const [categoria, setCategoria] = useState(ed?.categoria ?? inicial?.categoria ?? '');
+  const [tipo, setTipo] = useState(ed?.tipo ?? inicial?.tipo ?? 'Variável');
+  const [origem, setOrigem] = useState(ed?.fonte ?? inicial?.origem ?? 'Cartão');
   /**
    * As respostas das duas perguntas, num objeto só.
    *
@@ -121,10 +151,11 @@ export default function FormLancamento({ opcoes, lancamento, aoSalvar, topo }: P
    */
   const [reparticao, setReparticao] = useState<Reparticao>(() => {
     if (!ed) {
+      const divisao: Divisao = inicial?.divisao ?? '50/50';
       return {
-        pagador: opcoes.eu ?? 'Irwin',
-        divisao: '50/50',
-        fracao: 0.5,
+        pagador: inicial?.pagador ?? opcoes.eu ?? 'Irwin',
+        divisao,
+        fracao: fracaoDe(divisao, opcoes.pctIrwinRenda) ?? 0.5,
         quemDeFora: DE_FORA[0],
         pagoIrwinManual: null,
       };
@@ -217,6 +248,15 @@ export default function FormLancamento({ opcoes, lancamento, aoSalvar, topo }: P
   );
 
   const ehQuitacao = categoria === '9 Acerto de Contas';
+  /* O tipo de uma quitação é `Acerto`, venha ela do botão Quitar ou de alguém
+     escolhendo a categoria à mão. São dois caminhos para a mesma linha, e
+     deixá-los gravar tipos diferentes é como nasce dado que não se explica —
+     a única quitação já gravada tem `Acerto`.
+
+     Derivado, e não sincronizado por efeito: o estado `tipo` continua guardando
+     o que a pessoa escolheu, então trocar a categoria de volta devolve a
+     escolha dela intacta em vez de já ter sido sobrescrita no caminho. */
+  const tipoGravado = ehQuitacao ? 'Acerto' : tipo;
   const ehFora = reparticao.divisao === 'De fora';
 
   async function salvar() {
@@ -229,12 +269,17 @@ export default function FormLancamento({ opcoes, lancamento, aoSalvar, topo }: P
 
     /* Os campos do lançamento são os MESMOS nas duas portas — só o verbo muda.
        `atualizarLancamento` ignora parcelado/repetir, porque editar uma linha
-       nunca reparcela a compra: para isso existe a tela da série. */
+       nunca reparcela a compra: para isso existe a tela da série.
+
+       Por isso criar é `{...campos}` mais o parcelamento, e não uma segunda
+       lista escrita à mão: as duas existiram lado a lado e já cobraram o
+       preço — travar o tipo da quitação exigiu a mesma edição duas vezes, e
+       bastava esquecer uma para criar e editar gravarem coisas diferentes. */
     const campos = {
       data,
       descricao: descricao.trim(),
       grupo: categoria,
-      tipo,
+      tipo: tipoGravado,
       fonte: origem,
       valor: total,
       divisao: reparticao.divisao,
@@ -256,21 +301,7 @@ export default function FormLancamento({ opcoes, lancamento, aoSalvar, topo }: P
         return;
       }
       await rpc('salvarLancamento', {
-        data,
-        descricao: descricao.trim(),
-        grupo: categoria,
-        tipo,
-        fonte: origem,
-        valor: total,
-        divisao: reparticao.divisao,
-        deFora: ehFora,
-        // A coluna guarda FRAÇÃO; a API converte de percentual. Mandar
-        // percentual aqui é o contrato — ver `salvarLancamento`.
-        pctIrwinCustom: reparticao.divisao === 'Custom' ? reparticao.fracao * 100 : null,
-        quemPagou: reparticao.pagador,
-        pagoIrwin: reparticao.pagador === 'Ambos' ? pagoIrwin : null,
-        obs: obs.trim() || null,
-        gastoDe: ehFora ? reparticao.quemDeFora : ehAndre ? 'André' : null,
+        ...campos,
         parcelado: repeticao === 'parcelado',
         /**
          * `parcelas` SÓ vai quando é parcelado.
@@ -394,20 +425,27 @@ export default function FormLancamento({ opcoes, lancamento, aoSalvar, topo }: P
           </p>
         )}
 
-        <div className="rot sep">Tipo</div>
-        <div className="chips">
-          {['Variável', 'Fixa'].map((t) => (
-            <button
-              key={t}
-              type="button"
-              className="chip"
-              aria-pressed={tipo === t}
-              onClick={() => setTipo(t)}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
+        {/* Na quitação os chips somem: `Acerto` não é Fixa nem Variável, e a
+            tela mostrava os dois apagados — um convite a marcar um deles e
+            transformar o acerto numa despesa fixa do mês. */}
+        {!ehQuitacao && (
+          <>
+            <div className="rot sep">Tipo</div>
+            <div className="chips">
+              {['Variável', 'Fixa'].map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className="chip"
+                  aria-pressed={tipo === t}
+                  onClick={() => setTipo(t)}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         <div className="rot sep">Origem</div>
         <div className="chips">

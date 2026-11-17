@@ -100,10 +100,10 @@ npm run checar-rotas
 
 Toda tela com `page.tsx` precisa de pelo menos um link vindo de fora dela mesma.
 
-Existe porque o app passou **26 dias sem importação de fatura** e nenhuma camada
-acusou: quando o Lançar saiu do `Form.html` para React, o único botão que apontava
-para `/importar` ficou na tela antiga, que ninguém mais abre. A rota nunca quebrou —
-ficou sem caminho até ela.
+Existe porque por **26 dias quem tocava em "Lançar" não conseguia importar fatura** e
+nenhuma camada acusou: o único botão que apontava para `/importar` tinha ficado na tela
+antiga do `Form.html`, alcançável só pelo botão `Quitar`. A rota nunca quebrou — o
+caminho até ela deixou de ser um caminho que alguém procuraria.
 
 É a única camada que olha para **ausência**. Todas as outras partem do que existe e
 provam que o destino está lá; esta enumera o que deveria existir e procura o que

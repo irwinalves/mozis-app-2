@@ -67,63 +67,17 @@ const fontes = [
 
 const conteudo = new Map(fontes.map((f) => [f, readFileSync(f, 'utf8')]));
 
-/**
- * A `screen-new` do `Form.html` não conta como porta — ela é a tela morta.
- *
- * Sem este recorte esta checagem seria inútil, e vale a pena ser explícito
- * sobre o porquê: o botão órfão de `/importar` MORA nela. Contá-la daria
- * "ok /importar ← public/Form.html" durante todo o mês em que a importação
- * esteve inacessível — um verde que prova o contrário do que afirma.
- *
- * Ela está morta desde 9e55922: a navegação de baixo intercepta a aba `new` e
- * redireciona para `/lancar`, então nada mais a abre. Continua no arquivo
- * porque 43 dos seus 44 ids ainda são referenciados pelo JS do resto do
- * arquivo — apagá-la quebra o app na carga, e isso é cirurgia à parte.
- *
- * O recorte se autodestrói: se a tela morta sair do arquivo, este script falha
- * pedindo que esta exclusão saia também. Exclusão que sobrevive ao motivo vira
- * buraco permanente.
- */
-const FORM = path.join(RAIZ, 'public', 'Form.html');
-{
-  const texto = conteudo.get(FORM);
-  const abre = texto.indexOf('<div class="screen" id="screen-new">');
-  if (abre < 0) {
-    console.error(
-      'FALHA  a `screen-new` não está mais no Form.html.\n' +
-        '       Ótimo — a tela morta foi embora. Tire esta exclusão do script:\n' +
-        '       sem ela, o Form.html volta a contar inteiro, como deve.',
-    );
-    process.exit(1);
-  }
-  // O fim do bloco por contagem de <div>, não por chute de indentação.
-  const linhas = texto.split('\n');
-  const lIni = texto.slice(0, abre).split('\n').length - 1;
-  let prof = 0;
-  let lFim = lIni;
-  for (let i = lIni; i < linhas.length; i++) {
-    prof += (linhas[i].match(/<div\b/g) ?? []).length - (linhas[i].match(/<\/div>/g) ?? []).length;
-    if (prof === 0 && i > lIni) {
-      lFim = i;
-      break;
-    }
-  }
+/* A `screen-new` do `Form.html` foi aposentada em 17/11/2026, e o recorte que a
+   ignorava saiu daqui junto com ela. Fica o registro do porquê existiu: aquela
+   tela hospedava o único link para `/importar`, e contá-la dava um
+   "ok /importar ← public/Form.html" num app onde a importação só era alcançável
+   por um botão escrito "Quitar".
 
-  // Os ids que SÓ existem na tela morta. Qualquer linha de JS que mexa num
-  // deles serve apenas a ela — é o caso do `$('btnImportar').onclick`, que é
-  // literalmente o link órfão e vive longe do bloco, no meio do script.
-  const dentro = linhas.slice(lIni, lFim + 1).join('\n');
-  const fora = linhas.slice(0, lIni).concat(linhas.slice(lFim + 1)).join('\n');
-  const mortos = [...dentro.matchAll(/id="([^"]+)"/g)]
-    .map((m) => m[1])
-    .filter((id) => !fora.includes(`id="${id}"`));
+   A lição, caso o padrão volte: este script responde "existe link", e isso é
+   mais fraco que "alguém acha". Um link dentro de tela que ninguém procura
+   passa por aqui e não serve para nada — nenhuma verificação estática fecha
+   essa distância, só abrir o app e tentar. */
 
-  const vivo = linhas
-    .filter((_, i) => i < lIni || i > lFim)
-    .filter((l) => !mortos.some((id) => l.includes(`'${id}'`) || l.includes(`"${id}"`)))
-    .join('\n');
-  conteudo.set(FORM, vivo);
-}
 
 
 /**
@@ -152,9 +106,7 @@ function temPorta(rota, menos) {
  *
  * Este recorte é o que faz a checagem valer alguma coisa. Sem ele, a tela que
  * tem um "voltar" para a mãe contava como porta de entrada da mãe — e a mãe
- * podia estar tão inalcançável quanto a filha. Era exatamente a forma do
- * defeito original: o único link para `/importar` morava no `screen-new`, que
- * ninguém mais abria. Um link só é porta se vem de FORA.
+ * podia estar tão inalcançável quanto a filha. Um link só é porta se vem de FORA.
  */
 function dentroDaRota(arquivo, rota) {
   const segmentos = rota.split('/').filter(Boolean);

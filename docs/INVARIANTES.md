@@ -672,10 +672,18 @@ inalcançável quanto esta.
 No celular não há barra de endereço: sem link, a tela não existe.
 
 **O defeito que mandou fazer:** em 22/10/2026 o Lançar saiu do `Form.html` para React
-(9e55922). A navegação de baixo passou a redirecionar a aba `new` para `/lancar`, a tela
-antiga `screen-new` virou código morto, e junto foi o único botão que apontava para
-`/importar`. **O app ficou 26 dias sem importação de fatura.** Achado por relato, não por
-verificação.
+(9e55922). A navegação de baixo passou a redirecionar a aba `new` para `/lancar`, e o
+único botão que apontava para `/importar` ficou na tela antiga `screen-new`. Por 26 dias,
+**quem tocasse em "Lançar" não tinha como importar fatura** — e foi achado por relato,
+não por verificação.
+
+> **Correção de 17/11/2026, e ela importa:** eu afirmei aqui que a tela estava morta e
+> que o app ficara sem importação. As duas coisas estavam erradas. O botão `Quitar`, do
+> card de acerto, ainda abria a `screen-new` — então a importação era alcançável, por um
+> botão escrito "Quitar" que só aparece quando há saldo. A falha real é mais sutil e mais
+> comum que "a tela sumiu": **o caminho restante não era o caminho que alguém procuraria.**
+> A conclusão errada veio de ler o código — a navegação redireciona, logo a tela é morta —
+> em vez de abrir o app e tocar no botão, que é o que mostrou a verdade.
 
 **Por que nenhuma outra camada pega:** todas as outras provam que o destino existe, e o
 que sumiu foi o caminho. O `build` listou `/importar` nos dois lados do commit. O
@@ -690,10 +698,14 @@ reprova nomeando `/importar`; com ele, passa.
 
 > **Armadilha que custou duas versões do script:** a primeira versão passava com o app
 > quebrado. Ela aceitava o `$('btnImportar').onclick` do `Form.html` como porta — e esse
-> handler **é** o link órfão, pendurado num botão que ninguém mais vê. Um link só conta se
-> o elemento dele estiver vivo, então o script descarta a `screen-new` e toda linha de JS
-> que só mexe em id de lá. A exclusão se autodestrói: se a tela morta sair do arquivo, o
-> script falha pedindo que a exclusão saia também.
+> handler era o link órfão, pendurado num botão que ninguém encontrava. A segunda versão
+> descartava a `screen-new` e toda linha de JS que só mexia em id de lá, com uma exclusão
+> feita para se autodestruir quando a tela saísse do arquivo.
+>
+> **E ela se autodestruiu, no mesmo dia.** A `screen-new` foi aposentada em 17/11/2026, o
+> script falhou pedindo a remoção da exclusão, e a exclusão saiu. Vale registrar que a
+> parte que funcionou foi a que previa o próprio fim: um recorte que sobrevive ao motivo
+> vira buraco permanente, e ninguém revisita exclusão que não reclama.
 
 ---
 
