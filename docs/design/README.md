@@ -213,9 +213,9 @@ Títulos por origem: "Lançamento salvo", "Movimento registrado", "Extrato impor
 Cards, de cima pra baixo:
 1. **Fixo vs. variável do mês** — duas barras horizontais empilhadas (Fixa `#A63A2E`, Variável `#B8860B`): "Este mês" (opaca) e "Média do ano" (opacidade 0.6). Legenda embaixo.
 2. **Evolução do % de despesas fixas** — mini gráfico de barras por ano (2022: 30,2% · 2023: 35,3% · 2024: 36,3% · 2025: 40,6%), barras `#A63A2E`, com o valor em cima e o ano embaixo. Legenda: "O indicador mais importante do sistema". **Barras com altura em px** (não %), senão colapsam num container de altura indefinida.
-3. **Gasto por categoria (histórico)** — barras horizontais na cor forte de cada categoria, largura proporcional ao maior. Valores reais somados (Irwin+Maria): Outros [redigido] · Casa [redigido] · Comida [redigido] · Carro [redigido] · Viagem [redigido] · Saúde [redigido].
+3. **Gasto por categoria (histórico)** — barras horizontais na cor forte de cada categoria, largura proporcional ao maior. A ordem das categorias por volume: Outros, Casa, Comida, Carro, Viagem, Saúde. Os valores saem do banco; a ordem de grandeza está na seção 6 do briefing.
 4. **Maior "ofensor" por categoria** — linhas com dot da categoria + badge na cor da pessoa vencedora (ou "Empate" neutro): Casa→Maria, Carro→Maria, Comida→Empate, Saúde→Irwin, Viagem→Maria, Outros→Irwin.
-5. **Ritmo de gasto** — "R$ [redigido] / ano" (`#2F5233`, 20px) + "R$ [redigido] por mês…".
+5. **Ritmo de gasto** — total do ano (`#2F5233`, 20px) + a faixa mensal logo abaixo. Dimensionar para seis dígitos.
 6. **Patrimônio** — Investimentos / Dívidas / Patrimônio líquido (valores "—" até integrar a posição mensal). Nota do ritual de 5 min.
 7. **Nota de honestidade** sobre "Outros" concentrar quase metade do total.
 

@@ -50,3 +50,6 @@ baseline/
 # Fica local, como o baseline/. Ver docs/faturas/README.md.
 docs/faturas/
 docs/manual/prints/
+
+# Prints com dado financeiro real. Ficam locais, como o baseline/.
+docs/design/screenshots/

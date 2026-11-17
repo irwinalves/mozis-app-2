@@ -186,7 +186,7 @@ curto demais para uma migração de semanas.
 
 ```
 ep-XXXXXXXX-pooler…   ← main (produção)
-ep-YYYYYYYY-pooler…    ← teste
+ep-YYYYYYYY-pooler…   ← teste
 ```
 
 Os comandos com sufixo `:teste` apontam para lá:

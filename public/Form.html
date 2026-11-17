@@ -1333,7 +1333,11 @@ function renderTilesResumo(){
   $('valVarMes').textContent = brl(DASH.mesAtual.variavel);
 }
 
-const PLANILHA_URL = 'https://docs.google.com/spreadsheets/d/ID-DA-PLANILHA/edit';
+/* A URL da planilha não mora mais aqui: ela identifica a planilha de um casal
+   específico e este arquivo é público. Vem por `window.PLANILHA_URL`, injetada
+   pelo `route.ts` a partir da variável de ambiente. Sem ela, o botão não aparece,
+   que é o certo desde que a planilha deixou de ser a fonte da verdade. */
+const PLANILHA_URL = (typeof window !== 'undefined' && window.PLANILHA_URL) || '';
 
 function renderDashboard(){
   if (!DASH) return;
@@ -1343,7 +1347,7 @@ function renderDashboard(){
 
   let h = '';
 
-  h += '<a class="btn-planilha" href="' + PLANILHA_URL + '" target="_blank" rel="noopener">📄 Ver planilha</a>';
+  if (PLANILHA_URL) h += '<a class="btn-planilha" href="' + PLANILHA_URL + '" target="_blank" rel="noopener">📄 Ver planilha</a>';
 
   h += '<div class="card dash-card"><h3>Fixo vs. variável do mês</h3>';
   h += barraEmpilhada('Este mês — ' + brl(totalMes), DASH.mesAtual.fixa, DASH.mesAtual.variavel, 1);

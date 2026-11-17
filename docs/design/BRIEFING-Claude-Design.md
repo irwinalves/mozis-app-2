@@ -35,8 +35,8 @@ uma combinação de Splitwise + planilhas de Excel que foram crescendo sem
 estrutura — a última tinha três esquemas de categoria concorrendo entre si e
 dezenas de erros `#REF!`.
 
-O histórico consolidado tem **3.625 transações entre dez/2017 e nov/2026**,
-somando **R$ [redigido]** em gastos. Hoje gastam cerca de **R$ [redigido]/ano**.
+O histórico consolidado tem **3.625 transações entre dez/2017 e nov/2026**. O volume
+financeiro está na seção 6, em ordem de grandeza.
 
 ### A visão descrita pelo Irwin
 
@@ -154,7 +154,7 @@ Requisito textual do Irwin:
 Como funciona:
 
 - Existe um **default configurável**: proporção por renda, hoje
-  **49,47% Irwin / 50,53% Maria** (derivada de R$ [redigido] e R$ [redigido]/ano).
+  **49,47% Irwin / 50,53% Maria** (derivada da renda anual de cada um).
   Fica numa célula única; ao mudar, tudo recalcula.
 - Cada transação pode ter divisão própria, escolhida entre cinco modos.
 - As colunas **Parte Irwin** e **Parte Maria** são sempre visíveis — a divisão
@@ -262,15 +262,22 @@ Verde institucional do sistema: `#2F5233`.
 
 ---
 
-## 6. Dados reais para dimensionar o design
+## 6. Ordem de grandeza, para dimensionar o design
 
-Números verdadeiros — úteis para popular mockups com realismo.
+> Os números financeiros desta seção foram **substituídos por valores fictícios** quando
+> o repositório foi aberto, em novembro de 2026. A ordem de grandeza foi preservada,
+> que é o que o design precisa: quantos dígitos cabem num rótulo, que faixa o eixo de
+> um gráfico tem que cobrir, quantas linhas uma lista precisa paginar. Os valores reais
+> continuam onde sempre estiveram, que é o banco, e não são necessários aqui.
 
-### Volume
+### Volume (este é real, e não é dado financeiro)
 - 3.430 lançamentos de gasto · 192 acertos · 108 meses de histórico
-- R$ [redigido] em gastos acumulados
-- Gasto anual estabilizado: ~R$ [redigido] (2022 em diante)
-- Gasto mensal típico: R$ [redigido]
+
+### Faixas para dimensionar a tela
+- Gasto acumulado do casal: **seis dígitos**, ordem de R$ 900 mil
+- Gasto anual estabilizado: ordem de **R$ 150 mil**
+- Gasto mensal típico: faixa de **R$ [redigido]**
+- Lançamento individual: de **R$ 3,50 a R$ 3.500**, com a maioria entre R$ 20 e R$ 300
 
 ### Evolução do peso das despesas fixas
 2022: 30,2% · 2023: 35,3% · 2024: 36,3% · **2025: 40,6%**
@@ -280,25 +287,15 @@ ajustar o orçamento num mês apertado. **Este é provavelmente o indicador mais
 importante a destacar no design.**
 
 ### Divisão acumulada entre os dois
-Irwin R$ [redigido] (51%) · Maria R$ [redigido] (49%) — bem equilibrado no total.
-
-Mas com assimetrias claras por categoria:
-
-| Categoria | Irwin | Maria | Maior |
-|---|---|---|---|
-| Casa | [redigido] | [redigido] | Maria |
-| Carro | [redigido] | [redigido] | Maria |
-| Comida | [redigido] | [redigido] | empate |
-| Saúde | [redigido] | [redigido] | Irwin |
-| Viagem | [redigido] | [redigido] | Maria |
-| Outros | [redigido] | [redigido] | Irwin |
+Perto de **51% / 49%**, bem equilibrado no total, com assimetrias claras por
+categoria: Casa e Carro pesam mais de um lado, Saúde do outro, Comida empata.
+O design precisa aguentar as duas barras quase iguais sem que a diferença suma.
 
 ### Ressalva honesta
-"10 Outros" concentra R$ [redigido] dos dois somados — quase metade do total. Isso
-porque 72% do histórico do Splitwise estava na categoria genérica "Geral" com
-descrições curtas demais para reclassificar. **O design deveria incluir uma
-forma fácil de reclassificar lançamentos em lote**, porque essa é a maior
-alavanca de clareza disponível hoje.
+"10 Outros" concentra **quase metade do total**. Isso porque 72% do histórico do
+Splitwise estava na categoria genérica "Geral" com descrições curtas demais para
+reclassificar. **O design deveria incluir uma forma fácil de reclassificar
+lançamentos em lote**, porque essa é a maior alavanca de clareza disponível hoje.
 
 ---
 
