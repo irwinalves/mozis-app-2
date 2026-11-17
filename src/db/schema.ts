@@ -339,11 +339,29 @@ export const acertoContas = pgTable('acerto_contas', {
   obs: text('obs'),
 });
 
-/**
- * Bloco CONTAS da aba `Investimentos`.
- * Na planilha isso era localizado por busca de texto (`acharLinha`), porque os
- * dois blocos dividiam a mesma aba. Aqui são duas tabelas normais.
- */
+/* --------------------------------------------------------------------------
+ * INVESTIMENTOS — APOSENTADO EM 17/11/2026, TABELAS MANTIDAS DE PROPÓSITO
+ *
+ * A tela de investimentos saiu do app sem nunca ter sido usada: as três tabelas
+ * abaixo estão com ZERO linhas, conferido antes de remover. O controle de
+ * investimento do casal não vai acontecer aqui.
+ *
+ * O CÓDIGO foi removido inteiro — tela, API e rota — porque código morto cobra
+ * caro: foi exatamente assim que o botão de importar fatura passou 26 dias sem
+ * caminho até ele, escondido numa tela que ninguém abria.
+ *
+ * As TABELAS ficam, e a assimetria é deliberada. Tabela vazia não confunde
+ * ninguém nem é alcançável por engano; `DROP TABLE` é irreversível e, se um dia
+ * a decisão mudar, recriar a partir do histórico do git custa mais do que
+ * deixar parado. O ganho de remover seria estético; o risco, não.
+ *
+ * Elas precisam continuar declaradas aqui mesmo sem uso: o `drizzle-kit`
+ * compara este arquivo com o banco, e tabela ausente daqui vira migração de
+ * `DROP` na próxima vez que alguém rodar `db:generate` — a decisão de apagar
+ * seria tomada por omissão, que é o pior jeito de tomá-la.
+ * ------------------------------------------------------------------------- */
+
+/** Bloco CONTAS da aba `Investimentos`. Sem uso desde 17/11/2026. */
 export const investimentosContas = pgTable('investimentos_contas', {
   id: serial('id').primaryKey(),
   nome: text('nome').notNull().unique(),
@@ -352,7 +370,7 @@ export const investimentosContas = pgTable('investimentos_contas', {
   deQuem: text('de_quem'),
 });
 
-/** Bloco MOVIMENTOS da aba `Investimentos`. */
+/** Bloco MOVIMENTOS da aba `Investimentos`. Sem uso desde 17/11/2026. */
 export const investimentosMovimentos = pgTable('investimentos_movimentos', {
   id: serial('id').primaryKey(),
   data: date('data').notNull(),
@@ -364,7 +382,7 @@ export const investimentosMovimentos = pgTable('investimentos_movimentos', {
   obs: text('obs'),
 });
 
-/** Aba `Patrimônio`: a posição mensal, anotada no ritual do fim do mês. */
+/** Aba `Patrimônio`: a posição mensal. Sem uso desde 17/11/2026. */
 export const patrimonio = pgTable('patrimonio', {
   id: serial('id').primaryKey(),
   data: date('data').notNull(),

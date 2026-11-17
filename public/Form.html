@@ -36,7 +36,6 @@
   --conjunta:#5f6368; --conjunta-l:#F1F3F4;
   --fixa:#A63A2E; --fixa-l:#F6DCD8;
   --var:#B8860B; --var-l:#FBEED0;
-  --invest:#2E6B2E; --invest-l:#D8EBD8;
   --entrada:#0F6E56; --entrada-l:#D6EFE6;
   /* André. Âmbar queimado: fora do azul do Irwin, do roxo da Maria e das nove
      cores de categoria — conferido contra as onze. */
@@ -55,7 +54,6 @@
     --conjunta:#9AA0A6; --conjunta-l:#2A2B2E;
     --fixa:#E38B7D; --fixa-l:#3A1F1C;
     --var:#E6BD5C; --var-l:#3A2F14;
-    --invest:#7BD98A; --invest-l:#1B3320;
     --entrada:#5CE0BE; --entrada-l:#123027;
     --andre:#E39A4E; --andre-l:#3A2A16;
   }
@@ -73,7 +71,6 @@
   --conjunta:#9AA0A6; --conjunta-l:#2A2B2E;
   --fixa:#E38B7D; --fixa-l:#3A1F1C;
   --var:#E6BD5C; --var-l:#3A2F14;
-  --invest:#7BD98A; --invest-l:#1B3320;
   --entrada:#5CE0BE; --entrada-l:#123027;
   --andre:#E39A4E; --andre-l:#3A2A16;
 }
@@ -211,8 +208,6 @@ input.valor-grande{font-size:16px;font-weight:700;letter-spacing:.2px}
 .btn-full{width:100%;padding:14px;font-size:15px;font-weight:700;color:#fff;background:var(--borda-input);
       border:none;border-radius:8px;cursor:pointer;font-family:inherit}
 .btn-full.valido{background:var(--verde)}
-.btn-full.invest{background:var(--borda-input)}
-.btn-full.invest.valido{background:var(--invest)}
 
 /* Caminho para a tela de série. Aparece só quando o lançamento pertence a uma
    — a esmagadora maioria é avulsa e não deve ganhar botão nenhum. */
@@ -431,10 +426,6 @@ input.valor-rateio{border:none;background:none;font-size:17px;font-weight:500;wi
 .badge{font-size:10px;font-weight:500;padding:3px 8px;border-radius:999px}
 .ritmo-num{font-size:20px;font-weight:500;color:var(--verde)}
 .ritmo-desc{font-size:12px;color:var(--texto2);margin-top:4px}
-.patrim-grid{display:flex;gap:10px}
-.patrim-grid .item{flex:1;text-align:center;background:var(--suave);border-radius:8px;padding:10px 6px}
-.patrim-grid .item .l{font-size:11px;color:var(--texto2)}
-.patrim-grid .item .v{font-size:14px;font-weight:500;margin-top:4px}
 
 /* overlay sucesso */
 .overlay{position:absolute;inset:0;background:var(--bg);display:none;flex-direction:column;align-items:center;
@@ -454,7 +445,6 @@ input.valor-rateio{border:none;background:none;font-size:17px;font-weight:500;wi
 .imp-item .col-data{width:32px}
 .imp-item .desc{font-size:13px}
 .imp-item .valor{font-size:13px;font-weight:500;flex:0 0 auto}
-select#classeInvest{margin-top:0}
 </style>
 </head>
 <body>
@@ -542,29 +532,6 @@ select#classeInvest{margin-top:0}
     </div>
 
 
-    <!-- INVESTIR -->
-    <div class="screen" id="screen-invest">
-      <div class="pad">
-        <div class="msg-erro" id="erroInvest"></div>
-        <div class="card" style="background:var(--invest-l);border:none">
-          <div style="color:var(--invest);font-size:13px;line-height:1.5">Investimento não é gasto — é patrimônio mudando de lugar. Fica fora do resultado de despesas.</div>
-        </div>
-        <div class="card">
-          <div class="campo"><label>Data</label><input type="date" id="iData"></div>
-          <div class="campo"><label>Movimento</label><div class="chips" id="chipsMovimento"></div></div>
-          <div class="campo"><label>Valor</label>
-            <div class="valor-wrap"><span class="prefixo">R$</span><input type="text" id="iValor" class="valor-grande" inputmode="decimal" placeholder="0,00"></div>
-          </div>
-          <div class="campo"><label>Instituição / conta</label><input type="text" id="iConta" placeholder="Ex.: XP, Nubank, Tesouro Direto"></div>
-          <div class="campo"><label>Classe do ativo</label><select id="iClasse"></select></div>
-          <div class="campo" style="margin-bottom:0"><label>De quem é o aporte</label><div class="chips" id="chipsQuemInvest"></div></div>
-        </div>
-        <div class="card" style="background:var(--suave);border:none">
-          <div style="font-size:12px;color:var(--texto2);line-height:1.5">A posição de cada conta é anotada 1x por mês, direto do app do banco. O rendimento é calculado: saldo final − inicial − aportes + resgates.</div>
-        </div>
-      </div>
-      <div class="barra-acao"><button class="btn-full invest" id="btnSalvarInvest" disabled>Registrar movimento</button></div>
-    </div>
 
     <!-- DASHBOARD -->
     <div class="screen" id="screen-dashboard">
@@ -610,13 +577,6 @@ select#classeInvest{margin-top:0}
     <button data-tab="new">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
       <span>Lançar</span>
-    </button>
-    <!-- Investir fica fora da barra por ora: a tela não está em obra e ficava
-         ocupando um quarto do espaço. O código continua aqui, e volta tirando
-         este `hidden`. -->
-    <button data-tab="invest" hidden>
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>
-      <span>Investir</span>
     </button>
     <button data-tab="dashboard">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="12" width="3.5" height="8" rx="1"/><rect x="10.25" y="6" width="3.5" height="14" rx="1"/><rect x="16.5" y="9" width="3.5" height="11" rx="1"/></svg>
@@ -719,7 +679,6 @@ function mascaraValorInput(el){
 function lerValor(id){
   return Number(String($(id).value || '').replace(/\./g, '').replace(',', '.')) || 0;
 }
-mascaraValorInput($('iValor'));
 $('avatarHeaderIrwin').src = AVATAR_IRWIN;
 $('avatarHeaderMaria').src = AVATAR_MARIA;
 $('avatarHeaderAndre').src = AVATAR_ANDRE;
@@ -779,8 +738,6 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', fun
 /* ---------------- boot ---------------- */
 google.script.run.withSuccessHandler(function(o){
   OPC = o;
-  montarInvest();
-  resetarDataInvestHoje();
   $('boot').style.display = 'none';
   $('app').style.display = 'flex';
   /* As chamadas do boot são PARALELAS: acerto, lista e dashboard partem junto
@@ -824,8 +781,7 @@ function irPara(tela){
   document.querySelectorAll('#tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tabAtiva));
   $('btnVoltar').style.display = tela === 'import' ? 'inline' : 'none';
   $('headerTitulo').textContent = {
-    home: 'Início', invest: 'Novo investimento',
-    dashboard: 'Dashboard', import: 'Importar extrato'
+    home: 'Início', dashboard: 'Dashboard', import: 'Importar extrato'
   }[tela];
   if (tela === 'dashboard') carregarDashboard();
   $('content').scrollTop = 0;
@@ -1349,58 +1305,6 @@ const ROTULO_FREQ = { mensal:'mês', quinzenal:'15 dias', semanal:'semana' };
 /* O estado inicial do formulário vivia escrito por extenso em CINCO lugares.
    Acrescentar um campo exigia lembrar dos cinco, e esquecer um daria um defeito
    que só aparece por um caminho específico de navegação. */
-/* ---------------- Investir ---------------- */
-let IF = { movimento:'Aporte', quem:'' };
-
-function resetarDataInvestHoje(){ $('iData').value = OPC.hoje; }
-
-/* A data NÃO é redefinida aqui de propósito: montarInvest() roda a cada clique de
-   chip, e resetar a data aqui apagaria em silêncio a que o usuário acabou de
-   escolher. Quem zera é resetarDataInvestHoje(), só quando o formulário recomeça. */
-function montarInvest(){
-  const s = $('iClasse'); s.innerHTML = '';
-  OPC.classesInvestimento.forEach(function(c){
-    const o = document.createElement('option'); o.value = c; o.textContent = c; s.appendChild(o);
-  });
-
-  const cMov = $('chipsMovimento'); cMov.innerHTML = '';
-  OPC.movimentosInvest.forEach(function(m){
-    const b = chip(cMov, m, m === IF.movimento, 'var(--invest)', 'var(--invest-l)', function(){ IF.movimento = m; montarInvest(); });
-    b.classList.add('seg');
-  });
-
-  const cQuem = $('chipsQuemInvest'); cQuem.innerHTML = '';
-  OPC.pagadores.forEach(function(p){
-    chip(cQuem, p, p === IF.quem, PESSOA[p].forte, PESSOA[p].clara, function(){ IF.quem = p; montarInvest(); validarInvest(); });
-  });
-}
-
-['iValor','iConta'].forEach(function(id){ $(id).addEventListener('input', validarInvest); });
-function validarInvest(){
-  const ok = (lerValor('iValor') > 0) && $('iConta').value.trim();
-  const b = $('btnSalvarInvest');
-  b.disabled = !ok; b.classList.toggle('valido', !!ok);
-}
-
-$('btnSalvarInvest').onclick = function(){
-  const d = {
-    data: $('iData').value, movimento: IF.movimento, valor: lerValor('iValor'),
-    conta: $('iConta').value.trim(), classe: $('iClasse').value, quem: IF.quem
-  };
-  $('erroInvest').classList.remove('on');
-  const b = this; b.disabled = true; b.textContent = 'Salvando…';
-  google.script.run.withSuccessHandler(function(){
-    b.textContent = 'Registrar movimento';
-    mostrarSucesso('Movimento registrado', (d.movimento === 'Aporte' ? 'Aporte' : 'Resgate') + ' de ' + brl(d.valor) + ' em ' + escapeHtml(d.conta));
-    $('iValor').value = ''; $('iConta').value = ''; IF = { movimento:'Aporte', quem:'' };
-    montarInvest(); resetarDataInvestHoje(); validarInvest();
-    DASH = null;
-  }).withFailureHandler(function(e){
-    b.disabled = false; b.textContent = 'Registrar movimento';
-    $('erroInvest').textContent = e.message; $('erroInvest').classList.add('on');
-  }).salvarInvestimento(d);
-};
-
 /* ---------------- Dashboard ---------------- */
 function montarFiltroDash(){
   const c = $('chipsGranularidade'); c.innerHTML = '';
@@ -1468,23 +1372,20 @@ function renderDashboard(){
   h += '<div class="card dash-card"><h3>Maior "ofensor" por categoria</h3>';
   DASH.ofensores.forEach(function(o){
     const cor = (CATS[o.categoria]||{forte:'#6E6E6E'}).forte;
-    const p = PESSOA[o.vencedor] || PESSOA.Empate;
+    /* `quem`, não `vencedor`: a API renomeou o campo e o front não acompanhou.
+       Resultado na tela: o badge escrevia "undefined" em todas as categorias.
+       Mesma forma do bug `grupo`/`categoria` que originou o contrato.test.ts —
+       só que o teste cobre o que o front ENVIA, e isto é o que ele RECEBE. */
+    const p = PESSOA[o.quem] || PESSOA.Empate;
     h += '<div class="ofensor-linha"><span class="dot-cat" style="background:' + cor + '"></span>' +
          '<span class="nome">' + escapeHtml(o.categoria.replace(/^\d+\s/, '')) + '</span>' +
-         '<span class="badge" style="background:' + p.clara + ';color:' + p.forte + '">' + o.vencedor + '</span></div>';
+         '<span class="badge" style="background:' + p.clara + ';color:' + p.forte + '">' + o.quem + '</span></div>';
   });
   h += '</div>';
 
   h += '<div class="card dash-card"><h3>Ritmo de gasto</h3>' +
        '<div class="ritmo-num">' + brl(DASH.ritmoAnual).replace(',00','') + ' / ano</div>' +
        '<div class="ritmo-desc">' + brl(DASH.ritmoMin).replace(',00','') + ' a ' + brl(DASH.ritmoMax).replace(',00','') + ' por mês, dependendo da época.</div></div>';
-
-  const pat = DASH.patrimonio || {};
-  h += '<div class="card dash-card"><h3>Patrimônio</h3><div class="patrim-grid">' +
-       '<div class="item"><div class="l">Investimentos</div><div class="v">' + (pat.investido != null ? brl(pat.investido) : '—') + '</div></div>' +
-       '<div class="item"><div class="l">Dívidas</div><div class="v">' + (pat.dividas != null ? brl(pat.dividas) : '—') + '</div></div>' +
-       '<div class="item"><div class="l">Patrimônio líquido</div><div class="v">' + (pat.liquido != null ? brl(pat.liquido) : '—') + '</div></div>' +
-       '</div><div class="nota">Ritual de 5 minutos: anote 1x por mês o saldo de cada conta na aba Investimentos → Patrimônio.</div></div>';
 
   h += '<div class="nota">Honestidade: "Outros" concentra boa parte do histórico importado do Splitwise, com descrições curtas demais para reclassificar. Use a importação de extrato para lançar com categoria melhor daqui pra frente.</div>';
 

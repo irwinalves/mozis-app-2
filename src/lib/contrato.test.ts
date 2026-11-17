@@ -12,15 +12,17 @@
  * O front dos lançamentos mudou de casa em 17/11/2026: era o `coletarLanc` do
  * `Form.html`, hoje é o objeto `campos` do `FormLancamento.tsx`. A mudança
  * valida o teste em vez de enfraquecê-lo — ele quebrou sozinho na hora em que a
- * função sumiu, que é exatamente o serviço que se espera dele. O `Form.html`
- * segue sendo a fonte para o investimento, que ainda mora lá.
+ * função sumiu, que é exatamente o serviço que se espera dele.
+ *
+ * No mesmo dia saiu daqui o contrato do investimento, junto com a tela: ela foi
+ * aposentada sem nunca ter sido usada. Teste de contrato de porta que não existe
+ * mais não protege nada — só pesa na próxima leitura.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-const FORM = readFileSync(path.join(process.cwd(), 'public', 'Form.html'), 'utf8');
 const LANC = readFileSync(
   path.join(process.cwd(), 'src', 'components', 'FormLancamento.tsx'),
   'utf8',
@@ -97,14 +99,4 @@ test('ao criar, os campos de parcelamento e recorrência vão junto', () => {
       `o front deixou de mandar \`${campo}\` ao criar`,
     );
   }
-});
-
-test('investimento: o front manda `quem`, não `deQuem`', () => {
-  // Não é função nomeada — é um literal dentro do onclick do botão.
-  const i = FORM.indexOf("$('btnSalvarInvest').onclick");
-  assert.ok(i > 0);
-  const corpo = FORM.slice(i, i + 400);
-  assert.ok(/\bquem\s*:/.test(corpo), 'o front deixou de mandar `quem`');
-  assert.ok(/\bconta\s*:/.test(corpo) && /\bmovimento\s*:/.test(corpo));
-  assert.ok(!/\bdeQuem\s*:/.test(corpo), 'o front passou a mandar `deQuem`');
 });

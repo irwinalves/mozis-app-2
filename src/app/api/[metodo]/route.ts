@@ -15,7 +15,6 @@ const METODOS = {
   buscarLancamentos: api.buscarLancamentos,
   getAcertoContas: api.getAcertoContas,
   getDashboard: api.getDashboard,
-  getPatrimonio: api.getPatrimonio,
   obterSerie: api.obterSerie,
   serieDoLancamento: api.serieDoLancamento,
   previewEdicaoSerie: api.previewEdicaoSerie,
@@ -44,7 +43,6 @@ const METODOS = {
   excluirReembolso: api.excluirReembolso,
   previewParcelas: api.previewParcelas,
   previewRecorrencia: api.previewRecorrencia,
-  salvarInvestimento: api.salvarInvestimento,
 } as const;
 
 /**

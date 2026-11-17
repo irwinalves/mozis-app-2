@@ -211,7 +211,6 @@ export async function getOpcoes(pessoa: Pessoa | null = null) {
     pagadores: ['Irwin', 'Maria', 'Ambos'],
     pagadoresLancar: ['Irwin', 'Maria', 'Ambos'],
     movimentosInvest: ['Aporte', 'Resgate'],
-    classesInvestimento: ['Reserva', 'Renda fixa', 'Ações/FII', 'Previdência', 'Cripto', 'Outros'],
     pctIrwinRenda: Number(conf?.pct_irwin_renda ?? 0.4947),
     hoje: formatarData(hoje),
 
@@ -884,65 +883,9 @@ export async function excluirLancamento(id: number) {
 }
 
 // ---------------------------------------------------------------------------
-// Investimentos
-// ---------------------------------------------------------------------------
-
-export async function salvarInvestimento(dados: {
-  data: string;
-  conta: string;
-  movimento: string;
-  valor: number | string;
-  classe?: string;
-  /** `quem`, não `deQuem` — mesmo motivo: é o nome que o front manda. */
-  quem?: string;
-  obs?: string;
-}) {
-  if (!dados.conta) throw new Error('Informe a instituição.');
-  const valor = arred(Number(dados.valor));
-  if (!(valor > 0)) throw new Error('Informe um valor maior que zero.');
-
-  await db.transaction(async (tx) => {
-    await tx.execute(
-      sql`insert into investimentos_contas (nome, classe, de_quem)
-          values (${dados.conta}, ${dados.classe ?? null}, ${dados.quem ?? null})
-          on conflict (nome) do nothing`,
-    );
-    await tx.execute(
-      sql`insert into investimentos_movimentos (data, conta, tipo, valor, de_quem, obs)
-          values (${dados.data}, ${dados.conta}, ${dados.movimento}, ${valor},
-                  ${dados.quem ?? null}, ${dados.obs ?? null})`,
-    );
-  });
-  return { ok: true };
-}
-
-// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
-export async function getPatrimonio() {
-  try {
-    const [r] = await db.execute<{
-      total_investido: string | null;
-      dividas: string | null;
-      patrimonio_liquido: string | null;
-    }>(
-      sql`select total_investido, dividas, patrimonio_liquido
-          from patrimonio where patrimonio_liquido is not null
-          order by data desc limit 1`,
-    );
-    if (!r) return { totalInvestido: null, dividas: null, patrimonioLiquido: null };
-    return {
-      totalInvestido: r.total_investido === null ? null : Number(r.total_investido),
-      dividas: r.dividas === null ? null : Number(r.dividas),
-      patrimonioLiquido:
-        r.patrimonio_liquido === null ? null : Number(r.patrimonio_liquido),
-    };
-  } catch {
-    // Nunca quebra o dashboard por causa do patrimônio — mostra "—".
-    return { totalInvestido: null, dividas: null, patrimonioLiquido: null };
-  }
-}
 
 export async function getDashboard(filtro?: {
   dataIni?: string;
@@ -950,10 +893,13 @@ export async function getDashboard(filtro?: {
   granularidade?: 'mensal' | 'anual';
 }) {
   const granularidade = filtro?.granularidade ?? 'anual';
-  // Investimento, '9 Acerto de Contas' e o que é de fora ficam fora de todo
-  // relatório de gasto. Os três por motivos diferentes: o primeiro é outro
-  // modelo, o segundo é transferência entre os dois, e o terceiro nem é gasto
-  // do casal — só passou pelo cartão.
+  /* Investimento, '9 Acerto de Contas' e o que é de fora ficam fora de todo
+     relatório de gasto. Os três por motivos diferentes: o segundo é
+     transferência entre os dois, o terceiro nem é gasto do casal — só passou
+     pelo cartão — e o primeiro é herança: a tela de investimentos foi
+     aposentada em 17/11/2026 sem nunca ter sido usada, mas a migração do
+     Splitwise deixou uma linha com `tipo = 'Investimento'`, e o filtro
+     continua valendo para ela. */
   const base = sql`from v_lancamentos
                    where tipo <> 'Investimento'
                      and not eh_quitacao
@@ -1039,7 +985,6 @@ export async function getDashboard(filtro?: {
     ritmoAnual: Number(ritmo?.anual ?? 0),
     ritmoMin: Number(ritmo?.minimo ?? 0),
     ritmoMax: Number(ritmo?.maximo ?? 0),
-    patrimonio: await getPatrimonio(),
   };
 }
 
