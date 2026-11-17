@@ -17,6 +17,7 @@
     "invariantes": "tsx --env-file=.env scripts/invariantes.ts",
     "typecheck": "tsc --noEmit",
     "checar-form": "node scripts/checar-form.mjs",
+    "checar-rotas": "node scripts/checar-rotas.mjs",
     "db:sql": "tsx --env-file=.env scripts/aplicar-sql.ts",
     "verificar-e2e": "tsx --env-file=.env scripts/verificar-e2e.ts",
     "backfill-series": "tsx --env-file=.env scripts/backfill-series.ts",

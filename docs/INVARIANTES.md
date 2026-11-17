@@ -662,6 +662,41 @@ cruzava.
 **A regra:** antes de dizer "pronto", lançar de verdade pelo app publicado e conferir **o
 que foi gravado na base** — não o que a tela mostra.
 
+### A25. Toda rota tem porta de entrada
+
+**Regra:** toda tela com `page.tsx` tem pelo menos um link vindo de **fora dela mesma**.
+Um "voltar" para a tela de cima não conta como porta da tela de cima: ela pode estar tão
+inalcançável quanto esta.
+
+**Se violada:** a tela existe, responde 200, renderiza, funciona — e ninguém chega nela.
+No celular não há barra de endereço: sem link, a tela não existe.
+
+**O defeito que mandou fazer:** em 22/10/2026 o Lançar saiu do `Form.html` para React
+(9e55922). A navegação de baixo passou a redirecionar a aba `new` para `/lancar`, a tela
+antiga `screen-new` virou código morto, e junto foi o único botão que apontava para
+`/importar`. **O app ficou 26 dias sem importação de fatura.** Achado por relato, não por
+verificação.
+
+**Por que nenhuma outra camada pega:** todas as outras provam que o destino existe, e o
+que sumiu foi o caminho. O `build` listou `/importar` nos dois lados do commit. O
+typecheck não tem o que reclamar — ninguém escreveu errado, apenas pararam de escrever.
+Os invariantes olham o banco, e o banco estava perfeito. Um teste de tela que navegasse
+direto para `/importar` passaria, e é exatamente o que um humano não consegue fazer.
+**Falha por ausência não aparece em verificação que parte do que existe.** Só aparece
+quando alguém enumera o que deveria existir.
+
+**Como provar:** `npm run checar-rotas`. Verificado que discrimina: desfazendo o conserto,
+reprova nomeando `/importar`; com ele, passa.
+
+> **Armadilha que custou duas versões do script:** a primeira versão passava com o app
+> quebrado. Ela aceitava o `$('btnImportar').onclick` do `Form.html` como porta — e esse
+> handler **é** o link órfão, pendurado num botão que ninguém mais vê. Um link só conta se
+> o elemento dele estiver vivo, então o script descarta a `screen-new` e toda linha de JS
+> que só mexe em id de lá. A exclusão se autodestrói: se a tela morta sair do arquivo, o
+> script falha pedindo que a exclusão saia também.
+
+---
+
 ### E2. Escolher o caso de teste que consegue falhar
 
 No rateio, testar com "metade cada" teria escondido os dois bugs de uma vez. **Use caso

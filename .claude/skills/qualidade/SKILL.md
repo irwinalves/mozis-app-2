@@ -92,6 +92,25 @@ E o `contrato.test.ts` da camada 1 cobre a parte que mais importa — que os nom
 campo do front e da API continuem os mesmos. Agora que os dois lados podem mudar,
 ele deixou de ser rede de segurança e virou a checagem principal.
 
+### 3.1. Rotas sem porta de entrada — instantâneo
+
+```bash
+npm run checar-rotas
+```
+
+Toda tela com `page.tsx` precisa de pelo menos um link vindo de fora dela mesma.
+
+Existe porque o app passou **26 dias sem importação de fatura** e nenhuma camada
+acusou: quando o Lançar saiu do `Form.html` para React, o único botão que apontava
+para `/importar` ficou na tela antiga, que ninguém mais abre. A rota nunca quebrou —
+ficou sem caminho até ela.
+
+É a única camada que olha para **ausência**. Todas as outras partem do que existe e
+provam que o destino está lá; esta enumera o que deveria existir e procura o que
+sumiu. No celular não há barra de endereço: sem link, a tela não existe.
+
+Verificado que discrimina — desfazendo o conserto, reprova nomeando `/importar`.
+
 ### 4. Invariantes do banco — poucos segundos
 
 ```bash
