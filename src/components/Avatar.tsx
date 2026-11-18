@@ -69,3 +69,72 @@ export function Avatar({
     <img className={`avatar ${className}`} style={base} src={src} alt={quem ?? ''} />
   );
 }
+
+/**
+ * De quem é o gasto — outra pergunta que "quem pagou", e por isso outro
+ * componente.
+ *
+ * Só o André tem foto. Os outros donos (`Mãe do Irwin`, `Avô da Maria`)
+ * recebiam a foto DELE com o nome do outro no `title`, e o olho acredita na
+ * foto: gasto do avô da Maria aparecia na lista como gasto do filho. Quem não
+ * tem foto vira iniciais, no mesmo lugar e com o mesmo anel.
+ */
+export function AvatarDono({
+  nome,
+  tamanho = 22,
+  className = '',
+}: {
+  nome: string;
+  tamanho?: number;
+  className?: string;
+}) {
+  const base: CSSProperties = {
+    width: tamanho,
+    height: tamanho,
+    flex: `0 0 ${tamanho}px`,
+    borderRadius: 999,
+    objectFit: 'cover',
+  };
+  const titulo = `Gasto de ${nome}`;
+  if (ARQUIVO[nome]) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        className={`avatar ${className}`}
+        style={base}
+        src={ARQUIVO[nome]}
+        alt={nome}
+        title={titulo}
+      />
+    );
+  }
+  return (
+    <span
+      className={`avatar tag-inicial ${className}`}
+      style={{ ...base, fontSize: Math.round(tamanho * 0.41) }}
+      title={titulo}
+      aria-label={titulo}
+    >
+      {iniciaisDe(nome)}
+    </span>
+  );
+}
+
+/**
+ * 'Avô da Maria' vira 'AM' e 'Mãe do Irwin' vira 'MI'.
+ *
+ * As preposições saem: sem isso os dois comecariam por uma letra que não
+ * distingue ninguém. A mesma regra existe em `public/Form.html`, porque lá é
+ * JavaScript puro — é a MESMA regra, e mudar aqui é mudar lá.
+ */
+export function iniciaisDe(nome: string): string {
+  const palavras = String(nome)
+    .trim()
+    .split(/\s+/)
+    .filter((w) => !/^(d[aeo]s?|e)$/i.test(w));
+  const letras = palavras
+    .slice(0, 2)
+    .map((w) => w.charAt(0))
+    .join('');
+  return (letras || String(nome).charAt(0) || '?').toUpperCase();
+}

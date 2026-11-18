@@ -463,9 +463,21 @@ a.item-lanc {
   white-space: nowrap;
 }
 
-/* A foto do André à esquerda do valor, fora do fluxo da descrição. */
+/* A foto do dono à esquerda do valor, fora do fluxo da descrição. */
 .tag-andre {
   box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 3px var(--andre);
+}
+
+/* Quem não tem foto vira iniciais, no mesmo lugar e com o mesmo anel. */
+.tag-inicial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  background: var(--andre);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 /* ---------------------------------------------------------------------

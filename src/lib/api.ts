@@ -207,7 +207,12 @@ export async function getOpcoes(pessoa: Pessoa | null = null) {
      * abrindo o futuro.
      */
     origens: ['Cartão', 'Banco'],
-    divisoes: ['50/50', 'Renda', '100% Irwin', '100% Maria', 'Custom'],
+    /* `divisoes` SAIU daqui. Era uma segunda lista das mesmas opções, e
+       divergiu: a canonica, em `components/DivisaoEPagador`, tem `De fora` e
+       esta não tinha. As telas que liam daqui — revisar importação e editar
+       série — ficaram sem como marcar gasto de terceiro, e o defeito era
+       invisível de dentro de cada arquivo. Lista de domínio com duas cópias
+       é lista que vai divergir; agora tem uma. */
     pagadores: ['Irwin', 'Maria', 'Ambos'],
     pagadoresLancar: ['Irwin', 'Maria', 'Ambos'],
     movimentosInvest: ['Aporte', 'Resgate'],
@@ -2179,12 +2184,18 @@ export async function estadoDaImportacao(id: number) {
   const linhas = await db.execute<{
     ref: number; pedaco: number; n: number; descricao: string; categoria: string;
     tipo: string; divisao: string; quem_pagou: string | null; valor: string; total: string;
+    gasto_de: string | null; de_fora: boolean | null;
   }>(sql`select importacao_linha as ref, importacao_pedaco as pedaco, count(*)::int as n,
                 (array_agg(descricao   order by seq nulls first, data, id))[1] as descricao,
                 (array_agg(categoria   order by seq nulls first, data, id))[1] as categoria,
                 (array_agg(tipo        order by seq nulls first, data, id))[1] as tipo,
                 (array_agg(divisao     order by seq nulls first, data, id))[1] as divisao,
                 (array_agg(quem_pagou  order by seq nulls first, data, id))[1] as quem_pagou,
+                /* O dono vem do banco como todo o resto desta consulta: quem
+                   marcou "é da mãe do Irwin" na tela normal não pode ver a
+                   revisão do lote oferecendo desmarcar sem avisar. */
+                (array_agg(gasto_de     order by seq nulls first, data, id))[1] as gasto_de,
+                (array_agg(de_fora      order by seq nulls first, data, id))[1] as de_fora,
                 (array_agg(valor_total order by seq nulls first, data, id))[1]::text as valor,
                 round(sum(valor_total)::numeric, 2)::text as total
          from v_lancamentos
@@ -2204,6 +2215,8 @@ export async function estadoDaImportacao(id: number) {
     tipo: string;
     divisao: string;
     quemPagou: string | null;
+    deFora: boolean;
+    gastoDe: string | null;
     valor: number;
     total: number;
   }
@@ -2227,6 +2240,8 @@ export async function estadoDaImportacao(id: number) {
       tipo: l.tipo,
       divisao: l.divisao,
       quemPagou: l.quem_pagou,
+      deFora: !!l.de_fora,
+      gastoDe: l.gasto_de,
       valor: Number(l.valor),
       total: Number(l.total),
     };

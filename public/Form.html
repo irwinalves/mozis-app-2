@@ -307,6 +307,10 @@ a.linha-terceiros .seta{flex:0 0 auto;color:var(--texto3)}
    fotos coladas viram uma mancha só e parece que DUAS PESSOAS pagaram. */
 .tag-andre{width:22px;height:22px;border-radius:999px;object-fit:cover;flex:0 0 22px;
       box-shadow:0 0 0 1.5px var(--bg),0 0 0 3px var(--andre)}
+/* Quem não tem foto vira iniciais no mesmo lugar, com o mesmo anel. */
+.tag-inicial{display:inline-flex;align-items:center;justify-content:center;
+      background:var(--andre);color:#fff;font-size:9px;font-weight:700;
+      letter-spacing:.02em;box-sizing:border-box}
 /* Marca da parcela, irmã do ⟳ do recorrente. */
 .tag-parcela{display:inline-flex;align-items:center;font-size:10px;font-weight:700;
       color:var(--texto2);background:var(--chip-neutro);border-radius:3px;padding:0 4px;
@@ -641,7 +645,33 @@ let OPC = null, DASH = null, ULTIMOS = null, EVENTOS = [];
    pessoal: no último lote, 47 das 55 linhas eram 100% de um só. Sem o padrão,
    o que é dos dois afunda no meio do que é de um. */
 const FILTROS_PADRAO = { dividido: true };
-let FILTROS = Object.assign({}, FILTROS_PADRAO);
+/* As chaves que o backend conhece — `clausulasDe` em src/lib/api.ts. A lista
+   existe porque o estado volta de fora do código (sessionStorage) e chave
+   desconhecida vindo de lá não tem por que chegar ao servidor. */
+const CHAVES_FILTRO = ['recorrente', 'parcelado', 'importado', 'quitacao', 'gastoDe',
+                       'categoria', 'quemPagou', 'dividido', 'de', 'ate'];
+const CHAVE_FILTROS = 'mozis.filtros.v1';
+/* Os filtros sobrevivem à navegação, e isso é requisito, não conveniência:
+   abrir um lançamento sai desta página para uma página React, e voltar
+   recarrega o Form.html do zero. Enquanto FILTROS vivia só na memória, quem
+   filtrava novembro para conferir perdia o filtro em TODA edição.
+   sessionStorage e não localStorage: vale para esta aba, não para sempre — um
+   filtro esquecido de semana passada esconderia linha sem ninguém ter pedido. */
+function guardarFiltros(){
+  try { sessionStorage.setItem(CHAVE_FILTROS, JSON.stringify(FILTROS)); } catch (e) {}
+}
+function filtrosGuardados(){
+  try {
+    const bruto = sessionStorage.getItem(CHAVE_FILTROS);
+    if (!bruto) return null;
+    const lido = JSON.parse(bruto);
+    if (!lido || typeof lido !== 'object' || Array.isArray(lido)) return null;
+    const limpo = {};
+    CHAVES_FILTRO.forEach(function(k){ if (lido[k]) limpo[k] = lido[k]; });
+    return limpo;
+  } catch (e) { return null; }
+}
+let FILTROS = filtrosGuardados() || Object.assign({}, FILTROS_PADRAO);
 let FILTRO_DASH = { granularidade: 'anual', dataIni: '', dataFim: '' };
 let tabAtiva = 'home', telaAtual = 'home';
 const QTD_RECENTES = 50;
@@ -1066,10 +1096,34 @@ function mostrarResumo(resumo){
   };
 }
 
+/**
+ * A marca de quem é o gasto, quando o gasto é de terceiro.
+ *
+ * Só o André tem foto. Qualquer outro dono virava a foto DELE com o nome do
+ * outro no `title` — e o olho acredita na foto, não no tooltip: gasto do avô
+ * da Maria aparecia na lista como gasto do filho. São três donos na base
+ * (André, Avô da Maria, Mãe do Irwin), então o caso errado não era hipotético.
+ */
+function marcaGastoDe(nome){
+  if (!nome) return '';
+  const atrib = ' alt="' + escapeHtml(nome) + '" title="Gasto de ' + escapeHtml(nome) + '"';
+  if (nome === 'André') return '<img class="tag-andre" src="' + AVATAR_ANDRE + '"' + atrib + '>';
+  return '<span class="tag-andre tag-inicial"' + atrib + '>' + escapeHtml(iniciaisDe(nome)) + '</span>';
+}
+/* 'Avô da Maria' vira 'AM' e 'Mãe do Irwin' vira 'MI': as preposições saem,
+   senão os dois comecariam por uma letra que não distingue ninguém. */
+function iniciaisDe(nome){
+  const palavras = String(nome).trim().split(/\s+/)
+    .filter(function(w){ return !/^(d[aeo]s?|e)$/i.test(w); });
+  const letras = palavras.slice(0, 2).map(function(w){ return w.charAt(0); }).join('');
+  return (letras || String(nome).charAt(0) || '?').toUpperCase();
+}
+
 /* Reaplica os filtros no caminho certo: se há busca em curso, refiltra o
    resultado dela; senão recarrega a lista. Sem isto, filtrar durante uma busca
    jogaria o usuário de volta para a lista inteira sem aviso. */
 function aplicarFiltros(){
+  guardarFiltros();
   montarFiltros();
   const termo = $('buscaLanc').value.trim();
   if (termo){ buscaAtiva = true; buscarLanc(termo); }
@@ -1107,7 +1161,11 @@ function carregarMaisUltimos(){
     renderUltimos();
     b.textContent = 'Ver mais';
     atualizarBotoesLista();
-  }).withFailureHandler(function(){ b.textContent = 'Ver mais'; }).ultimosLancamentos(QTD_RECENTES, ULTIMOS.length, mostrarFuturos);
+  /* FILTROS vai aqui também, e a ausência dele era o defeito: a primeira
+     página vinha filtrada e o "Ver mais" trazia a lista inteira a partir do
+     offset da lista filtrada — linhas de fora do filtro, em ordem que não
+     continuava a de cima. */
+  }).withFailureHandler(function(){ b.textContent = 'Ver mais'; }).ultimosLancamentos(QTD_RECENTES, ULTIMOS.length, mostrarFuturos, FILTROS);
 }
 
 $('btnFuturos').onclick = function(){
@@ -1190,10 +1248,7 @@ function renderUltimos(){
     /* A foto do André entra à ESQUERDA do valor, não no começo da linha: assim
        ela não empurra o início das descrições, que continuam todas alinhadas.
        Custa 31px da descrição, e só nas linhas que a têm. */
-    const tagAndre = x.gastoDe
-      ? '<img class="tag-andre" src="' + AVATAR_ANDRE + '" alt="' + escapeHtml(x.gastoDe) +
-        '" title="Gasto de ' + escapeHtml(x.gastoDe) + '">'
-      : '';
+    const tagAndre = marcaGastoDe(x.gastoDe);
     /* O 'N/M' sai do meio da descrição e vira marca própria, como o ⟳ do
        recorrente já era. Libera o texto e deixa a parcela legível de relance. */
     // ` N/M` (gerado pelo app) e ` (N/M)` (11 linhas antigas, à mão).

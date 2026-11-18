@@ -32,7 +32,11 @@ import { brl, comSinal, dataBR, diaMes, lerMoeda, mascaraMoeda, numero } from '@
 // `DE_FORA` vem do componente compartilhado: a lista de quem pode ser dono de
 // um gasto que não é do casal é UMA, e repeti-la aqui faria a importação e o
 // formulário discordarem no dia em que alguém entrar na lista.
-import { DE_FORA, OUTRA } from '@/components/DivisaoEPagador';
+/* `DIVISOES` também vem de lá, e isso é a correção de um defeito, não
+   arrumação: a lista existia DUAS vezes — aqui, servida por `getOpcoes` sem
+   `De fora`, e no componente do rateio, com. Marcar uma linha da fatura como
+   gasto de terceiro era impossível justamente por isso. */
+import { DE_FORA, DIVISOES, OUTRA } from '@/components/DivisaoEPagador';
 import { Avatar } from '@/components/Avatar';
 import type { Pessoa } from '@/lib/pessoas';
 
@@ -42,7 +46,6 @@ type Preview = Awaited<ReturnType<typeof previewConciliacao>>;
 
 interface Opcoes {
   gruposLancar: { nome: string; tipo: string }[];
-  divisoes: string[];
   pagadores: string[];
 }
 
@@ -96,6 +99,16 @@ interface Pedaco {
 
 interface Estado {
   marcada: boolean;
+  /**
+   * `De fora` na LINHA INTEIRA — registrado, fora das duas contas.
+   *
+   * Existia só no pedaco, e por isso marcar "este gasto é da mãe do Irwin"
+   * obrigava a dividir uma linha que tinha um dono só. Três linhas da base
+   * foram lançadas assim.
+   */
+  deFora: boolean;
+  /** De quem é, quando `deFora`. Sem ele a dívida não tem dono (A4). */
+  gastoDe: string;
   /** Vazio = o nome da fatura vale. A tela mostra o original apagado atrás. */
   descricao: string;
   grupo: string;
@@ -164,6 +177,8 @@ export type AtualDoLote = Record<
     tipo: string;
     divisao: string;
     quemPagou: string | null;
+    deFora: boolean;
+    gastoDe: string | null;
     valor: number;
     total: number;
   }
@@ -241,6 +256,8 @@ export function Importador({
           grupo: l.categoriaSugerida,
           divisao: divisaoInicial(padraoDivisao, quemPagou),
           quemPagou,
+          deFora: false,
+          gastoDe: '',
           aberta: false,
           forcadaNova: false,
           abaTravada: null,
@@ -292,6 +309,16 @@ export function Importador({
      travada: gravar assim criaria ou destruiria dinheiro, e a diferença não
      aparece olhando uma linha isolada depois. */
   const naoFecham = marcadas.filter((l) => Math.abs(restaDividir(l, est[l.i])) >= 0.005);
+  /* `De fora` sem nome. O servidor recusa (`exigirDonoSeDeFora`), e descobrir
+     isso só no erro da gravação depois de revisar 167 linhas é caro demais —
+     a trava tem que estar do lado de cá também. Vale para a linha inteira e
+     para cada pedaco: quem deve devolver o dinheiro tem que ter nome. */
+  const semDono = marcadas.filter((l) => {
+    const e = est[l.i];
+    if (!e) return false;
+    if (e.pedacos?.length) return e.pedacos.some((p) => p.deFora && !p.gastoDe.trim());
+    return e.deFora && !e.gastoDe.trim();
+  });
 
   const trocar = (i: number, mud: Partial<Estado>) =>
     setEst((s) => ({ ...s, [i]: { ...s[i], ...mud } }));
@@ -343,6 +370,8 @@ export function Importador({
         tipo: tipoDoGrupo.get(e.grupo),
         quemPagou: e.quemPagou,
         divisao: e.divisao,
+        deFora: e.deFora,
+        gastoDe: e.deFora ? e.gastoDe : null,
         pedaco: 1,
       },
     ];
@@ -608,6 +637,19 @@ export function Importador({
           </div>
         )}
 
+        {semDono.length > 0 && (
+          <div className="aviso" style={{ marginTop: 0, marginBottom: 9 }}>
+            <span>⚠</span>
+            <div>
+              {semDono.length === 1
+                ? 'Uma linha está marcada'
+                : `${semDono.length} linhas estão marcadas`}{' '}
+              como <b>De fora sem dizer de quem é o gasto</b>. Sem o nome o gasto sai das suas
+              contas e também da dívida de quem deve devolver.
+            </div>
+          </div>
+        )}
+
         {semPagador.length > 0 && (
           <div className="aviso" style={{ marginTop: 0, marginBottom: 9 }}>
             <span>⚠</span>
@@ -624,8 +666,14 @@ export function Importador({
         {edicao ? (
           <>
             <button
-              className={`btn-full ${mudou && !semPagador.length && !naoFecham.length && !ocupado ? 'valido' : ''}`}
-              disabled={!mudou || semPagador.length > 0 || naoFecham.length > 0 || !!ocupado}
+              className={`btn-full ${mudou && !semPagador.length && !naoFecham.length && !semDono.length && !ocupado ? 'valido' : ''}`}
+              disabled={
+                !mudou ||
+                semPagador.length > 0 ||
+                naoFecham.length > 0 ||
+                semDono.length > 0 ||
+                !!ocupado
+              }
               onClick={() => (confirmando ? lancar() : setConfirmando(true))}
             >
               {ocupado ||
@@ -646,8 +694,14 @@ export function Importador({
           </>
         ) : (
           <button
-            className={`btn-full ${marcadas.length && !semPagador.length && !naoFecham.length && !ocupado ? 'valido' : ''}`}
-            disabled={!marcadas.length || semPagador.length > 0 || naoFecham.length > 0 || !!ocupado}
+            className={`btn-full ${marcadas.length && !semPagador.length && !naoFecham.length && !semDono.length && !ocupado ? 'valido' : ''}`}
+            disabled={
+              !marcadas.length ||
+              semPagador.length > 0 ||
+              naoFecham.length > 0 ||
+              semDono.length > 0 ||
+              !!ocupado
+            }
             onClick={lancar}
           >
             {ocupado || `Lançar ${marcadas.length} · ${brl(somaMarcadas)}`}
@@ -1139,22 +1193,61 @@ function LinhaFatura({
                   </select>
                 </div>
                 <div className="campo">
-                  <label>Divisão</label>
+                  <label>De quem é o gasto</label>
                   <select
-                    value={e.divisao}
-                    onChange={(ev) => onTrocar({ divisao: ev.target.value })}
+                    value={e.deFora ? 'De fora' : e.divisao}
+                    onChange={(ev) => {
+                      const v = ev.target.value;
+                      onTrocar({
+                        deFora: v === 'De fora',
+                        divisao: v,
+                        gastoDe: v === 'De fora' ? e.gastoDe || DE_FORA[0] : '',
+                      });
+                    }}
                   >
                     <option value="">—</option>
-                    {opcoes.divisoes
-                      .filter((d) => d !== 'Custom')
-                      .map((d) => (
-                        <option key={d} value={d}>
-                          {d}
-                        </option>
-                      ))}
+                    {DIVISOES.filter((d) => d !== 'Custom').map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
+
+              {e.deFora && (
+                <>
+                  <div className="campo">
+                    <label>De quem é esse gasto</label>
+                    <select
+                      value={DE_FORA.includes(e.gastoDe) ? e.gastoDe : OUTRA}
+                      onChange={(ev) =>
+                        onTrocar({ gastoDe: ev.target.value === OUTRA ? '' : ev.target.value })
+                      }
+                    >
+                      {DE_FORA.map((q) => (
+                        <option key={q}>{q}</option>
+                      ))}
+                      <option value={OUTRA}>{OUTRA}</option>
+                    </select>
+                  </div>
+                  {/* O nome é o que agrupa a dívida em `v_terceiros`. Sem ele o
+                      saldo não tem dono e não serve para cobrar ninguém. */}
+                  {!DE_FORA.includes(e.gastoDe) && (
+                    <div className="campo">
+                      {/* "Nome da pessoa", e não "Nome": o campo de cima, que
+                          renomeia a linha da fatura, também se chama Nome. */}
+                      <label>Nome da pessoa</label>
+                      <input
+                        type="text"
+                        value={e.gastoDe}
+                        placeholder="de quem é esse gasto"
+                        onChange={(ev) => onTrocar({ gastoDe: ev.target.value })}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
 
               <Divisor
                 linha={l}
@@ -1477,14 +1570,11 @@ function Divisor({
                 }}
               >
                 <option value="">—</option>
-                {opcoes.divisoes
-                  .filter((d) => d !== 'Custom')
-                  .map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                <option value="De fora">De fora</option>
+                {DIVISOES.filter((d) => d !== 'Custom').map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -1639,6 +1729,7 @@ function foiEditada(l: Linha, e: Estado, padrao: string): boolean {
     !!e.descricao.trim() ||
     e.grupo !== l.categoriaSugerida ||
     e.quemPagou !== quem ||
+    e.deFora ||
     e.divisao !== divisaoInicial(padrao, quem)
   );
 }
@@ -1688,6 +1779,8 @@ function aoReabrir(salvo: EstadoSalvo, atual: AtualDoLote): Record<number, Estad
       abaTravada: null,
       valorLiquido: e.valorLiquido ?? null,
       pedacos: e.pedacos ?? null,
+      deFora: e.deFora ?? false,
+      gastoDe: e.gastoDe ?? '',
     };
 
     if (!a) {
@@ -1705,12 +1798,16 @@ function aoReabrir(salvo: EstadoSalvo, atual: AtualDoLote): Record<number, Estad
       grupo: a.categoria,
       divisao: a.divisao,
       quemPagou: a.quemPagou ?? '',
+      deFora: a.deFora ?? false,
+      gastoDe: a.gastoDe ?? '',
       valorAtual: a.valor,
       mexidaDepois:
         (a.descricao === nomeFatura ? '' : a.descricao) !== (e.descricao ?? '') ||
         a.categoria !== e.grupo ||
         a.divisao !== e.divisao ||
-        (a.quemPagou ?? '') !== e.quemPagou,
+        (a.quemPagou ?? '') !== e.quemPagou ||
+        (a.deFora ?? false) !== (e.deFora ?? false) ||
+        (a.gastoDe ?? '') !== (e.gastoDe ?? ''),
     };
   }
   return dentro;
@@ -1727,6 +1824,10 @@ function assinaturaLinha(e: Estado | undefined): string {
   return [
     e.marcada, e.descricao ?? '', e.grupo, e.divisao, e.quemPagou,
     e.forcadaNova, e.valorAtual ?? '',
+    // O mesmo motivo dos pedacos abaixo: marcar a linha inteira como `De fora`
+    // não muda nome, categoria nem divisão, e sem isto o diferencial a
+    // deixaria de fora — a correção sumiria em silêncio.
+    e.deFora, e.gastoDe,
     // Sem isto, decidir "lançar o líquido" não contaria como mudança e o
     // diferencial deixaria a linha de fora — a correção sumiria em silêncio.
     e.valorLiquido ?? '',

@@ -32,7 +32,6 @@ type Serie = Awaited<ReturnType<typeof obterSerie>>;
 type Opcoes = {
   gruposLancar: { nome: string }[];
   origens: string[];
-  divisoes: string[];
   pagadores: string[];
   pctIrwinRenda: number;
 };

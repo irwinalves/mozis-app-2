@@ -76,7 +76,6 @@ export default async function PaginaEditarImportacao({
       <Importador
         opcoes={{
           gruposLancar: opcoes.gruposLancar,
-          divisoes: opcoes.divisoes,
           pagadores: opcoes.pagadores,
         }}
         eu={eu}

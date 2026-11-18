@@ -24,7 +24,8 @@ arquivo guarda o que precisa **sobreviver à troca de tecnologia**.
 
 ## Quantas estão verificadas por máquina
 
-45 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
+49 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
+e `npm test` verifica mais quatro contra a forma do front (`src/lib/tela.test.ts`),
 e é por isso que os dois têm o mesmo nome: a distância entre os dois números é a medida
 de quanto ainda depende de alguém lembrar.
 
@@ -450,6 +451,29 @@ Verificado ponta a ponta em 16/11/2026: lançar R$ 200 `De fora` não moveu o ac
 > ser independente num check de dois caminhos é a implementação, não a regra:** um
 > segundo caminho que ignora uma regra do primeiro não verifica, só discorda.
 
+### A26. Lista de domínio existe uma vez só
+
+**Regra:** a lista de opções de um campo de domínio — divisões, origens, pagadores — tem
+**um** dono no código. Quem precisa dela importa; ninguém redigita.
+
+**Se violada:** as divisões existiam duas vezes: a canônica em
+`components/DivisaoEPagador`, com `De fora`, e uma segunda servida por `getOpcoes` ao
+front, sem. Elas divergiram, e as telas que liam do servidor — revisar importação e editar
+série — **ficaram sem como marcar gasto de terceiro**. O defeito era invisível de dentro
+de cada arquivo: os dois estavam certos, cada um por si.
+
+**O que isso custou na prática:** para marcar uma linha de fatura como gasto da mãe do
+Irwin era preciso **dividir em pedaços** uma linha que tem um dono só — e quem não sabia
+desse caminho simplesmente lançava errado.
+
+**Como provar:** `src/lib/tela.test.ts` confere que `getOpcoes` não declara a lista e que
+a revisão de fatura importa `DIVISOES`.
+
+> O mesmo vale para `De fora` no nível da LINHA, e não só do pedaço: dividir uma linha é
+> para a compra que tem dois donos (a Vivo), não para dizer de quem ela é.
+
+---
+
 ## Parte B — Leitura, ordem e identidade
 
 Invariantes de arquitetura. Independem de qual é o banco.
@@ -595,6 +619,54 @@ importação, série incompleta, dado legado — isso **aparece na tela**.
 
 **Se violada:** o usuário confia num palpite como se fosse fato. Este projeto já errou por
 isso do lado de dentro (ver E3); do lado do usuário o custo é maior.
+
+### C8. A marca de quem é o gasto identifica a pessoa, não a categoria "terceiro"
+
+**Regra:** a marca de dono na lista mostra **aquele** dono. Quem tem foto aparece com a
+foto; quem não tem vira iniciais, no mesmo lugar e com o mesmo anel.
+
+**Se violada:** a lista mostrava a foto do André em **qualquer** gasto com dono, com o
+nome do outro no `title`. São três donos na base — André (131 linhas), Avô da Maria (4) e
+Mãe do Irwin (3) — então o caso errado nunca foi hipotético: gasto do avô da Maria
+aparecia como gasto do filho. **O olho acredita na foto, não no tooltip**, e um tooltip
+não existe no celular.
+
+**Como provar:** `src/lib/tela.test.ts`. Verificado que discrimina: trocando a comparação
+por "tem dono?", reprova.
+
+> As iniciais tiram as preposições — `Avô da Maria` vira `AM` e `Mãe do Irwin` vira `MI`.
+> Sem isso dariam `AD` e `MD`, que é o mesmo defeito com outra roupa: duas marcas que não
+> distinguem ninguém.
+
+### C9. Paginar não é refazer a pergunta
+
+**Regra:** "Ver mais" pede a página seguinte **da mesma consulta** — mesmo filtro, mesma
+busca, mesma ordem. O que muda entre a primeira página e a segunda é só o offset.
+
+**Se violada:** a primeira página vinha filtrada e o "Ver mais" trazia a lista inteira a
+partir do offset **da lista filtrada**. O resultado para quem olha é o pior possível:
+linhas de fora do filtro, numa ordem que não continua a de cima. Medido num caso real —
+janela de janeiro a março, offset 50: com o filtro, 0 linhas fora da janela; sem ele,
+**50 de 50**.
+
+**Como provar:** `src/lib/tela.test.ts` confere que toda chamada de página termina em
+`FILTROS`.
+
+### C10. Filtro é estado do usuário, e sobrevive à navegação
+
+**Regra:** o filtro da lista volta como estava depois de abrir um lançamento, editar,
+salvar e voltar.
+
+**Se violada:** abrir um lançamento sai do `Form.html` para uma página React, e voltar
+recarrega a página do zero. Enquanto o filtro vivia só numa variável, **ele morria em
+toda edição** — e quem filtrava um mês para conferir refiltrava à mão a cada linha.
+
+**A escolha:** `sessionStorage`, não `localStorage`. Vale para esta aba, não para sempre:
+um filtro esquecido de semana passada esconderia linha sem ninguém ter pedido. E só as
+chaves que o backend conhece voltam do armazenamento — estado que volta de fora do código
+não precisa chegar ao servidor como veio.
+
+**Como provar:** `src/lib/tela.test.ts`.
 
 ---
 

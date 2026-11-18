@@ -5,11 +5,11 @@
  * pagou logo ao lado da data** — o padrão do resto do app —, descrição que
  * trunca, valor à direita e, abaixo dele, o efeito no acerto (C1).
  *
- * A foto do André fica à ESQUERDA do valor, decisão de 22/08/2026, para a tag
+ * A foto do dono fica à ESQUERDA do valor, decisão de 22/08/2026, para a tag
  * não desalinhar a descrição de todas as outras linhas.
  */
 import Link from 'next/link';
-import { Avatar } from './Avatar';
+import { Avatar, AvatarDono } from './Avatar';
 import { EfeitoNoAcerto } from './EfeitoNoAcerto';
 import { brl, diaMes, rotuloParcela } from '@/lib/formato';
 import type { Pessoa } from '@/lib/pessoas';
@@ -78,7 +78,7 @@ export function LinhaLancamento({
         <div className="meta">{meta ?? [item.tipo, item.fonte].filter(Boolean).join(' · ')}</div>
       </div>
 
-      {item.gastoDe && <Avatar quem="André" tamanho={22} className="tag-andre" />}
+      {item.gastoDe && <AvatarDono nome={item.gastoDe} tamanho={22} className="tag-andre" />}
 
       <div className="item-valor">
         <div className="v">{brl(item.valor)}</div>
