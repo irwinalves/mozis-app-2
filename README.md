@@ -73,10 +73,26 @@ npm run dev
 Para exercitar sem credencial OAuth, use `AUTH_BYPASS_DEV=sim` no `.env`. Tem
 trava dupla e é inerte em produção, conferido contra build real.
 
-> **Base de demonstração:** o banco sobe vazio. O script que popula o app com
-> dados fictícios plausíveis (`npm run semear-demo`) é o próximo passo deste
-> repositório. Até ele existir, o caminho é lançar à mão ou importar uma fatura
-> pela própria tela de importação.
+O banco sobe vazio. Para ver o app funcionando com dados:
+
+```bash
+npm run semear-demo
+```
+
+Ele cria 188 lançamentos fictícios entre março e novembro de 2026, com despesas
+fixas e suas regras de recorrência, um parcelamento em 6x, uma importação de
+fatura, uma quitação entre os dois, um gasto de terceiro já devolvido e outro em
+aberto, e nove meses de posição de investimento.
+
+Duas coisas valem ser ditas sobre ele. É **determinístico**, com semente fixa, então
+todo mundo vê exatamente a mesma tela. E ele importa `pctIrwinDe` e `pagoIrwinDe`
+do próprio app em vez de repetir a aritmética, o que faz os dados semeados
+obedecerem às mesmas regras dos reais: `npm run invariantes` roda limpo sobre
+essa base, nas 20.
+
+Ele **recusa** rodar num banco que já tem lançamentos (use `--limpar` para apagar
+tudo) e **recusa** rodar num host que não seja local (use `--remoto` se for mesmo
+o que você quer).
 
 ## Comandos
 
@@ -85,6 +101,7 @@ trava dupla e é inerte em produção, conferido contra build real.
 | `npm run dev` | Servidor local |
 | `npm test` | 70 testes da lógica pura |
 | `npm run invariantes` | Verifica 20 regras contra o banco |
+| `npm run semear-demo` | Enche um banco vazio com dados fictícios |
 | `npm run checar-rotas` | Garante que toda rota tem porta de entrada |
 | `npm run checar-form` | Analisa a sintaxe do `Form.html`, que não passa por build |
 | `npm run db:generate` | Gera migração a partir de `src/db/schema.ts` |
