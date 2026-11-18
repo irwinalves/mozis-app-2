@@ -12,10 +12,11 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 import { iniciaisDe } from '@/components/Avatar';
+import { partesDe } from '@/components/DivisaoEPagador';
 
 const ler = (...p: string[]) => readFileSync(path.join(process.cwd(), ...p), 'utf8');
 
@@ -23,6 +24,18 @@ const FORM = ler('public', 'Form.html');
 const IMPORTADOR = ler('src', 'app', '(app)', 'importar', 'Importador.tsx');
 const LINHA = ler('src', 'components', 'LinhaLancamento.tsx');
 const API = ler('src', 'lib', 'api.ts');
+
+/** Todo arquivo de código sob `src/`, caminho relativo à raiz do projeto. */
+function arquivosDeCodigo(dir = 'src'): string[] {
+  const fora: string[] = [];
+  for (const e of readdirSync(path.join(process.cwd(), dir), { withFileTypes: true })) {
+    const rel = path.join(dir, e.name);
+    if (e.isDirectory()) fora.push(...arquivosDeCodigo(rel));
+    // Os próprios testes ficam de fora: este arquivo cita a cor para procurá-la.
+    else if (/\.tsx?$/.test(e.name) && !/\.test\.tsx?$/.test(e.name)) fora.push(rel);
+  }
+  return fora;
+}
 
 // ---------------------------------------------------------------------------
 // 1. A marca do dono identifica o dono
@@ -127,4 +140,48 @@ test('a linha inteira da fatura pode ser De fora, não só o pedaço', () => {
       `a linha inteira não manda \`${campo}\` — a escolha da tela não chega ao banco`,
     );
   }
+});
+
+// ---------------------------------------------------------------------------
+// 5. A revisão de fatura é o MESMO formulário do Lançar, reduzido
+// ---------------------------------------------------------------------------
+
+test('`De fora` zera as DUAS partes, não só a do Irwin', () => {
+  /* O erro que isto pega: calcular a parte do Irwin e tirar do total. Com
+     `De fora` a do Irwin é zero, então a subtração dá o total inteiro para a
+     Maria — e a tela afirmava que um gasto de terceiro era todo dela. */
+  assert.deepEqual(partesDe(90, 'De fora', true, 0.4947), { irwin: 0, maria: 0 });
+  assert.deepEqual(partesDe(90, '50/50', true, 0.4947), { irwin: 0, maria: 0 });
+  // E o caminho normal continua somando o total.
+  assert.deepEqual(partesDe(90, '50/50', false, 0.4947), { irwin: 45, maria: 45 });
+  assert.deepEqual(partesDe(90, '100% Maria', false, 0.4947), { irwin: 0, maria: 90 });
+  const renda = partesDe(100, 'Renda', false, 0.4947);
+  assert.equal(renda.irwin + renda.maria, 100, 'as partes têm que somar o total');
+});
+
+test('a cor da categoria mora num lugar só', () => {
+  /* A mesma cor aparece no chip do Lançar, no chip da fatura, na bolinha da
+     lista e na fatia do gráfico. Duas cópias desalinhariam o relatório do
+     formulário, e seria invisível de dentro de cada arquivo (A26). */
+  const fora = arquivosDeCodigo().filter(
+    (f) => f !== path.join('src', 'lib', 'cores.ts') && ler(f).includes('#2F5597'),
+  );
+  assert.deepEqual(fora, [], 'a paleta de categorias foi copiada para fora de src/lib/cores.ts');
+});
+
+test('a revisão de fatura veste o formulário do Lançar, não uma cópia dele', () => {
+  const css = ler('src', 'app', 'globals.css');
+  /* Toda regra DESCENDENTE de `.form-lanc` vale também dentro de
+     `.campos-lanc`. Uma que fique só no Lançar é um ajuste que a tela da
+     fatura não recebe — e a divergência começa aí. */
+  const sozinhas = css.split('\n').filter((l) => /^\.form-lanc [.[:]/.test(l));
+  assert.deepEqual(
+    sozinhas,
+    [],
+    'regra de formulário que só vale no Lançar: use :is(.form-lanc, .campos-lanc)',
+  );
+  assert.ok(
+    IMPORTADOR.includes('className="campos-lanc"'),
+    'a revisão de fatura parou de vestir o formulário do Lançar',
+  );
 });

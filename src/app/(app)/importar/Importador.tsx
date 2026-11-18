@@ -36,7 +36,15 @@ import { brl, comSinal, dataBR, diaMes, lerMoeda, mascaraMoeda, numero } from '@
    arrumação: a lista existia DUAS vezes — aqui, servida por `getOpcoes` sem
    `De fora`, e no componente do rateio, com. Marcar uma linha da fatura como
    gasto de terceiro era impossível justamente por isso. */
-import { DE_FORA, DIVISOES, OUTRA } from '@/components/DivisaoEPagador';
+import {
+  DE_FORA,
+  DIVISOES,
+  OUTRA,
+  ROTULO_DIVISAO,
+  partesDe,
+  type Divisao,
+} from '@/components/DivisaoEPagador';
+import { corDaCategoria } from '@/lib/cores';
 import { Avatar } from '@/components/Avatar';
 import type { Pessoa } from '@/lib/pessoas';
 
@@ -47,6 +55,8 @@ type Preview = Awaited<ReturnType<typeof previewConciliacao>>;
 interface Opcoes {
   gruposLancar: { nome: string; tipo: string }[];
   pagadores: string[];
+  /** Para mostrar a parte de cada um quando a divisão é `Renda`. */
+  pctIrwinRenda: number;
 }
 
 /** O que o app já tem para uma linha que casou. */
@@ -109,6 +119,24 @@ interface Estado {
   deFora: boolean;
   /** De quem é, quando `deFora`. Sem ele a dívida não tem dono (A4). */
   gastoDe: string;
+  /**
+   * Fixa ou Variável — campo do lançamento, não da categoria (A5).
+   *
+   * Não existia: toda linha de fatura herdava o padrão da categoria e nin-
+   * guém tinha como discordar sem reabrir o lançamento depois, um a um.
+   */
+  tipo: string;
+  /**
+   * Alguém tocou no tipo. Enquanto ninguém tocou, trocar a categoria arrasta
+   * o tipo junto — aqui a categoria foi ADIVINHADA, e corrigir o palpite tem
+   * que corrigir o que saiu dele. No Lançar é diferente de propósito: lá a
+   * pessoa escolheu a categoria, então nada é arrastado.
+   */
+  tipoManual: boolean;
+  /** De onde saiu o dinheiro. Nasce `Cartão`, que é de onde a fatura vem. */
+  origem: string;
+  /** Data escolhida nesta revisão. `null` = a da fatura. */
+  dataEditada: string | null;
   /** Vazio = o nome da fatura vale. A tela mostra o original apagado atrás. */
   descricao: string;
   grupo: string;
@@ -179,6 +207,8 @@ export type AtualDoLote = Record<
     quemPagou: string | null;
     deFora: boolean;
     gastoDe: string | null;
+    origem: string | null;
+    data: string;
     valor: number;
     total: number;
   }
@@ -258,6 +288,10 @@ export function Importador({
           quemPagou,
           deFora: false,
           gastoDe: '',
+          tipo: tipoDoGrupo.get(l.categoriaSugerida) ?? 'Variável',
+          tipoManual: false,
+          origem: 'Cartão',
+          dataEditada: null,
           aberta: false,
           forcadaNova: false,
           abaTravada: null,
@@ -341,7 +375,11 @@ export function Importador({
    */
   const comoLancamentos = (l: Linha, e: Estado): LinhaParaLancar[] => {
     const base = {
-      data: l.data,
+      // A data e a origem são da TRANSAÇÃO, então valem também para os
+      // pedacos: dividir uma compra em dois donos não a move no tempo nem
+      // troca a conta de onde o dinheiro saiu.
+      data: e.dataEditada || l.data,
+      origem: e.origem,
       tipo: undefined as string | undefined,
       parcelas: parcelasDe(l, e),
       ref: l.i,
@@ -367,11 +405,15 @@ export function Importador({
         descricao: (e.descricao.trim() || l.descricao).trim(),
         valor: valorEfetivo(l, e),
         grupo: e.grupo,
-        tipo: tipoDoGrupo.get(e.grupo),
+        tipo: e.tipo,
         quemPagou: e.quemPagou,
         divisao: e.divisao,
         deFora: e.deFora,
-        gastoDe: e.deFora ? e.gastoDe : null,
+        /* `e.gastoDe` e não `e.deFora ? ... : null`: a mesma coluna guarda as
+           duas coisas, e são diferentes. `De fora` tira o gasto das contas de
+           vocês; marcar como do André só diz de quem ele é e não mexe em nada.
+           Zerar aqui quando não é `De fora` jogaria fora o botão do André. */
+        gastoDe: e.gastoDe || null,
         pedaco: 1,
       },
     ];
@@ -1030,6 +1072,21 @@ function LinhaFatura({
   const alternar = () =>
     onTrocar(e.aberta ? { aberta: false, abaTravada: null } : { aberta: true });
 
+  /* Trocar a categoria arrasta o tipo junto enquanto ninguém tiver tocado no
+     tipo — ver `Estado.tipoManual` para por que aqui, e não no Lançar. */
+  const trocarGrupo = (nome: string) =>
+    onTrocar(
+      e.tipoManual
+        ? { grupo: nome }
+        : { grupo: nome, tipo: opcoes.gruposLancar.find((g) => g.nome === nome)?.tipo ?? e.tipo },
+    );
+
+  const valorLinha = valorEfetivo(l, e);
+  /* A conta mora em `partesDe`, junto do resto do rateio: com `De fora` as
+     DUAS partes são zero, e fazer "total menos a do Irwin" aqui dava
+     "Irwin R$ 0,00 · Maria R$ 90,00" num gasto que não é de nenhum dos dois. */
+  const partes = partesDe(valorLinha, e.divisao as Divisao, e.deFora, opcoes.pctIrwinRenda);
+
   return (
     <div className={`linha-fat${e.marcada ? ' marcada' : ''}`}>
       <div className="topo" onClick={alternar} role="button" tabIndex={0}>
@@ -1144,110 +1201,277 @@ function LinhaFatura({
                 </div>
               )}
 
-              {/* O nome da fatura fica de fundo, apagado: digitar o substitui, e
-                  apagar o campo o traz de volta. Sem um campo aqui, um
-                  `Ifd*dpc Culinaria Japonesbelo` entraria na lista assim para
-                  sempre. */}
-              <div className="campo">
-                <label>Nome</label>
-                <input
-                  type="text"
-                  value={e.descricao}
-                  placeholder={l.descricao}
-                  onChange={(ev) => onTrocar({ descricao: ev.target.value })}
-                />
+              {/* Daqui para baixo é o MESMO formulário do Lançar, reduzido: os
+                  mesmos chips, as mesmas cores, as mesmas duas perguntas na
+                  mesma ordem. Era uma pilha de `select` cinzas, e a diferença
+                  não era estética — quem revisa uma fatura de 167 linhas estava
+                  lendo texto onde o resto do app dá cor.
+
+                  `campos-lanc` é o que traz o estilo de lá sem copiá-lo; ver o
+                  bloco "Lançar e a revisão de fatura" no globals.css. */}
+              <div className="campos-lanc">
+                {/* O nome da fatura fica de fundo, apagado: digitar o substitui,
+                    e apagar o campo o traz de volta. Sem um campo aqui, um
+                    `Ifd*dpc Culinaria Japonesbelo` entraria na lista assim para
+                    sempre. */}
+                <div className="linha-desc">
+                  <label className="campo">
+                    <span>Nome</span>
+                    <input
+                      type="text"
+                      value={e.descricao}
+                      placeholder={l.descricao}
+                      onChange={(ev) => onTrocar({ descricao: ev.target.value })}
+                    />
+                  </label>
+                  {/* O botão do André, o mesmo do Lançar. Ele diz de quem é o
+                      custo e NÃO mexe na divisão nem no acerto — por isso fica
+                      aqui em cima, longe das duas perguntas. Com a linha
+                      marcada `De fora` ele sai de cena: o dono já é outro, e os
+                      dois campos gravam a mesma coluna. */}
+                  {!e.deFora && (
+                    <button
+                      type="button"
+                      className="btn-andre"
+                      aria-pressed={e.gastoDe === 'André'}
+                      aria-label="Gasto do André"
+                      title="Gasto do André"
+                      onClick={() =>
+                        onTrocar({ gastoDe: e.gastoDe === 'André' ? '' : 'André' })
+                      }
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="/avatar-andre.jpg" alt="André" />
+                    </button>
+                  )}
+                </div>
                 {e.descricao.trim() && (
                   <div className="dica">
                     na fatura: {l.descricao} ·{' '}
-                    <button type="button" className="link" onClick={() => onTrocar({ descricao: '' })}>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => onTrocar({ descricao: '' })}
+                    >
                       voltar ao original
                     </button>
                   </div>
                 )}
-              </div>
+                {e.gastoDe === 'André' && (
+                  <p className="nota">
+                    Marcado como gasto do <b>André</b>. Classifica de quem é o custo —{' '}
+                    <b>não muda a divisão nem o acerto</b>.
+                  </p>
+                )}
 
-              <div className="campo">
-                <label>Categoria</label>
-                <select value={e.grupo} onChange={(ev) => onTrocar({ grupo: ev.target.value })}>
-                  {opcoes.gruposLancar.map((g) => (
-                    <option key={g.nome} value={g.nome}>
-                      {g.nome}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grade">
-                <div className="campo">
-                  <label>Quem pagou</label>
-                  <select
-                    value={e.quemPagou}
-                    onChange={(ev) => onTrocar({ quemPagou: ev.target.value })}
-                  >
-                    <option value="">—</option>
-                    {opcoes.pagadores.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="campo">
-                  <label>De quem é o gasto</label>
-                  <select
-                    value={e.deFora ? 'De fora' : e.divisao}
-                    onChange={(ev) => {
-                      const v = ev.target.value;
-                      onTrocar({
-                        deFora: v === 'De fora',
-                        divisao: v,
-                        gastoDe: v === 'De fora' ? e.gastoDe || DE_FORA[0] : '',
-                      });
-                    }}
-                  >
-                    <option value="">—</option>
-                    {DIVISOES.filter((d) => d !== 'Custom').map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {e.deFora && (
-                <>
-                  <div className="campo">
-                    <label>De quem é esse gasto</label>
-                    <select
-                      value={DE_FORA.includes(e.gastoDe) ? e.gastoDe : OUTRA}
+                <div className="linha">
+                  <label className="campo">
+                    <span>{serie ? 'Valor da parcela' : 'Valor'}</span>
+                    {/* `type="text"` não é decorativo: o CSS global estiliza
+                        `input[type='text']`, e um input SEM atributo type não
+                        casa com esse seletor. Sem ele o campo nasce com a
+                        altura e a largura cruas do navegador e vaza por cima
+                        do vizinho — foi o que aconteceu. */}
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={numero(valorLinha)}
                       onChange={(ev) =>
-                        onTrocar({ gastoDe: ev.target.value === OUTRA ? '' : ev.target.value })
+                        onTrocar({ valorLiquido: lerMoeda(mascaraMoeda(ev.target.value)) })
+                      }
+                    />
+                  </label>
+                  <label className="campo">
+                    <span>Data</span>
+                    <input
+                      type="date"
+                      value={e.dataEditada || l.data}
+                      onChange={(ev) => onTrocar({ dataEditada: ev.target.value || null })}
+                    />
+                  </label>
+                </div>
+                {(e.valorLiquido !== null || e.dataEditada) && (
+                  <div className="dica">
+                    na fatura: {brl(l.valor)} em {dataBR(l.data)} ·{' '}
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => onTrocar({ valorLiquido: null, dataEditada: null })}
+                    >
+                      voltar ao original
+                    </button>
+                  </div>
+                )}
+
+                <div className="rot sep">Categoria</div>
+                <div className="chips">
+                  {opcoes.gruposLancar.map((g) => (
+                    <button
+                      key={g.nome}
+                      type="button"
+                      className="chip cat"
+                      style={{ '--c': corDaCategoria(g.nome) } as React.CSSProperties}
+                      aria-pressed={e.grupo === g.nome}
+                      onClick={() => trocarGrupo(g.nome)}
+                    >
+                      <i className="pt" />
+                      {g.nome}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Tipo é campo do lançamento, não da categoria (A5) — e aqui ele
+                    simplesmente não existia: toda linha de fatura herdava o
+                    padrão da categoria, sem como discordar.
+
+                    Diferença de propósito em relação ao Lançar: lá a categoria
+                    nunca mexe no tipo, porque a pessoa a escolheu. Aqui ela foi
+                    ADIVINHADA por palavra-chave, então corrigir o palpite
+                    corrige o que saiu dele — até alguém tocar no tipo, e aí ele
+                    para de seguir. */}
+                <div className="rot sep">Tipo</div>
+                <div className="chips">
+                  {['Variável', 'Fixa'].map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      className="chip"
+                      aria-pressed={e.tipo === t}
+                      onClick={() => onTrocar({ tipo: t, tipoManual: true })}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="rot sep">Origem</div>
+                <div className="chips">
+                  {['Cartão', 'Banco'].map((o) => (
+                    <button
+                      key={o}
+                      type="button"
+                      className="chip"
+                      aria-pressed={e.origem === o}
+                      onClick={() => onTrocar({ origem: o })}
+                    >
+                      {o}
+                    </button>
+                  ))}
+                </div>
+                {e.origem !== 'Cartão' && (
+                  <p className="nota">
+                    Veio na fatura do cartão, mas vai ser gravada como <b>{e.origem}</b>.
+                  </p>
+                )}
+
+                <div className="rot sep">
+                  1 · Quem pagou <span className="leve">de quem saiu o dinheiro</span>
+                </div>
+                <div className="chips">
+                  {opcoes.pagadores.map((q) => (
+                    <button
+                      key={q}
+                      type="button"
+                      className="chip"
+                      aria-pressed={e.quemPagou === q}
+                      onClick={() => onTrocar({ quemPagou: q })}
+                    >
+                      <i className={'pt ' + (q === 'Irwin' ? 'i' : q === 'Maria' ? 'm' : 'duo')} />
+                      {q === 'Ambos' ? 'Os dois' : q}
+                    </button>
+                  ))}
+                </div>
+                {l.nomeCartao && (
+                  <p className="nota">
+                    Já veio preenchido pelo nome no cartão: <b>{l.nomeCartao}</b>.
+                  </p>
+                )}
+
+                <div className="rot sep">
+                  2 · De quem é o gasto <span className="leve">como dividir o custo</span>
+                </div>
+                <div className="chips">
+                  {DIVISOES.filter((d) => d !== 'Custom').map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      className="chip"
+                      aria-pressed={e.deFora ? d === 'De fora' : e.divisao === d}
+                      onClick={() =>
+                        onTrocar({
+                          deFora: d === 'De fora',
+                          divisao: d,
+                          /* Só limpa o dono ao SAIR de `De fora`. Limpar sempre
+                             apagava a marca do André — que não é divisão, é
+                             de quem é o custo — em quem trocasse 50/50 por
+                             100% Irwin depois de marcar o botão dele. */
+                          gastoDe:
+                            d === 'De fora'
+                              ? e.gastoDe || DE_FORA[0]
+                              : e.deFora
+                                ? ''
+                                : e.gastoDe,
+                        })
                       }
                     >
-                      {DE_FORA.map((q) => (
-                        <option key={q}>{q}</option>
-                      ))}
-                      <option value={OUTRA}>{OUTRA}</option>
-                    </select>
+                      {ROTULO_DIVISAO[d]}
+                    </button>
+                  ))}
+                </div>
+
+                {e.deFora && (
+                  <>
+                    <label className="campo" style={{ marginTop: 12 }}>
+                      <span>De quem é esse gasto</span>
+                      <select
+                        value={DE_FORA.includes(e.gastoDe) ? e.gastoDe : OUTRA}
+                        onChange={(ev) =>
+                          onTrocar({ gastoDe: ev.target.value === OUTRA ? '' : ev.target.value })
+                        }
+                      >
+                        {DE_FORA.map((q) => (
+                          <option key={q}>{q}</option>
+                        ))}
+                        <option value={OUTRA}>{OUTRA}</option>
+                      </select>
+                    </label>
+                    {/* O nome é o que agrupa a dívida em `v_terceiros`. Sem ele o
+                        saldo não tem dono e não serve para cobrar ninguém. */}
+                    {!DE_FORA.includes(e.gastoDe) && (
+                      <label className="campo">
+                        <span>Nome da pessoa</span>
+                        <input
+                          type="text"
+                          value={e.gastoDe}
+                          placeholder="de quem é esse gasto"
+                          onChange={(ev) => onTrocar({ gastoDe: ev.target.value })}
+                        />
+                      </label>
+                    )}
+                  </>
+                )}
+
+                {/* O que cada um vai carregar, em número. É leitura, não campo:
+                    quem quiser um valor exato por pessoa divide a linha em
+                    pedacos, que é onde esse caso mora. */}
+                <div className="partes">
+                  <div className="parte i">
+                    <div className="quem">Parte do Irwin</div>
+                    <div className="leitura">{brl(partes.irwin)}</div>
                   </div>
-                  {/* O nome é o que agrupa a dívida em `v_terceiros`. Sem ele o
-                      saldo não tem dono e não serve para cobrar ninguém. */}
-                  {!DE_FORA.includes(e.gastoDe) && (
-                    <div className="campo">
-                      {/* "Nome da pessoa", e não "Nome": o campo de cima, que
-                          renomeia a linha da fatura, também se chama Nome. */}
-                      <label>Nome da pessoa</label>
-                      <input
-                        type="text"
-                        value={e.gastoDe}
-                        placeholder="de quem é esse gasto"
-                        onChange={(ev) => onTrocar({ gastoDe: ev.target.value })}
-                      />
-                    </div>
-                  )}
-                </>
-              )}
+                  <div className="parte m">
+                    <div className="quem">Parte da Maria</div>
+                    <div className="leitura">{brl(partes.maria)}</div>
+                  </div>
+                </div>
+                {e.deFora && (
+                  <p className="nota">
+                    Sai do resultado de vocês e entra como dívida{' '}
+                    {e.gastoDe ? <>de <b>{e.gastoDe}</b></> : 'de quem você nomear'} em Quem nos
+                    deve.
+                  </p>
+                )}
+              </div>
 
               <Divisor
                 linha={l}
@@ -1730,6 +1954,10 @@ function foiEditada(l: Linha, e: Estado, padrao: string): boolean {
     e.grupo !== l.categoriaSugerida ||
     e.quemPagou !== quem ||
     e.deFora ||
+    !!e.gastoDe ||
+    !!e.dataEditada ||
+    e.valorLiquido !== null ||
+    e.origem !== 'Cartão' ||
     e.divisao !== divisaoInicial(padrao, quem)
   );
 }
@@ -1781,6 +2009,13 @@ function aoReabrir(salvo: EstadoSalvo, atual: AtualDoLote): Record<number, Estad
       pedacos: e.pedacos ?? null,
       deFora: e.deFora ?? false,
       gastoDe: e.gastoDe ?? '',
+      /* Lote gravado antes destes campos existirem: o tipo vem do banco, que
+         é quem sabe o que foi realmente gravado; origem e data voltam ao
+         padrão e são corrigidas logo abaixo pelo que o banco diz. */
+      tipo: e.tipo ?? a?.tipo ?? 'Variável',
+      tipoManual: e.tipoManual ?? false,
+      origem: e.origem ?? 'Cartão',
+      dataEditada: e.dataEditada ?? null,
     };
 
     if (!a) {
@@ -1800,11 +2035,19 @@ function aoReabrir(salvo: EstadoSalvo, atual: AtualDoLote): Record<number, Estad
       quemPagou: a.quemPagou ?? '',
       deFora: a.deFora ?? false,
       gastoDe: a.gastoDe ?? '',
+      tipo: a.tipo,
+      /* O tipo veio do banco, então ele JÁ é uma escolha — não pode ser
+         arrastado por uma troca de categoria aqui. */
+      tipoManual: true,
+      origem: a.origem ?? 'Cartão',
+      dataEditada: a.data === (daFatura.get(ref)?.data ?? '') ? null : a.data,
       valorAtual: a.valor,
       mexidaDepois:
         (a.descricao === nomeFatura ? '' : a.descricao) !== (e.descricao ?? '') ||
         a.categoria !== e.grupo ||
         a.divisao !== e.divisao ||
+        a.tipo !== e.tipo ||
+        (a.origem ?? 'Cartão') !== (e.origem ?? 'Cartão') ||
         (a.quemPagou ?? '') !== e.quemPagou ||
         (a.deFora ?? false) !== (e.deFora ?? false) ||
         (a.gastoDe ?? '') !== (e.gastoDe ?? ''),
@@ -1828,6 +2071,9 @@ function assinaturaLinha(e: Estado | undefined): string {
     // não muda nome, categoria nem divisão, e sem isto o diferencial a
     // deixaria de fora — a correção sumiria em silêncio.
     e.deFora, e.gastoDe,
+    // Tipo, origem e data também: trocar Variável por Fixa não mexe em nome
+    // nem em categoria, e sem isto o diferencial não veria a mudança.
+    e.tipo, e.origem, e.dataEditada ?? '',
     // Sem isto, decidir "lançar o líquido" não contaria como mudança e o
     // diferencial deixaria a linha de fora — a correção sumiria em silêncio.
     e.valorLiquido ?? '',

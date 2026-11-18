@@ -1871,6 +1871,12 @@ export interface LinhaParaLancar {
   valor: number;
   grupo: string;
   tipo?: string;
+  /**
+   * De onde saiu o dinheiro. Era fixo em `Cartão` para tudo que vinha de
+   * fatura, e quase sempre é — mas uma linha de fatura pode ter sido débito,
+   * e a tela de revisão passou a deixar corrigir. Ausente mantém `Cartão`.
+   */
+  origem?: string | null;
   quemPagou: string;
   divisao: string;
   pctIrwinCustom?: number | null;
@@ -1969,6 +1975,7 @@ async function gravarLote(
         quem_pagou: l.quemPagou,
         pago_irwin: pagoIrwin === null ? null : String(pagoIrwin),
         gasto_de: l.gastoDe || null,
+        fonte: l.origem || 'Cartão',
         serie_id: serieId,
         seq: serieId ? k + 1 : null,
         ref: l.ref ?? null,
@@ -1998,15 +2005,15 @@ async function gravarLote(
              pago_irwin, recorrente, gasto_de, de_fora, serie_id, seq,
              importacao_id, importacao_linha, importacao_pedaco)
           select r.data::date, r.descricao, r.categoria, r.tipo,
-                 'Fatura do cartão', 'Cartão', r.valor::numeric, r.divisao,
+                 'Fatura do cartão', r.fonte, r.valor::numeric, r.divisao,
                  r.pct_custom::numeric, r.pct::numeric, r.eh_quitacao,
                  r.quem_pagou, r.pago_irwin::numeric, false, r.gasto_de,
                  r.de_fora, r.serie_id, r.seq, ${impId}, r.ref, r.pedaco
           from jsonb_to_recordset(${JSON.stringify(paraGravar)}::jsonb) as r(
             data text, descricao text, categoria text, tipo text, valor text,
             divisao text, pct_custom text, pct text, eh_quitacao boolean,
-            quem_pagou text, pago_irwin text, gasto_de text, de_fora boolean,
-            serie_id int, seq int, ref int, pedaco int)`,
+            quem_pagou text, pago_irwin text, gasto_de text, fonte text,
+            de_fora boolean, serie_id int, seq int, ref int, pedaco int)`,
     );
   }
 
@@ -2184,7 +2191,7 @@ export async function estadoDaImportacao(id: number) {
   const linhas = await db.execute<{
     ref: number; pedaco: number; n: number; descricao: string; categoria: string;
     tipo: string; divisao: string; quem_pagou: string | null; valor: string; total: string;
-    gasto_de: string | null; de_fora: boolean | null;
+    gasto_de: string | null; de_fora: boolean | null; fonte: string | null; data: string;
   }>(sql`select importacao_linha as ref, importacao_pedaco as pedaco, count(*)::int as n,
                 (array_agg(descricao   order by seq nulls first, data, id))[1] as descricao,
                 (array_agg(categoria   order by seq nulls first, data, id))[1] as categoria,
@@ -2196,6 +2203,11 @@ export async function estadoDaImportacao(id: number) {
                    revisão do lote oferecendo desmarcar sem avisar. */
                 (array_agg(gasto_de     order by seq nulls first, data, id))[1] as gasto_de,
                 (array_agg(de_fora      order by seq nulls first, data, id))[1] as de_fora,
+                (array_agg(fonte        order by seq nulls first, data, id))[1] as fonte,
+                /* A data da PRIMEIRA parcela e a da compra; as outras sao
+                   derivadas dela por montarParcelas. Sem crase aqui dentro: a
+                   consulta mora numa template string, e a crase a encerra. */
+                to_char((array_agg(data order by seq nulls first, data, id))[1], 'YYYY-MM-DD') as data,
                 (array_agg(valor_total order by seq nulls first, data, id))[1]::text as valor,
                 round(sum(valor_total)::numeric, 2)::text as total
          from v_lancamentos
@@ -2217,6 +2229,8 @@ export async function estadoDaImportacao(id: number) {
     quemPagou: string | null;
     deFora: boolean;
     gastoDe: string | null;
+    origem: string | null;
+    data: string;
     valor: number;
     total: number;
   }
@@ -2242,6 +2256,8 @@ export async function estadoDaImportacao(id: number) {
       quemPagou: l.quem_pagou,
       deFora: !!l.de_fora,
       gastoDe: l.gasto_de,
+      origem: l.fonte,
+      data: l.data,
       valor: Number(l.valor),
       total: Number(l.total),
     };

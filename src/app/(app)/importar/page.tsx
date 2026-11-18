@@ -33,6 +33,7 @@ export default async function PaginaImportar() {
         opcoes={{
           gruposLancar: opcoes.gruposLancar,
           pagadores: opcoes.pagadores,
+          pctIrwinRenda: opcoes.pctIrwinRenda,
         }}
         eu={eu}
       />

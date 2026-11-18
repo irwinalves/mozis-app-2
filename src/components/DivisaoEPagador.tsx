@@ -78,6 +78,26 @@ export function fracaoDe(divisao: Divisao, pctRenda: number): number | null {
   return null;
 }
 
+/**
+ * Quanto do total cabe a cada um.
+ *
+ * Existe como função porque a conta tem uma pegadinha que já cobrou: com
+ * `De fora`, a parte do Irwin é zero — mas a da Maria NÃO é "o total menos a
+ * do Irwin". `De fora` não é de nenhum dos dois, então as DUAS são zero (A24).
+ * Calculando uma e subtraindo, a tela da fatura mostrava
+ * "Irwin R$ 0,00 · Maria R$ 90,00" num gasto que não era de nenhum dos dois.
+ */
+export function partesDe(
+  total: number,
+  divisao: Divisao,
+  deFora: boolean,
+  pctRenda: number,
+): { irwin: number; maria: number } {
+  if (deFora || divisao === 'De fora') return { irwin: 0, maria: 0 };
+  const irwin = arred(total * (fracaoDe(divisao, pctRenda) ?? 0.5));
+  return { irwin, maria: arred(total - irwin) };
+}
+
 /** As respostas das duas perguntas, juntas — é isto que a tela guarda. */
 export interface Reparticao {
   /** 'Irwin' · 'Maria' · 'Ambos'. */

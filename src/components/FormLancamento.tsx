@@ -35,6 +35,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { rpc, ErroRpc } from '@/lib/rpc';
 import { brl, lerMoeda, mascaraMoeda, numero } from '@/lib/formato';
+import { corDaCategoria } from '@/lib/cores';
 import DivisaoEPagador, {
   DE_FORA,
   fracaoDe,
@@ -47,20 +48,6 @@ export type Opcoes = Awaited<ReturnType<typeof import('@/lib/api').getOpcoes>>;
 
 /** Divisões que a tela oferece. A ordem é a da tela, e `Renda` fecha a lista:
  *  ainda não foi usada nenhuma vez em 3.802 lançamentos, mas é para ser. */
-/** A cor é da CATEGORIA, não do estado do botão: é ela que volta nos gráficos
- *  do mês, então mudar aqui desalinha o relatório. */
-const COR_CATEGORIA: Record<string, string> = {
-  '1 Casa': '#2F5597',
-  '2 Carro': '#1F7A6B',
-  '3 Comida': '#4E8C2A',
-  '4 Saúde': '#B23A3A',
-  '5 Lazer & Pessoal': '#B5407A',
-  '6 Viagem': '#1B7FA8',
-  '7 Outros': '#6E6E6E',
-  '8 Investimentos': '#2E6B2E',
-  '9 Acerto de Contas': '#8A6D00',
-};
-
 type Repeticao = 'nao' | 'parcelado' | 'recorrente';
 
 /** O mesmo leitor do `Form.html`, pelo mesmo motivo: uma implementação só. */
@@ -409,7 +396,7 @@ export default function FormLancamento({
               key={c}
               type="button"
               className="chip cat"
-              style={{ '--c': COR_CATEGORIA[c] ?? '#6E6E6E' } as React.CSSProperties}
+              style={{ '--c': corDaCategoria(c) } as React.CSSProperties}
               aria-pressed={categoria === c}
               onClick={() => setCategoria(c)}
             >

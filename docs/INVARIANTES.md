@@ -24,8 +24,8 @@ arquivo guarda o que precisa **sobreviver à troca de tecnologia**.
 
 ## Quantas estão verificadas por máquina
 
-49 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
-e `npm test` verifica mais quatro contra a forma do front (`src/lib/tela.test.ts`),
+50 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
+e `npm test` verifica mais sete contra a forma do front (`src/lib/tela.test.ts`),
 e é por isso que os dois têm o mesmo nome: a distância entre os dois números é a medida
 de quanto ainda depende de alguém lembrar.
 
@@ -667,6 +667,36 @@ chaves que o backend conhece voltam do armazenamento — estado que volta de for
 não precisa chegar ao servidor como veio.
 
 **Como provar:** `src/lib/tela.test.ts`.
+
+---
+
+### C11. Revisar uma fatura é lançar, com menos perguntas — não um formulário pobre
+
+**Regra:** a tela que edita uma linha de fatura é o **mesmo** formulário do Lançar, com
+os mesmos chips, as mesmas cores e as mesmas duas perguntas na mesma ordem. O que ela tem
+a menos é o que não se aplica (parcelar, repetir), nunca o que custou trabalho a fazer
+direito.
+
+**Se violada:** era uma pilha de `select` cinzas. A diferença não é estética: quem revisa
+167 linhas de uma fatura estava lendo texto onde o resto do app dá cor, e **faltavam
+campos** — não dava para dizer se era Fixa, de onde saiu o dinheiro, nem corrigir a data.
+A tela que recebe o maior volume de lançamentos do app era a mais pobre dele.
+
+**Como isso se mantém:** o estilo é um só, `:is(.form-lanc, .campos-lanc)`, e a paleta de
+categorias vive em `src/lib/cores.ts`. Duas folhas de estilo para o mesmo formulário
+divergiriam no primeiro ajuste — e foi assim que ele ficou para trás da primeira vez.
+
+**Como provar:** `src/lib/tela.test.ts` reprova se uma regra de formulário ficar só no
+Lançar ou se a paleta for copiada para fora do módulo de cores.
+
+> **Uma diferença de propósito:** no Lançar, trocar a categoria **não** mexe no tipo,
+> porque a pessoa escolheu a categoria. Na fatura a categoria foi **adivinhada** por
+> palavra-chave, então corrigir o palpite corrige o que saiu dele — até alguém tocar no
+> tipo, e aí ele para de seguir. Regra diferente porque a pergunta é diferente.
+
+> **E uma pegadinha de conta:** com `De fora`, a parte do Irwin é zero e a da Maria
+> **também** — não é "o total menos a do Irwin". Calculando por subtração, a tela
+> afirmava que um gasto de terceiro era todo da Maria. A conta mora em `partesDe`.
 
 ---
 
