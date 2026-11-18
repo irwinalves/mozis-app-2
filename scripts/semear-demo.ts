@@ -90,28 +90,33 @@ const CATEGORIAS = [
 
 /** Despesas fixas do mês. Sempre as mesmas, que é o que "fixa" quer dizer. */
 const FIXAS = [
-  ['Aluguel', '1 Casa', 2800, 5, 'Ambos'],
+  ['Aluguel', '1 Casa', 2500, 5, 'Ambos'],
   ['Condomínio', '1 Casa', 640, 5, 'Ambos'],
   ['Luz', '1 Casa', 180, 12, 'Irwin'],
   ['Internet', '1 Casa', 129.9, 15, 'Irwin'],
-  ['Plano de saúde', '4 Saúde', 890, 8, 'Maria'],
+  ['Plano de saúde', '4 Saúde', 740, 8, 'Maria'],
   ['Academia', '5 Lazer & Pessoal', 149, 10, 'Maria'],
   ['Streaming', '5 Lazer & Pessoal', 55.9, 20, 'Irwin'],
 ] as const;
 
 const VARIAVEIS = [
-  ['Supermercado', '3 Comida', 180, 520],
-  ['Feira', '3 Comida', 60, 140],
-  ['Padaria', '3 Comida', 18, 65],
-  ['Restaurante', '3 Comida', 70, 220],
-  ['Delivery', '3 Comida', 40, 120],
-  ['Combustível', '2 Carro', 150, 280],
-  ['Estacionamento', '2 Carro', 15, 48],
-  ['Farmácia', '4 Saúde', 25, 160],
-  ['Cinema', '5 Lazer & Pessoal', 50, 90],
-  ['Presente', '7 Outros', 60, 250],
-  ['Livraria', '5 Lazer & Pessoal', 45, 130],
-  ['Pet shop', '7 Outros', 80, 190],
+  ['Supermercado', '3 Comida', 280, 760],
+  ['Feira', '3 Comida', 95, 220],
+  ['Padaria', '3 Comida', 28, 95],
+  ['Restaurante', '3 Comida', 110, 340],
+  ['Delivery', '3 Comida', 65, 190],
+  ['Combustível', '2 Carro', 220, 430],
+  ['Manutenção do carro', '2 Carro', 180, 980],
+  ['Estacionamento', '2 Carro', 22, 75],
+  ['Farmácia', '4 Saúde', 40, 260],
+  ['Consulta', '4 Saúde', 150, 420],
+  ['Cinema', '5 Lazer & Pessoal', 70, 140],
+  ['Presente', '7 Outros', 90, 390],
+  ['Livraria', '5 Lazer & Pessoal', 70, 210],
+  ['Pet shop', '7 Outros', 120, 300],
+  ['Roupas', '5 Lazer & Pessoal', 140, 620],
+  ['Passagem', '6 Viagem', 400, 1400],
+  ['Hospedagem', '6 Viagem', 350, 1200],
 ] as const;
 
 type Linha = {
@@ -184,8 +189,11 @@ async function main() {
               values (${nome}, ${tipoPadrao}, ${ordem})`;
   }
 
+  /* Dezoito meses, atravessando a virada do ano. Com um ano só, o gráfico de
+     evolução das fixas mostra uma barra sozinha e não evolui nada. */
   const MESES: [number, number][] = [
-    [2026, 3], [2026, 4], [2026, 5], [2026, 6],
+    [2025, 6], [2025, 7], [2025, 8], [2025, 9], [2025, 10], [2025, 11], [2025, 12],
+    [2026, 1], [2026, 2], [2026, 3], [2026, 4], [2026, 5], [2026, 6],
     [2026, 7], [2026, 8], [2026, 9], [2026, 10], [2026, 11],
   ];
 
@@ -225,7 +233,7 @@ async function main() {
         recorrente: true,
       });
     }
-    const quantas = 10 + Math.floor(rnd() * 6);
+    const quantas = 15 + Math.floor(rnd() * 8);
     for (let i = 0; i < quantas; i++) {
       const [desc, cat, min, max] = escolher(VARIAVEIS);
       const quem = escolher(['Irwin', 'Maria', 'Ambos'] as const);
@@ -367,7 +375,11 @@ async function main() {
   const [ac] = await sql<{ saldo: string }[]>`
     select coalesce(sum(saldo_irwin),0)::text as saldo from v_lancamentos`;
 
-  console.log(`\n✓ ${fim.n} lançamentos entre março e novembro de 2026`);
+  const [a0, m0] = MESES[0];
+  const [a1, m1] = MESES[MESES.length - 1];
+  console.log(
+    `\n✓ ${fim.n} lançamentos entre ${String(m0).padStart(2, '0')}/${a0} e ${String(m1).padStart(2, '0')}/${a1}`,
+  );
   console.log(`  1 parcelamento em 6x · 1 importação de fatura · 1 quitação`);
   console.log(`  ${ter.pessoas} terceiro(s) devendo R$ ${Number(ter.aberto).toFixed(2)}`);
   console.log(`  acerto do casal: R$ ${Number(ac.saldo).toFixed(2)} (positivo = a Maria deve)`);

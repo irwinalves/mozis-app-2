@@ -16,6 +16,18 @@ Antes dele existiu uma versão em Google Apps Script sobre uma planilha, que rod
 de julho a agosto de 2026 e está preservada em
 [mozis-app-legado](https://github.com/irwinalves/mozis-app-legado).
 
+## As telas
+
+Os prints abaixo são do app rodando de verdade, com a base de demonstração
+descrita mais adiante. **Os dados são fictícios; o app é o mesmo.**
+
+| | | |
+|:--:|:--:|:--:|
+| ![Início](docs/prints/01-inicio.png) | ![Lançar](docs/prints/02-lancar.png) | ![Dashboard](docs/prints/06-dashboard.png) |
+| **Início** — o acerto, os terceiros e a lista | **Lançar** — categoria, tipo e divisão | **Dashboard** — o peso das fixas é o indicador que importa |
+| ![Importar](docs/prints/03-importar.png) | ![Terceiros](docs/prints/04-terceiros.png) | ![Extrato do terceiro](docs/prints/05-terceiro-extrato.png) |
+| **Importar** — fatura do cartão em lote | **Quem nos deve** — gasto de terceiro, fora do acerto | **Extrato** — o que ele deve e o que já devolveu |
+
 ## Como funciona
 
 | Peça | Escolha |
@@ -79,10 +91,10 @@ O banco sobe vazio. Para ver o app funcionando com dados:
 npm run semear-demo
 ```
 
-Ele cria 188 lançamentos fictícios entre março e novembro de 2026, com despesas
-fixas e suas regras de recorrência, um parcelamento em 6x, uma importação de
-fatura, uma quitação entre os dois, um gasto de terceiro já devolvido e outro em
-aberto, e nove meses de posição de investimento.
+Ele cria 483 lançamentos fictícios cobrindo 18 meses, de junho de 2025 a novembro
+de 2026: as despesas fixas com suas regras de recorrência, um parcelamento em 6x,
+uma importação de fatura, uma quitação entre os dois, um gasto de terceiro já
+devolvido e outro em aberto, e a posição mensal de um investimento.
 
 Duas coisas valem ser ditas sobre ele. É **determinístico**, com semente fixa, então
 todo mundo vê exatamente a mesma tela. E ele importa `pctIrwinDe` e `pagoIrwinDe`
