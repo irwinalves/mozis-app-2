@@ -926,18 +926,26 @@ export async function getDashboard(filtro?: {
         ${base} and extract(year from data) = extract(year from current_date)`,
   );
 
+  /* A evolução para no mês corrente, e isso é regra, não gosto.
+     Um parcelamento nasce com a série inteira (A19) e uma compra em 12x joga
+     linhas até o ano que vem; as fixas, ao contrário, só são geradas até hoje
+     (A18). O futuro então tem parcela e não tem fixa, e o gráfico desenhava
+     uma fileira de meses em 0,0% — que não é "o casal parou de ter aluguel",
+     é "esse mês ainda não aconteceu". */
+  const ateAgora = sql`and data < date_trunc('month', current_date) + interval '1 month'`;
+
   const evolucao = await db.execute<{ rotulo: string; pct: string }>(
     granularidade === 'mensal'
       ? sql`select to_char(data, 'MM/YY') as rotulo,
                    round(100.0 * coalesce(sum(valor_total) filter (where tipo = 'Fixa'), 0)
                          / nullif(sum(valor_total), 0), 1) as pct
-            ${base}
+            ${base} ${ateAgora}
             group by date_trunc('month', data), to_char(data, 'MM/YY')
             order by date_trunc('month', data) desc limit 12`
       : sql`select extract(year from data)::text as rotulo,
                    round(100.0 * coalesce(sum(valor_total) filter (where tipo = 'Fixa'), 0)
                          / nullif(sum(valor_total), 0), 1) as pct
-            ${base}
+            ${base} ${ateAgora}
             group by extract(year from data)
             order by extract(year from data) desc limit 8`,
   );

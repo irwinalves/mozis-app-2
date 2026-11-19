@@ -250,30 +250,46 @@ async function main() {
     }
   }
 
-  /* Um parcelamento de verdade: 6x, com a ÚLTIMA parcela absorvendo o
-     arredondamento. É a regra que o app leva a sério e a tela de série mostra. */
-  const totalSerie = 2399.4;
-  const [serie] = await sql<{ id: number }[]>`
-    insert into series (tipo, descricao, total, origem)
-    values ('Parcelamento', 'Geladeira', 6, 'manual') returning id`;
-  const base = Math.floor((totalSerie / 6) * 100) / 100;
-  for (let k = 1; k <= 6; k++) {
-    linhas.push({
-      /* Uma parcela por MÊS, de julho a dezembro. Amontoar três no mesmo mês
-         deixava a série parecendo três compras, que é o oposto do que a tela
-         de série existe para mostrar. */
-      data: dia(2026, 7 + (k - 1), 14),
-      descricao: `Geladeira ${k}/6`,
-      categoria: '1 Casa',
-      tipo: 'Variável',
-      valorTotal: k === 6 ? arred(totalSerie - base * 5) : base,
-      divisao: '50/50',
-      quemPagou: 'Irwin',
-      fonte: 'Cartão',
-      serieId: serie.id,
-      seq: k,
-    });
+  /* Parcelamentos de verdade, com a ÚLTIMA parcela absorvendo o arredondamento.
+     São DOIS, e não um, por causa da tela inicial: o acerto mostra três cortes
+     (até o fim deste mês, até o fim do mês que vem, e o total). Com um único
+     parcelamento terminando em dezembro, os dois últimos cortes davam o mesmo
+     número e a tela ficava com cara de defeito sem ter defeito nenhum. Uma
+     série que atravessa o ano é também o que acontece de verdade. */
+  async function parcelar(
+    descricao: string,
+    categoria: string,
+    total: number,
+    vezes: number,
+    anoInicio: number,
+    mesInicio: number,
+    quemPagou: string,
+  ) {
+    const [serie] = await sql<{ id: number }[]>`
+      insert into series (tipo, descricao, total, origem)
+      values ('Parcelamento', ${descricao}, ${vezes}, 'manual') returning id`;
+    const base = Math.floor((total / vezes) * 100) / 100;
+    for (let k = 1; k <= vezes; k++) {
+      // Uma parcela por MÊS, virando o ano quando precisa. `dia()` não vira
+      // sozinho: ele só formata, e mês 13 sairia como `2026-13-14`.
+      const m = mesInicio + (k - 1);
+      linhas.push({
+        data: dia(anoInicio + Math.floor((m - 1) / 12), ((m - 1) % 12) + 1, 14),
+        descricao: `${descricao} ${k}/${vezes}`,
+        categoria,
+        tipo: 'Variável',
+        valorTotal: k === vezes ? arred(total - base * (vezes - 1)) : base,
+        divisao: '50/50',
+        quemPagou,
+        fonte: 'Cartão',
+        serieId: serie.id,
+        seq: k,
+      });
+    }
   }
+
+  await parcelar('Geladeira', '1 Casa', 2399.4, 6, 2026, 7, 'Irwin');
+  await parcelar('Notebook', '5 Lazer & Pessoal', 6499.0, 12, 2026, 9, 'Maria');
 
   /* Um gasto de terceiro: passou pelo cartão do casal mas é de outra pessoa.
      Fica FORA do acerto dos dois e vira dívida dela, na tela de Terceiros. */
@@ -383,7 +399,7 @@ async function main() {
   console.log(
     `\n✓ ${fim.n} lançamentos entre ${String(m0).padStart(2, '0')}/${a0} e ${String(m1).padStart(2, '0')}/${a1}`,
   );
-  console.log(`  1 parcelamento em 6x · 1 importação de fatura · 1 quitação`);
+  console.log(`  2 parcelamentos (6x e 12x) · 1 importação de fatura · 1 quitação`);
   console.log(`  ${ter.pessoas} terceiro(s) devendo R$ ${Number(ter.aberto).toFixed(2)}`);
   console.log(`  acerto do casal: R$ ${Number(ac.saldo).toFixed(2)} (positivo = a Maria deve)`);
   console.log(`\nTudo fictício. Rode \`npm run invariantes\` para ver a base passar nas 20 regras.\n`);

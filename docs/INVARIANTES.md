@@ -24,7 +24,7 @@ arquivo guarda o que precisa **sobreviver à troca de tecnologia**.
 
 ## Quantas estão verificadas por máquina
 
-51 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
+56 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
 e `npm test` verifica mais oito contra a forma do front (`src/lib/tela.test.ts`),
 e é por isso que os dois têm o mesmo nome: a distância entre os dois números é a medida
 de quanto ainda depende de alguém lembrar.
@@ -722,6 +722,30 @@ de cada campo do par, que é como estas quatro alturas apareceram.
 > Safari do iPhone dá zoom sozinho e não volta. Campo menor se faz por padding.
 
 ---
+
+### C13. Gráfico de histórico para no mês corrente
+
+**Regra:** toda série temporal do Dashboard (a evolução do % de fixas, hoje) é cortada no
+fim do mês corrente. O futuro que existe no banco não entra em gráfico de histórico.
+
+**Se violada:** o banco tem futuro de verdade, e ele é torto de propósito. Um
+parcelamento nasce com a série inteira (A19), então uma compra em 12x deixa linhas até o
+ano que vem; as fixas, ao contrário, só são geradas até hoje (A18). O futuro portanto tem
+parcela e não tem fixa, e o gráfico desenhava uma fileira de meses em **0,0%** logo depois
+do mês atual. Lido de boa fé, aquilo dizia "o casal parou de ter aluguel em dezembro".
+Pegou numa base de demonstração; na base real o mesmo buraco estava lá, escondido porque
+a visão padrão era anual e o ano seguinte ficava fora das oito colunas.
+
+### C14. Dois campos lado a lado não vazam para fora do cartão
+
+**Regra:** item de `flex` que divide a largura com outro leva `min-width: 0`.
+
+**Se violada:** item de flex nasce com `min-width: auto`, que é o tamanho mínimo do
+**conteúdo** e não o espaço disponível. Dois `input[type=date]` lado a lado pedem mais que
+a metade de 375px cada um, e o segundo simplesmente sai pela borda direita do cartão. A
+janela de datas do Dashboard ficou assim por meses sem ninguém ver, porque num navegador
+de mesa a largura sobra e o defeito não aparece — ele só existe no aparelho em que o app
+de fato é usado.
 
 ## Parte D — Só enquanto a base for a planilha Google
 
