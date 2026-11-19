@@ -420,8 +420,15 @@ input.valor-rateio{border:none;background:none;font-size:17px;font-weight:500;wi
 .legenda{display:flex;gap:14px;font-size:11px;color:var(--texto2);margin-top:8px}
 .legenda span{display:flex;align-items:center;gap:5px}
 .legenda i{width:8px;height:8px;border-radius:2px;display:inline-block}
-.evolucao{display:flex;align-items:flex-end;gap:10px;height:110px}
-.evolucao .col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+/* Doze meses não cabem em 375px: a 27px por coluna o rótulo '42.5%' já é mais
+   largo que a própria coluna, e o excesso vazava para fora do cartão levando
+   junto os meses MAIS RECENTES, que são os que interessam. Agora a faixa rola
+   na horizontal, com largura mínima por coluna, e `carregarDashboard` a deixa
+   no fim — o mês atual aparece sem ninguém precisar arrastar. */
+.evolucao{display:flex;align-items:flex-end;gap:10px;height:110px;
+  overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.evolucao::-webkit-scrollbar{display:none}
+.evolucao .col{flex:1 0 36px;min-width:36px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
 .evolucao .val{font-size:11px;font-weight:500;margin-bottom:4px}
 .evolucao .barra{width:100%;background:var(--fixa);border-radius:4px 4px 0 0}
 .evolucao .ano{font-size:10px;color:var(--texto2);margin-top:6px}
@@ -1453,6 +1460,11 @@ function renderDashboard(){
   h += '<div class="nota">Honestidade: "Outros" concentra boa parte do histórico importado do Splitwise, com descrições curtas demais para reclassificar. Use a importação de extrato para lançar com categoria melhor daqui pra frente.</div>';
 
   el.innerHTML = h;
+
+  /* O gráfico nasce rolado até o fim: a coluna da direita é o mês corrente, e
+     é ela que a pessoa abriu o Dashboard para ver. */
+  const faixa = el.querySelector('.evolucao');
+  if (faixa) faixa.scrollLeft = faixa.scrollWidth;
 }
 
 function barraEmpilhada(rotulo, fixa, variavel, opacidade){
