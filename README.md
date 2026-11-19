@@ -2,6 +2,9 @@
 
 **v2.1.0** · Gestão financeira de um casal, em produção desde agosto de 2026.
 
+**[Abrir o demo →](https://mozis-app-demo.vercel.app)** · sem login, com dados
+fictícios, e pode mexer à vontade: a base volta ao início toda madrugada.
+
 Este é um app real, usado todo dia por duas pessoas com nome e sobrenome, com
 dinheiro de verdade dentro. Não é template nem exemplo didático, e o código está
 aberto porque o interessante aqui não é o app, é o **registro do que ele teve que
@@ -19,7 +22,9 @@ de julho a agosto de 2026 e está preservada em
 ## As telas
 
 Os prints abaixo são do app rodando de verdade, com a base de demonstração
-descrita mais adiante. **Os dados são fictícios; o app é o mesmo.**
+descrita mais adiante. **Os dados são fictícios; o app é o mesmo.** É a mesma
+base que está no [demo público](https://mozis-app-demo.vercel.app), então dá
+para abrir cada uma destas telas e mexer nelas.
 
 | | | |
 |:--:|:--:|:--:|
@@ -72,6 +77,26 @@ Ele responde uma pergunta por vez. Existe lançamento sem dono? Alguma dívida f
 gravada em vez de calculada? Os dois caminhos que calculam o saldo chegam ao
 mesmo número? Essa última já falhou de verdade, e o defeito estava no próprio
 teste, não no app. A lição virou a regra A24.
+
+## O demo público, e por que ele não abre o app de verdade
+
+O [demo](https://mozis-app-demo.vercel.app) é este mesmo código, no mesmo
+repositório, com outro banco. Abrir uma porta sem login num código que também
+roda o app com dinheiro de duas pessoas dentro pede mais cuidado do que uma
+variável de ambiente, então são **duas chaves**:
+
+1. a variável `MODO_DEMO=sim`, que só o projeto do demo tem; e
+2. a tabela `demo_publico`, que precisa existir no banco.
+
+A segunda não está sob controle de quem configura o deploy. Ela **não existe em
+nenhuma migração** — quem a cria é `scripts/semear-demo.ts`, que recusa host
+remoto sem `--remoto` e banco com lançamentos sem `--limpar`. O banco do casal
+não tem como responder "sim", então ligar a variável no projeto errado não abre
+nada: o app continua mandando todo mundo para a tela de entrada.
+
+A mesma marca é a terceira trava do semeador: num host remoto com dados, ele só
+apaga uma base que já se declarou de demonstração. É o que deixa a rotina
+noturna de reset ser automática sem ser uma máquina de apagar banco.
 
 ## Como rodar
 
