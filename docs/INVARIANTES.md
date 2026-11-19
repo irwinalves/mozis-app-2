@@ -24,8 +24,8 @@ arquivo guarda o que precisa **sobreviver à troca de tecnologia**.
 
 ## Quantas estão verificadas por máquina
 
-50 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
-e `npm test` verifica mais sete contra a forma do front (`src/lib/tela.test.ts`),
+51 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
+e `npm test` verifica mais oito contra a forma do front (`src/lib/tela.test.ts`),
 e é por isso que os dois têm o mesmo nome: a distância entre os dois números é a medida
 de quanto ainda depende de alguém lembrar.
 
@@ -697,6 +697,29 @@ Lançar ou se a paleta for copiada para fora do módulo de cores.
 > **E uma pegadinha de conta:** com `De fora`, a parte do Irwin é zero e a da Maria
 > **também** — não é "o total menos a do Irwin". Calculando por subtração, a tela
 > afirmava que um gasto de terceiro era todo da Maria. A conta mora em `partesDe`.
+
+### C12. Campo ao lado de campo fecha a mesma moldura
+
+**Regra:** todo campo em moldura — texto, número, data, `select` — e todo botão que se
+alinhe a um têm **uma** altura, `var(--alt-campo)`. Quem precisar parecer menor muda
+padding ou largura, nunca a altura nem a fonte.
+
+**Se violada:** `line-height: normal` faz cada tipo de campo calcular a própria altura de
+conteúdo. Medido na tela de editar uma linha de fatura: texto 41px, data 43px, `select`
+43px, botão do André 42px — **quatro alturas na mesma tela**, com os campos de um par
+começando e terminando em pontos diferentes. Nenhum teste pega isso: o app renderiza, o
+typecheck passa, os invariantes do banco passam. Quem pegou foi o Irwin, olhando.
+
+**Como isso se mantém:** a altura é um `line-height` explícito de 20px mais o padding e a
+borda, somando o token. O botão e a bolinha da cor da categoria derivam do **mesmo**
+token em vez de repetir o número — repetido, ele diverge no primeiro ajuste.
+
+**Como provar:** `src/lib/tela.test.ts` reprova se o token sumir ou se o botão voltar a
+trazer a altura em pixel. A prova de verdade é medir no navegador: `getBoundingClientRect`
+de cada campo do par, que é como estas quatro alturas apareceram.
+
+> **A fonte do campo não entra nessa conta.** 16px não é escolha estética: abaixo disso o
+> Safari do iPhone dá zoom sozinho e não volta. Campo menor se faz por padding.
 
 ---
 

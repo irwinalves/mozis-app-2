@@ -185,3 +185,34 @@ test('a revisão de fatura veste o formulário do Lançar, não uma cópia dele'
     'a revisão de fatura parou de vestir o formulário do Lançar',
   );
 });
+
+test('campo, select e botão ao lado fecham a mesma moldura', () => {
+  /* O defeito que isto pega: `line-height: normal` deixa cada tipo de campo
+     calcular a própria altura. Medido na tela da fatura antes da correção:
+     texto 41px, data 43px, select 43px, botão 42px — quatro alturas na mesma
+     tela. Nada disso quebra build, typecheck ou invariante de banco (C12). */
+  const css = ler('src', 'app', 'globals.css')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\s+/g, '')
+    .replace(/;\}/g, '}');
+
+  assert.ok(css.includes('--alt-campo:42px'), 'o token da altura de campo sumiu');
+  assert.ok(
+    css.includes(
+      "input[type='text'],input[type='number'],input[type='date'],select{height:var(--alt-campo)}",
+    ),
+    'os campos em moldura pararam de tirar a altura do token',
+  );
+  const base = /textarea\{([^}]*)\}/.exec(css)?.[1] ?? '';
+  assert.ok(
+    base.includes('line-height:20px'),
+    'sem line-height explícito cada campo volta a calcular a própria altura',
+  );
+
+  const andre = /\.btn-andre\{([^}]*)\}/.exec(css)?.[1] ?? '';
+  assert.ok(andre.includes('height:var(--alt-campo)'), 'o botão do André saiu do token');
+  assert.ok(
+    !/height:\d/.test(andre),
+    'altura em pixel no botão do André: repetida, ela diverge no primeiro ajuste',
+  );
+});

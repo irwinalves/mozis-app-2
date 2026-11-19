@@ -260,11 +260,30 @@ textarea {
   width: 100%;
   padding: 10px 12px;
   font-size: 16px;
+  /* `line-height` explícito, e não `normal`: com `normal` cada tipo de campo
+     calcula a própria altura de conteúdo, e aí campos lado a lado não fecham
+     a mesma moldura. Medido: texto 41px, data 43px, select 43px, botão 42px —
+     quatro alturas na mesma tela. 20px de linha + 20 de padding + 2 de borda
+     dá a altura única abaixo. */
+  line-height: 20px;
   border: 1px solid var(--borda-input);
   border-radius: 8px;
   background: var(--bg);
   color: var(--texto);
   font-family: inherit;
+}
+/* A altura de qualquer campo em moldura, e de qualquer botão que se alinhe a
+   um. Vale como medida, não como estilo: quem for ao lado de um campo usa
+   `var(--alt-campo)` em vez de repetir o número e divergir no primeiro ajuste.
+   `textarea` fica fora de propósito — ela cresce com o texto. */
+:root {
+  --alt-campo: 42px;
+}
+input[type='text'],
+input[type='number'],
+input[type='date'],
+select {
+  height: var(--alt-campo);
 }
 input:focus,
 select:focus,
@@ -1376,6 +1395,11 @@ a.btn-linha {
 :is(.form-lanc, .campos-lanc) .linha {
   display: flex;
   gap: 10px;
+  /* `flex-start` e não o `stretch` do padrão: `.campo:last-child` zera a
+     margem de baixo, então com `stretch` a coluna da direita esticava 11px
+     além da esquerda — invisível hoje, visível no dia em que o campo ganhar
+     moldura. O espaço depois da linha continua vindo da margem da esquerda. */
+  align-items: flex-start;
 }
 :is(.form-lanc, .campos-lanc) .linha > * {
   flex: 1;
@@ -1426,7 +1450,7 @@ a.btn-linha {
 }
 :is(.form-lanc, .campos-lanc) .btn-andre {
   flex: 0 0 46px;
-  height: 42px;
+  height: var(--alt-campo);
   border: 1px solid var(--borda-input);
   border-radius: 8px;
   background: var(--bg);
@@ -1541,6 +1565,59 @@ a.btn-linha {
 :is(.form-lanc, .campos-lanc) .parte.m .quem {
   color: var(--maria);
 }
+/* ------------------------------------------------------------------
+   Só no painel da fatura: ele é percorrido linha a linha, dezenas de vezes
+   por fatura, então o mesmo formulário aparece mais apertado. São variantes
+   de TAMANHO do formulário do Lançar, nunca outra definição dele.
+   ------------------------------------------------------------------ */
+
+/* A bolinha da cor à esquerda do `select` de categoria: é ela que liga a
+   linha ao gráfico do mês, e sem ela o `select` perde o único traço que
+   fazia a categoria reconhecível de relance. */
+.campos-lanc .campo.com-cor {
+  position: relative;
+}
+.campos-lanc .campo.com-cor .pt-cor {
+  position: absolute;
+  left: 11px;
+  /* centrada no campo pela mesma medida que define a altura dele */
+  bottom: calc((var(--alt-campo) - 14px) / 2);
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  pointer-events: none;
+}
+.campos-lanc .campo.com-cor select {
+  padding-left: 33px;
+}
+
+/* O botão do André travado: ele fica, mas tem que PARECER que não responde.
+   Aceso e intocável é pior que escondido. */
+.campos-lanc .btn-andre:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* O trecho que para de valer quando a linha é dividida. Continua legível —
+   ele é o ponto de partida dos pedacos — mas não recebe mais toque. */
+.campos-lanc fieldset.trecho {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.campos-lanc fieldset.trecho:disabled {
+  opacity: 0.5;
+}
+
+/* As partes como leitura, mais baixas que no Lançar: lá são campo. */
+.campos-lanc .partes.compactas .parte {
+  padding: 7px 10px;
+}
+.campos-lanc .partes.compactas .leitura {
+  font-size: 16px;
+}
+
 /* A parte de cada um como LEITURA, no painel da fatura: ali ela informa, não
    pergunta. Quem precisa de um valor exato por pessoa divide a linha em
    pedacos, que é onde esse caso mora. */
@@ -1568,6 +1645,9 @@ a.btn-linha {
   border: none;
   background: transparent;
   padding: 0;
+  /* não é campo em moldura: mora dentro da caixa colorida da parte, então
+     fica fora da altura única. */
+  height: auto;
   width: 100%;
   border-radius: 0;
   font-size: 20px;
