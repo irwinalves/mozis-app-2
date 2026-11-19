@@ -32,7 +32,8 @@
     "backfill-incremental:teste": "tsx --env-file=.env.teste scripts/backfill-series.ts --incremental",
     "corrigir-recorrencias:teste": "tsx --env-file=.env.teste scripts/corrigir-recorrencias-adiantadas.mts",
     "verificar-e2e:teste": "tsx --env-file=.env.teste scripts/verificar-e2e.ts",
-    "dev:teste": "DATABASE_URL=$(grep '^DATABASE_URL=' .env.teste | cut -d= -f2-) next dev"
+    "dev:teste": "DATABASE_URL=$(grep '^DATABASE_URL=' .env.teste | cut -d= -f2-) next dev",
+    "prints": "node scripts/prints.mjs"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
@@ -50,6 +51,7 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
+    "playwright-core": "^1.65.1",
     "tsx": "^4.23.12",
     "typescript": "^5"
   }

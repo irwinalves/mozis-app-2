@@ -24,9 +24,9 @@ descrita mais adiante. **Os dados são fictícios; o app é o mesmo.**
 | | | |
 |:--:|:--:|:--:|
 | ![Início](docs/prints/01-inicio.png) | ![Lançar](docs/prints/02-lancar.png) | ![Dashboard](docs/prints/06-dashboard.png) |
-| **Início** — o acerto, os terceiros e a lista | **Lançar** — categoria, tipo e divisão | **Dashboard** — o peso das fixas é o indicador que importa |
-| ![Importar](docs/prints/03-importar.png) | ![Terceiros](docs/prints/04-terceiros.png) | ![Extrato do terceiro](docs/prints/05-terceiro-extrato.png) |
-| **Importar** — fatura do cartão em lote | **Quem nos deve** — gasto de terceiro, fora do acerto | **Extrato** — o que ele deve e o que já devolveu |
+| **Início** — o acerto, quem nos deve, e a lista mostrando o efeito de cada linha | **Lançar** — quem pagou e de quem é o gasto são duas perguntas diferentes | **Dashboard** — o peso das fixas é o indicador que importa |
+| ![Importar](docs/prints/03-importar.png) | ![Revisar a fatura](docs/prints/04-fatura.png) | ![Editar uma linha](docs/prints/05-fatura-editar.png) |
+| **Importar** — a fatura do cartão entra em lote | **Revisar** — o app separa o que já existe, o que é parcela e o que é novo, e desmarca o que foi estornado | **Editar** — a linha da fatura vira o Lançar, com menos perguntas |
 
 ## Como funciona
 
@@ -61,7 +61,7 @@ para sempre.
 
 Por isso cada regra que este app aprendeu virou texto em
 [`docs/INVARIANTES.md`](docs/INVARIANTES.md), sempre com o defeito concreto que a
-gerou. São **48 regras numeradas**, e **20 delas são verificadas por máquina**
+gerou. São **56 regras numeradas**, e o verificador roda **20 checagens por máquina**
 contra o banco de produção:
 
 ```bash
@@ -91,10 +91,12 @@ O banco sobe vazio. Para ver o app funcionando com dados:
 npm run semear-demo
 ```
 
-Ele cria 483 lançamentos fictícios cobrindo 18 meses, de junho de 2025 a novembro
-de 2026: as despesas fixas com suas regras de recorrência, um parcelamento em 6x,
-uma importação de fatura, uma quitação entre os dois, um gasto de terceiro já
-devolvido e outro em aberto, e a posição mensal de um investimento.
+Ele cria 495 lançamentos fictícios. São dezoito meses cheios, de junho de 2025 a
+novembro de 2026, e mais as parcelas que seguem até agosto de 2027, porque um
+parcelamento nasce com a série inteira. Dentro vão as despesas fixas com suas
+regras de recorrência, dois parcelamentos (um de 6x e um de 12x, que atravessa o
+ano), uma importação de fatura, uma quitação entre os dois, um gasto de terceiro
+já devolvido e outro em aberto, e a posição mensal de um investimento.
 
 Duas coisas valem ser ditas sobre ele. É **determinístico**, com semente fixa, então
 todo mundo vê exatamente a mesma tela. E ele importa `pctIrwinDe` e `pagoIrwinDe`
@@ -111,7 +113,7 @@ o que você quer).
 | Comando | O que faz |
 |---|---|
 | `npm run dev` | Servidor local |
-| `npm test` | 70 testes da lógica pura |
+| `npm test` | 81 testes da lógica pura |
 | `npm run invariantes` | Verifica 20 regras contra o banco |
 | `npm run semear-demo` | Enche um banco vazio com dados fictícios |
 | `npm run checar-rotas` | Garante que toda rota tem porta de entrada |
@@ -120,6 +122,7 @@ o que você quer).
 | `npm run db:migrate` | Aplica migrações |
 | `npm run db:views` | Recria as views |
 | `npm run reconcile -- <xlsx>` | Compara banco com planilha, linha a linha |
+| `npm run prints` | Refaz os seis prints acima contra o app rodando |
 
 ## Como replicar na sua casa
 

@@ -386,8 +386,9 @@ async function main() {
     )}`;
   }
 
-  const [fim] = await sql<{ n: number; t: string }[]>`
-    select count(*)::int as n, coalesce(sum(valor_total),0)::text as t from lancamentos`;
+  const [fim] = await sql<{ n: number; t: string; ate: string }[]>`
+    select count(*)::int as n, coalesce(sum(valor_total),0)::text as t,
+           to_char(max(data), 'MM/YYYY') as ate from lancamentos`;
   const [ter] = await sql<{ pessoas: number; aberto: string }[]>`
     select count(*)::int as pessoas, coalesce(sum(saldo),0)::text as aberto
       from v_terceiros where saldo > 0.005`;
@@ -396,8 +397,11 @@ async function main() {
 
   const [a0, m0] = MESES[0];
   const [a1, m1] = MESES[MESES.length - 1];
+  /* Dois recortes, não um: os meses CHEIOS vão até agora, e as parcelas de um
+     parcelamento nascem todas (A19), então a última data do banco é maior. */
   console.log(
-    `\n✓ ${fim.n} lançamentos entre ${String(m0).padStart(2, '0')}/${a0} e ${String(m1).padStart(2, '0')}/${a1}`,
+    `\n✓ ${fim.n} lançamentos · meses cheios de ${String(m0).padStart(2, '0')}/${a0} a ${String(m1).padStart(2, '0')}/${a1}` +
+      `, com parcelas até ${fim.ate}`,
   );
   console.log(`  2 parcelamentos (6x e 12x) · 1 importação de fatura · 1 quitação`);
   console.log(`  ${ter.pessoas} terceiro(s) devendo R$ ${Number(ter.aberto).toFixed(2)}`);
