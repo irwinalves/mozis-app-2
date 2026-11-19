@@ -1,0 +1,35 @@
+# A base do demo público volta ao início toda madrugada.
+#
+# O demo é aberto: qualquer pessoa pode lançar, editar e apagar. Isso é o
+# ponto — mas sem reset o que a décima pessoa encontra não é mais o app, é o
+# que as nove anteriores deixaram. Como o semeador é determinístico, a base
+# volta exatamente igual todo dia.
+#
+# A segurança não está aqui, está no script: num host remoto com dados ele só
+# apaga uma base que tenha a marca `demo_publico`, que nenhuma migração cria.
+name: Base do demo volta ao início
+
+on:
+  schedule:
+    # 06:00 UTC = 03:00 em São Paulo, quando ninguém está olhando.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  semear:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Semear a base de demonstração
+        env:
+          DATABASE_URL: ${{ secrets.DEMO_DATABASE_URL }}
+        run: npx tsx scripts/semear-demo.ts --remoto --limpar
+      - name: Conferir os invariantes
+        env:
+          DATABASE_URL: ${{ secrets.DEMO_DATABASE_URL }}
+        run: npx tsx scripts/invariantes.ts
