@@ -116,8 +116,8 @@ async function main() {
     // --- Config -----------------------------------------------------------
     const conf = wb.getWorksheet('Config');
     const pct = conf ? numero(conf.getCell('C6')) : null;
-    const pctRenda = pct ?? 0.4947;
-    await tx`insert into config (id, pct_irwin_renda) values (1, ${pct ?? 0.4947})`;
+    const pctRenda = pct ?? 0.5;
+    await tx`insert into config (id, pct_irwin_renda) values (1, ${pct ?? 0.5})`;
     console.log(`  config            pct_irwin_renda = ${pct}`);
 
     // --- Plano de Contas (B6:D14) ----------------------------------------

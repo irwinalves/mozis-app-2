@@ -216,7 +216,7 @@ export async function getOpcoes(pessoa: Pessoa | null = null) {
     pagadores: ['Irwin', 'Maria', 'Ambos'],
     pagadoresLancar: ['Irwin', 'Maria', 'Ambos'],
     movimentosInvest: ['Aporte', 'Resgate'],
-    pctIrwinRenda: Number(conf?.pct_irwin_renda ?? 0.4947),
+    pctIrwinRenda: Number(conf?.pct_irwin_renda ?? 0.5),
     hoje: formatarData(hoje),
 
     /**
@@ -1059,7 +1059,7 @@ export async function lancarImportacaoLote(
   const [conf] = await db.execute<{ pct_irwin_renda: string }>(
     sql`select pct_irwin_renda from config where id = 1`,
   );
-  const pctI = pctIrwinDe(divisaoFinal, null, Number(conf?.pct_irwin_renda ?? 0.4947));
+  const pctI = pctIrwinDe(divisaoFinal, null, Number(conf?.pct_irwin_renda ?? 0.5));
 
   // Uma consulta por categoria distinta, não uma por transação.
   const tipos = new Map<string, string>();
@@ -1484,7 +1484,7 @@ async function pctDaRenda() {
   const [conf] = await db.execute<{ pct_irwin_renda: string }>(
     sql`select pct_irwin_renda from config where id = 1`,
   );
-  return Number(conf?.pct_irwin_renda ?? 0.4947);
+  return Number(conf?.pct_irwin_renda ?? 0.5);
 }
 
 /**

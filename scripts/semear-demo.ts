@@ -139,7 +139,7 @@ type Linha = {
 
 /** Monta a linha já com as colunas derivadas pelas MESMAS funções do app. */
 function derivar(l: Linha) {
-  const pct = pctIrwinDe(l.divisao, l.pctCustom ?? null, 0.4947);
+  const pct = pctIrwinDe(l.divisao, l.pctCustom ?? null, 0.55);
   const parteIrwin = arred(l.valorTotal * pct);
   const pago = pagoIrwinDe(l.quemPagou as never, l.valorTotal, parteIrwin, null);
   return {
@@ -182,8 +182,8 @@ async function main() {
                        patrimonio, plano_de_contas, config restart identity cascade`;
   }
 
-  await sql`insert into config (id, pct_irwin_renda) values (1, 0.4947)
-            on conflict (id) do update set pct_irwin_renda = 0.4947`;
+  await sql`insert into config (id, pct_irwin_renda) values (1, 0.55)
+            on conflict (id) do update set pct_irwin_renda = 0.55`;
   for (const [nome, tipoPadrao, ordem] of CATEGORIAS) {
     await sql`insert into plano_de_contas (nome, tipo_padrao, ordem)
               values (${nome}, ${tipoPadrao}, ${ordem})`;
@@ -259,7 +259,10 @@ async function main() {
   const base = Math.floor((totalSerie / 6) * 100) / 100;
   for (let k = 1; k <= 6; k++) {
     linhas.push({
-      data: dia(2026, 8 + Math.floor((k - 1) / 3), 14 + ((k - 1) % 3)),
+      /* Uma parcela por MÊS, de julho a dezembro. Amontoar três no mesmo mês
+         deixava a série parecendo três compras, que é o oposto do que a tela
+         de série existe para mostrar. */
+      data: dia(2026, 7 + (k - 1), 14),
       descricao: `Geladeira ${k}/6`,
       categoria: '1 Casa',
       tipo: 'Variável',

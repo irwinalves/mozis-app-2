@@ -150,12 +150,12 @@ test('`De fora` zera as DUAS partes, não só a do Irwin', () => {
   /* O erro que isto pega: calcular a parte do Irwin e tirar do total. Com
      `De fora` a do Irwin é zero, então a subtração dá o total inteiro para a
      Maria — e a tela afirmava que um gasto de terceiro era todo dela. */
-  assert.deepEqual(partesDe(90, 'De fora', true, 0.4947), { irwin: 0, maria: 0 });
-  assert.deepEqual(partesDe(90, '50/50', true, 0.4947), { irwin: 0, maria: 0 });
+  assert.deepEqual(partesDe(90, 'De fora', true, 0.55), { irwin: 0, maria: 0 });
+  assert.deepEqual(partesDe(90, '50/50', true, 0.55), { irwin: 0, maria: 0 });
   // E o caminho normal continua somando o total.
-  assert.deepEqual(partesDe(90, '50/50', false, 0.4947), { irwin: 45, maria: 45 });
-  assert.deepEqual(partesDe(90, '100% Maria', false, 0.4947), { irwin: 0, maria: 90 });
-  const renda = partesDe(100, 'Renda', false, 0.4947);
+  assert.deepEqual(partesDe(90, '50/50', false, 0.55), { irwin: 45, maria: 45 });
+  assert.deepEqual(partesDe(90, '100% Maria', false, 0.55), { irwin: 0, maria: 90 });
+  const renda = partesDe(100, 'Renda', false, 0.55);
   assert.equal(renda.irwin + renda.maria, 100, 'as partes têm que somar o total');
 });
 

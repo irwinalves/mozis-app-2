@@ -29,10 +29,11 @@ import {
  */
 export const config = pgTable('config', {
   id: integer('id').primaryKey().default(1),
-  /** % do Irwin na divisão "por renda". Hoje ≈ 0.4947. */
+  /** % do Irwin na divisão "por renda". É configurável e o valor de cada casal
+      mora NESTA linha; o padrão abaixo é só um ponto de partida neutro. */
   pctIrwinRenda: numeric('pct_irwin_renda', { precision: 6, scale: 4 })
     .notNull()
-    .default('0.4947'),
+    .default('0.5'),
 });
 
 /**

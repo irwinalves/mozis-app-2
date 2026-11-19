@@ -153,9 +153,9 @@ Requisito textual do Irwin:
 
 Como funciona:
 
-- Existe um **default configurável**: proporção por renda, hoje
-  **49,47% Irwin / 50,53% Maria** (derivada da renda anual de cada um).
-  Fica numa célula única; ao mudar, tudo recalcula.
+- Existe um **default configurável**: a proporção por renda, derivada da renda
+  anual de cada um. O valor de cada casal mora numa célula única (hoje, na
+  tabela `config`); ao mudar, tudo recalcula.
 - Cada transação pode ter divisão própria, escolhida entre cinco modos.
 - As colunas **Parte Irwin** e **Parte Maria** são sempre visíveis — a divisão
   nunca fica implícita.

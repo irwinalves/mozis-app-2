@@ -75,7 +75,7 @@
           "type": "numeric(6, 4)",
           "primaryKey": false,
           "notNull": true,
-          "default": "'0.4947'"
+          "default": "'0.5'"
         }
       },
       "indexes": {},

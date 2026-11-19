@@ -10,7 +10,7 @@ CREATE TABLE "acerto_contas" (
 --> statement-breakpoint
 CREATE TABLE "config" (
 	"id" integer PRIMARY KEY DEFAULT 1 NOT NULL,
-	"pct_irwin_renda" numeric(6, 4) DEFAULT '0.4947' NOT NULL
+	"pct_irwin_renda" numeric(6, 4) DEFAULT '0.5' NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "investimentos_contas" (

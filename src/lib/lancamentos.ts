@@ -58,12 +58,13 @@ export type QuemPagou = 'Irwin' | 'Maria' | 'Ambos' | 'Conjunta' | '' | null | u
  *
  * Diferença em relação ao original: `pctIrwinRenda` chega por parâmetro em vez
  * de ser lido da planilha aqui dentro. A regra é idêntica — inclusive o
- * fallback de 0.4947 e o fato de qualquer valor não reconhecido cair em 'Renda'.
+ * fallback neutro e o fato de qualquer valor não reconhecido cair em 'Renda'.
+ * O valor real de cada casal vive na tabela `config`, nunca aqui.
  */
 export function pctIrwinDe(
   divisao: string,
   pctCustom: number | null | undefined,
-  pctIrwinRenda = 0.4947,
+  pctIrwinRenda = 0.5,
 ): number {
   if (divisao === '50/50') return 0.5;
   if (divisao === '100% Irwin') return 1;
@@ -73,7 +74,7 @@ export function pctIrwinDe(
   // inerte — quem mantém a linha fora do acerto é a coluna `de_fora`, lida
   // pela view; isto só evita que `parte_irwin` apareça com a fatia de renda.
   if (divisao === 'De fora') return 0;
-  return pctIrwinRenda > 0 && pctIrwinRenda < 1 ? pctIrwinRenda : 0.4947;
+  return pctIrwinRenda > 0 && pctIrwinRenda < 1 ? pctIrwinRenda : 0.5;
 }
 
 /**

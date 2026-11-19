@@ -64,10 +64,10 @@ test('pctIrwinDe: a tabela inteira de casos', () => {
   assert.equal(pctIrwinDe('100% Irwin', null), 1);
   assert.equal(pctIrwinDe('100% Maria', null), 0);
   assert.equal(pctIrwinDe('Custom', 70), 0.7);
-  assert.equal(pctIrwinDe('Renda', null, 0.4947), 0.4947);
+  assert.equal(pctIrwinDe('Renda', null, 0.55), 0.55);
   // Qualquer valor não reconhecido cai em 'Renda' — compatibilidade com
   // regras antigas gravadas na planilha.
-  assert.equal(pctIrwinDe('qualquer coisa', null, 0.4947), 0.4947);
+  assert.equal(pctIrwinDe('qualquer coisa', null, 0.55), 0.55);
 });
 
 test('pagoIrwinDe: os três pagadores clássicos', () => {
@@ -81,7 +81,7 @@ test('pagoIrwinDe: os três pagadores clássicos', () => {
 test('pagoIrwinDe: Ambos com rateio informado e sem', () => {
   assert.equal(pagoIrwinDe('Ambos', 100, 50, 70), 70);
   // Sem rateio informado: cada um pôs a própria parte, não gera dívida.
-  assert.equal(pagoIrwinDe('Ambos', 100, 49.47, null), 49.47);
+  assert.equal(pagoIrwinDe('Ambos', 100, 55, null), 55);
   assert.equal(pagoIrwinDe('Ambos', 100, 50, ''), 50);
   // 'Conjunta' é o rótulo antigo e precisa continuar funcionando: sem isto,
   // reeditar uma linha histórica a faria sumir do acerto em silêncio.

@@ -225,7 +225,7 @@ Cards, de cima pra baixo:
 
 - Navegação por abas troca a tela sem recarregar; "Importar" e o overlay de sucesso são estados dentro da mesma SPA.
 - Chips e toggles são de seleção imediata (sem confirmar).
-- **Cálculo de partes** (ao vivo): `% Irwin` por modo → 50/50 = 50; Por renda = **49,47%** (default configurável); 100% Irwin = 100; 100% Maria = 0; Custom = valor do slider. `parteIrwin = valor × %/100`; `parteMaria = valor − parteIrwin`.
+- **Cálculo de partes** (ao vivo): `% Irwin` por modo → 50/50 = 50; Por renda = **o valor configurado** (fica em `config`, um lugar só); 100% Irwin = 100; 100% Maria = 0; Custom = valor do slider. `parteIrwin = valor × %/100`; `parteMaria = valor − parteIrwin`.
 - **Parcelamento**:
   - "É o total": `parcelaBase = floor(valor/n, 2 casas)`; **última parcela absorve a diferença** (`valor − parcelaBase×(n−1)`). Ex.: R$ 1.000 em 3x → 333,33 + 333,33 + **333,34**.
   - "É a parcela": cada parcela = valor; total = valor×n.
@@ -256,7 +256,7 @@ planilha**. Toda gravação vai por `google.script.run`.
 
 - 8 categorias (tabela acima). **Tipo é campo próprio do lançamento**, com padrão sugerido pela categoria, mas editável.
 - Estrutura do lançamento: Data, Descrição, Categoria, Tipo, Categoria original (importação), Fonte, Valor total, Divisão, %Irwin custom, **Parte Irwin** (calc.), **Parte Maria** (calc.), Quem pagou, **Saldo Irwin** (calc.), Obs, Ano/Mês (calc.).
-- Default de divisão por renda: **49,47% Irwin / 50,53% Maria**, mora numa célula única (fonte de verdade); ao mudar, tudo recalcula.
+- Default de divisão por renda: **configurável**, mora numa célula única (fonte de verdade); ao mudar, tudo recalcula.
 - Investimentos = modelo separado (Movimentos + Posição mensal + Dívidas), fora do resultado operacional.
 - Ligar aos métodos `google.script.run` já existentes no `Codigo.gs` (formulário de lançamento, parcelamento, últimos lançamentos). Onde faltar endpoint (investimentos, importação, dashboard), criar no Apps Script seguindo o padrão existente (com o lock de concorrência).
 

@@ -57,7 +57,7 @@ export async function gerarRecorrenciasPendentes() {
   const [conf] = await db.execute<{ pct_irwin_renda: string }>(
     sql`select pct_irwin_renda from config where id = 1`,
   );
-  const pctRenda = Number(conf?.pct_irwin_renda ?? 0.4947);
+  const pctRenda = Number(conf?.pct_irwin_renda ?? 0.5);
 
   const hoje = new Date();
   const geradas: { regra: string; datas: string[] }[] = [];
