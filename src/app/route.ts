@@ -8,6 +8,7 @@
  */
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { TARJA_DEMO, modoDemo } from '@/lib/demo';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,7 +41,13 @@ export async function GET() {
 
   const comShim = html.replace('</head>', injecao);
 
-  return new Response(comShim, {
+  /* A tarja do demo entra logo depois do `<body>`, e só no deploy público:
+     `modoDemo()` exige a variável E a tabela que só a base fictícia tem. */
+  const corpo = (await modoDemo())
+    ? comShim.replace('<body>', '<body>\n' + TARJA_DEMO)
+    : comShim;
+
+  return new Response(corpo, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
       /* Sem isto a resposta ia SEM nenhuma instrução de cache, e quem decidia

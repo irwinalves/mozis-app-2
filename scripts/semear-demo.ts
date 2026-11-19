@@ -386,6 +386,15 @@ async function main() {
     )}`;
   }
 
+  /* A marca que autoriza o deploy público a abrir sem login.
+     Ela NÃO está em nenhuma migração: quem a cria é este script, e este script
+     recusa host remoto sem `--remoto` e banco com lançamentos sem `--limpar`.
+     É por isso que o banco do casal não tem como responder "sim" ao portão —
+     ver `src/lib/demo.ts`. */
+  await sql`create table if not exists demo_publico (ok boolean not null)`;
+  await sql`delete from demo_publico`;
+  await sql`insert into demo_publico (ok) values (true)`;
+
   const [fim] = await sql<{ n: number; t: string; ate: string }[]>`
     select count(*)::int as n, coalesce(sum(valor_total),0)::text as t,
            to_char(max(data), 'MM/YYYY') as ate from lancamentos`;

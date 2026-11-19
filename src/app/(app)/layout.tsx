@@ -5,6 +5,16 @@
  * Não é um grupo de rotas por organização: é para estas telas terem o shell e
  * a rota `/`, que ainda serve o `Form.html` por `src/app/route.ts`, não ter.
  */
-export default function LayoutApp({ children }: { children: React.ReactNode }) {
-  return <div className="app">{children}</div>;
+import { TARJA_DEMO, modoDemo } from '@/lib/demo';
+
+export default async function LayoutApp({ children }: { children: React.ReactNode }) {
+  /* A mesma tarja que o `Form.html` recebe em `src/app/route.ts`, da mesma
+     string — as duas metades do app precisam dizer a mesma coisa. */
+  const demo = await modoDemo();
+  return (
+    <div className="app">
+      {demo && <div dangerouslySetInnerHTML={{ __html: TARJA_DEMO }} />}
+      {children}
+    </div>
+  );
 }

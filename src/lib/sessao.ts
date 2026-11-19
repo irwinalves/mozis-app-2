@@ -16,6 +16,7 @@
 import 'server-only';
 import { auth } from '@/auth';
 import { elencoDoAmbiente, pessoaDoEmail, type Pessoa } from '@/lib/pessoas';
+import { modoDemo } from '@/lib/demo';
 
 /**
  * Fingir ser uma pessoa, só em desenvolvimento. TRAVA DUPLA: fora de produção
@@ -30,6 +31,11 @@ const PESSOA_FINGIDA =
 
 export async function quemEsta(): Promise<Pessoa | null> {
   if (PESSOA_FINGIDA === 'Irwin' || PESSOA_FINGIDA === 'Maria') return PESSOA_FINGIDA;
+  /* No deploy público de demonstração não há login, e sem ninguém o app mostra
+     os dois lados do acerto em vez de escolher um — que é o certo em casa e é
+     exatamente o que esconde a feature de quem veio conhecer o app. Então a
+     demonstração é vista pelos olhos de uma das duas pessoas fictícias. */
+  if (await modoDemo()) return 'Irwin';
   try {
     const sessao = await auth();
     return pessoaDoEmail(elencoDoAmbiente(), sessao?.user?.email);

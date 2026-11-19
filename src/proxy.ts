@@ -3,9 +3,15 @@
  *
  * A rota de cron fica de fora porque é chamada pela Vercel, sem sessão — ela
  * tem a própria proteção via CRON_SECRET.
+ *
+ * ERA `middleware.ts`. No Next 16 o arquivo virou `proxy.ts` e passou a rodar
+ * no runtime Node em vez do Edge, e é isso que permite a porta do modo
+ * demonstração consultar o banco aqui mesmo, em vez de haver uma segunda
+ * implementação do portão em outro lugar.
  */
 import { auth } from '@/auth';
 import { NextResponse } from 'next/server';
+import { DEMO_PEDIDO, bancoEhDemo } from '@/lib/demo';
 
 /**
  * Exceção de desenvolvimento, com TRAVA DUPLA.
@@ -20,10 +26,15 @@ import { NextResponse } from 'next/server';
 const BYPASS_DEV =
   process.env.NODE_ENV !== 'production' && process.env.AUTH_BYPASS_DEV === 'sim';
 
-export default auth((req) => {
+export default auth(async (req) => {
   const { pathname } = req.nextUrl;
 
   if (BYPASS_DEV) return NextResponse.next();
+
+  /* O deploy público de demonstração, sem login. Duas chaves: a variável e a
+     tabela que só a base fictícia tem. Ver `lib/demo.ts` — o banco do casal
+     não tem como responder "sim" a isto. */
+  if (DEMO_PEDIDO && (await bancoEhDemo())) return NextResponse.next();
 
   const publica =
     pathname.startsWith('/api/auth') ||
