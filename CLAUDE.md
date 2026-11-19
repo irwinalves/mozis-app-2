@@ -117,6 +117,29 @@ tela → API → banco, que é exatamente onde os bugs moram.
 E a E5: **medir antes de corrigir, e dizer o número.** Toda correção de dado aqui
 começou por uma varredura que respondia "quantas linhas estão assim".
 
+## Dois deploys, duas bases, uma trava só
+
+O repositório é público e tem **dois** projetos na Vercel, do mesmo `main`:
+
+| Projeto | URL | Banco | Login |
+|---|---|---|---|
+| `mozis-app-2` | mozis-app-2.vercel.app | ramo `main` do Neon | Google + lista de e-mails |
+| `mozis-app-demo` | mozis-app-demo.vercel.app | ramo `demo` do Neon | **nenhum** |
+
+A porta aberta do demo **não é uma variável de ambiente**. São duas chaves:
+`MODO_DEMO=sim` e a tabela `demo_publico` no banco. Essa tabela não está em
+migração nenhuma — quem a cria é `scripts/semear-demo.ts`. O banco do casal não
+tem como responder "sim", então ligar a variável no projeto errado não abre nada.
+Verificado por experimento: mesma build, mesma variável, ramo `demo` abre e `main`
+devolve 307 para `/entrar` e 401 na API.
+
+A mesma marca é a terceira trava do semeador: em host remoto com dados, ele só
+apaga base já declarada de demonstração.
+
+**Nunca aponte o semeador para o ramo `main`.** E ao mexer em `src/proxy.ts`
+(era `middleware.ts` até o Next 16), refaça esse experimento nos dois lados antes
+de publicar: é o arquivo que guarda o dinheiro de verdade.
+
 ## Onde está cada coisa
 
 | Caminho | O que é |
