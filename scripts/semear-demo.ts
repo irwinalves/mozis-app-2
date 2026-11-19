@@ -175,6 +175,26 @@ async function main() {
     await sql.end();
     process.exit(1);
   }
+  /* A terceira trava, e a que existe por causa da rotina automática.
+     Uma rotina que roda toda madrugada com `--remoto --limpar` é uma máquina
+     de apagar banco apontada por uma variável de ambiente. Se um dia essa
+     variável apontar para o lugar errado, isto aqui é o que segura: num host
+     remoto, só apaga uma base que JÁ se declarou de demonstração. A primeira
+     semeadura não precisa de `--limpar` (a base está vazia) e é ela que cria
+     a marca, então a rotina continua funcionando a partir da segunda. */
+  if (n > 0 && !local) {
+    const [marca] = await sql<{ ok: boolean }[]>`
+      select ok from demo_publico limit 1`.catch(() => [] as { ok: boolean }[]);
+    if (marca?.ok !== true) {
+      console.error(
+        '\nRecusado: host remoto, com dados, e sem a marca `demo_publico`.\n' +
+          'Esta base não se declarou de demonstração, então ela não vai ser apagada.\n',
+      );
+      await sql.end();
+      process.exit(1);
+    }
+  }
+
   if (n > 0) {
     console.log(`Apagando ${n} lançamentos e o resto da base…`);
     await sql`truncate lancamentos, series, importacoes, recorrencias, acerto_contas,
