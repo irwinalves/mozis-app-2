@@ -216,3 +216,40 @@ test('campo, select e botão ao lado fecham a mesma moldura', () => {
     'altura em pixel no botão do André: repetida, ela diverge no primeiro ajuste',
   );
 });
+
+test('o seletor que remarca em bloco não existe na tela de reabrir', () => {
+  /* A armadilha que isto pega (C15): marcado quer dizer "vai ser criado" numa
+     importação nova e "está lançado no banco" ao reabrir um lote. O mesmo
+     atalho que poupa 42 toques na primeira apagaria 44 lançamentos na segunda,
+     em um toque. Nada no typecheck nem no banco acusaria. */
+  // O rótulo do campo, não a palavra solta: ela também aparece no comentário
+  // que explica a guarda, e ancorar nele mediria o texto errado.
+  const i = IMPORTADOR.indexOf('<span>Marcar as de</span>');
+  assert.ok(i > 0, 'o seletor de marcar por dono sumiu da revisão de fatura');
+  const antes = IMPORTADOR.slice(Math.max(0, i - 400), i);
+  assert.ok(
+    /\{!edicao && \(/.test(antes),
+    'o seletor de marcar por dono perdeu a guarda `!edicao` e voltou à tela de reabrir',
+  );
+  // E o filtro de ver continua valendo nas duas: ele não grava nada.
+  assert.ok(IMPORTADOR.includes('setFiltroDono'), 'o filtro de dono sumiu');
+});
+
+test('data e pagador da fatura não viram campo', () => {
+  /* C16. O `input[type=date]` da linha foi trocado por leitura com cadeado, e
+     os chips de pagador só voltam quando o nome no cartão não bateu com
+     ninguém — sem pagador a gravação é recusada (A4), e um campo travado em
+     branco deixaria a fatura impossível de fechar. */
+  assert.ok(
+    !/dataEditada: ev\.target\.value/.test(IMPORTADOR),
+    'a data da linha da fatura voltou a ser editável',
+  );
+  assert.ok(
+    /\{e\.quemPagou \? \(/.test(IMPORTADOR),
+    'o pagador da linha da fatura deixou de ser travado quando a fatura o resolve',
+  );
+  assert.ok(
+    /não bateu com\s+ninguém/.test(IMPORTADOR),
+    'sumiu a saída para a linha cujo nome no cartão não bateu com ninguém',
+  );
+});

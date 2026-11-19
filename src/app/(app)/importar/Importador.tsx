@@ -141,6 +141,17 @@ interface Estado {
   descricao: string;
   grupo: string;
   divisao: string;
+  /**
+   * Quanto por cento do custo é do Irwin, de 0 a 100 — só quando a divisão é
+   * `Custom`, que a tela chama de Valor exato.
+   *
+   * A fatura não oferecia essa divisão: quem precisasse de um valor exato por
+   * pessoa tinha que DIVIDIR a linha em pedacos, o que é outra coisa — pedaco
+   * é a mesma compra com dois donos, não a mesma compra repartida em
+   * proporção diferente. O backend já aceitava (`pctIrwinCustom` em
+   * `gravarLote`); era só a tela que não perguntava.
+   */
+  pctCustom: number | null;
   quemPagou: string;
   aberta: boolean;
   /** Tirada da aba onde o cruzamento a pôs: passa a valer como gasto novo. */
@@ -204,6 +215,8 @@ export type AtualDoLote = Record<
     categoria: string;
     tipo: string;
     divisao: string;
+    /** 0 a 100, só quando a divisão é `Custom`. */
+    pctCustom: number | null;
     quemPagou: string | null;
     deFora: boolean;
     gastoDe: string | null;
@@ -244,6 +257,22 @@ export function Importador({
   );
   const [est, setEst] = useState<Record<number, Estado>>(base);
   const [aba, setAba] = useState<Aba>('app');
+  /**
+   * De quem são as linhas que nascem MARCADAS, e quais a lista MOSTRA.
+   *
+   * São duas perguntas separadas de propósito. A fatura do casal vem com os
+   * dois cartões — medido na de março: 44 linhas no cartão do Irwin e 42 no da
+   * Maria. Antes todas nasciam marcadas, e tirar as do outro custava 42 toques,
+   * um por linha. Agora nasce marcado só o cartão de quem está importando, e
+   * quem quiser lançar uma linha pelo outro MARCA aquela linha — o contrário
+   * de desmarcar 42.
+   *
+   * O filtro é outra coisa: ele só muda o que está na tela, nunca o que vai
+   * ser gravado. Um filtro que mexesse no que entra seria a armadilha que
+   * fecha a fatura com metade dos gastos faltando.
+   */
+  const [donoMarcar, setDonoMarcar] = useState<string>(eu ?? '');
+  const [filtroDono, setFiltroDono] = useState<string>('');
   const [ocupado, setOcupado] = useState('');
   const [erro, setErro] = useState('');
   const [confirmando, setConfirmando] = useState(false);
@@ -280,11 +309,15 @@ export function Importador({
           // `naSerieNova` fica de fora: a série da linha irmã já a cobre, e
           // marcá-la lançaria o mesmo gasto duas vezes. E `estornada` também:
           // a compra foi cancelada na própria fatura.
+          // E só o cartão de quem está importando: ver `donoMarcar`.
           marcada:
-            !l.estornada && (l.situacao.tipo === 'nova' || l.situacao.tipo === 'novaSerie'),
+            !l.estornada &&
+            (l.situacao.tipo === 'nova' || l.situacao.tipo === 'novaSerie') &&
+            doDono(quemPagou, donoMarcar),
           descricao: '',
           grupo: l.categoriaSugerida,
           divisao: divisaoInicial(padraoDivisao, quemPagou),
+          pctCustom: null,
           quemPagou,
           deFora: false,
           gastoDe: '',
@@ -357,10 +390,50 @@ export function Importador({
   const trocar = (i: number, mud: Partial<Estado>) =>
     setEst((s) => ({ ...s, [i]: { ...s[i], ...mud } }));
 
-  function marcarAba(a: Aba, valor: boolean) {
+  /**
+   * "Todas" e "nenhuma" valem para o que está NA TELA, não para a aba inteira.
+   *
+   * Recebe as linhas em vez da aba por isso: com um filtro de dono ativo,
+   * marcar a aba inteira marcaria linhas que a pessoa não está vendo — e o
+   * sentido do botão é "isto aqui que eu estou olhando".
+   */
+  function marcarLinhas(linhas: Linha[], valor: boolean) {
     setEst((s) => {
       const novo = { ...s };
-      for (const l of porAba[a]) novo[l.i] = { ...novo[l.i], marcada: valor };
+      for (const l of linhas) novo[l.i] = { ...novo[l.i], marcada: valor };
+      return novo;
+    });
+  }
+
+  /** Quantas linhas por dono do cartão — é o que os dois seletores mostram. */
+  const porDono = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of analise?.linhas ?? []) {
+      const q = l.quemPagou ?? '';
+      m.set(q, (m.get(q) ?? 0) + 1);
+    }
+    return m;
+  }, [analise]);
+
+  /**
+   * Trocar o dono reaplica a marcação de origem, em vez de só filtrar.
+   *
+   * É uma ação explícita de quem escolheu na lista, então ela pode desfazer
+   * marcação feita à mão — e precisa poder: o sentido de "marcar as da Maria"
+   * é justamente trocar o conjunto inteiro.
+   */
+  function remarcarPorDono(dono: string) {
+    setDonoMarcar(dono);
+    setEst((s) => {
+      const novo = { ...s };
+      for (const l of analise?.linhas ?? []) {
+        const e = novo[l.i];
+        if (!e) continue;
+        const elegivel =
+          !l.estornada &&
+          (l.situacao.tipo === 'nova' || l.situacao.tipo === 'novaSerie' || e.forcadaNova);
+        novo[l.i] = { ...e, marcada: elegivel && doDono(e.quemPagou, dono) };
+      }
       return novo;
     });
   }
@@ -408,6 +481,10 @@ export function Importador({
         tipo: e.tipo,
         quemPagou: e.quemPagou,
         divisao: e.divisao,
+        /* Só `Custom` carrega porcentagem. Mandar um número junto de `50/50`
+           seria guardar no banco uma segunda resposta para a mesma pergunta,
+           e as duas divergiriam na primeira edição. */
+        pctIrwinCustom: e.divisao === 'Custom' ? (e.pctCustom ?? 50) : null,
         deFora: e.deFora,
         /* `e.gastoDe` e não `e.deFora ? ... : null`: a mesma coluna guarda as
            duas coisas, e são diferentes. `De fora` tira o gasto das contas de
@@ -549,7 +626,11 @@ export function Importador({
     );
   }
 
-  const lista = porAba[aba];
+  /* O filtro é LENTE: muda o que está na tela, nunca o que vai ser gravado.
+     O rodapé continua somando `marcadas`, que não passa por aqui. */
+  const lista = filtroDono
+    ? porAba[aba].filter((l) => (est[l.i]?.quemPagou ?? '') === filtroDono)
+    : porAba[aba];
 
   return (
     <>
@@ -583,6 +664,50 @@ export function Importador({
                     : `${mexidasDepois} linhas foram editadas à mão`}{' '}
                   depois da importação, e aparecem com o selo <b>mudou no app</b>.
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Os dois seletores só aparecem quando a fatura TEM dois cartões.
+              Numa fatura de um dono só eles não decidem nada, e campo que não
+              decide nada é ruído em cima do que decide. */}
+          {porDono.size > 1 && (
+            <div className="card filtro-dono">
+              {/* "Marcar as de" NÃO existe ao reabrir um lote. Ali marcado quer
+                  dizer "está lançado no banco", e desmarcar APAGA o lançamento
+                  — trocar o dono apagaria de uma vez as 44 linhas do outro
+                  cartão. Numa importação nova, marcado quer dizer "vai ser
+                  criado", e aí o seletor é justamente o atalho. */}
+              {!edicao && (
+                <label>
+                  <span>Marcar as de</span>
+                  <select value={donoMarcar} onChange={(ev) => remarcarPorDono(ev.target.value)}>
+                    {[...porDono.entries()].map(([q, n]) => (
+                      <option key={q || '(sem)'} value={q}>
+                        {q || 'Sem dono no cartão'} — {n} {n === 1 ? 'linha' : 'linhas'}
+                      </option>
+                    ))}
+                    <option value="">Todas — {analise.linhas.length} linhas</option>
+                  </select>
+                </label>
+              )}
+              <label>
+                <span>Mostrar</span>
+                <select value={filtroDono} onChange={(ev) => setFiltroDono(ev.target.value)}>
+                  <option value="">Todas — {analise.linhas.length} linhas</option>
+                  {[...porDono.entries()].map(([q, n]) => (
+                    <option key={q || '(sem)'} value={q}>
+                      {q || 'Sem dono no cartão'} — {n} {n === 1 ? 'linha' : 'linhas'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {!edicao && donoMarcar && (
+                <p className="nota">
+                  As linhas dos outros cartões chegam <b>desmarcadas</b>. Continuam na lista,
+                  para você ver que existem — mas não sobem. Para lançar uma por quem não é
+                  você, basta <b>marcar aquela linha</b>.
+                </p>
               )}
             </div>
           )}
@@ -636,12 +761,17 @@ export function Importador({
           ) : (
           <div className="card" style={{ paddingTop: 6, paddingBottom: 6 }}>
             <div className="titulo-lista">
-              <span>{lista.filter((l) => est[l.i]?.marcada).length} marcadas</span>
+              <span>
+                {lista.filter((l) => est[l.i]?.marcada).length} marcadas
+                {filtroDono && porAba[aba].length > lista.length && (
+                  <> · {porAba[aba].length - lista.length} fora do filtro</>
+                )}
+              </span>
               <span className="acoes-lista">
-                <button type="button" onClick={() => marcarAba(aba, true)}>
+                <button type="button" onClick={() => marcarLinhas(lista, true)}>
                   todas
                 </button>
-                <button type="button" onClick={() => marcarAba(aba, false)}>
+                <button type="button" onClick={() => marcarLinhas(lista, false)}>
                   nenhuma
                 </button>
               </span>
@@ -1040,6 +1170,25 @@ function PainelEstornos({
 // A linha
 // ---------------------------------------------------------------------------
 
+/** O cadeado dos campos que vêm da fatura e não mudam: data e quem pagou. */
+function Cadeado() {
+  return (
+    <svg
+      className="cadeado"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden="true"
+    >
+      <rect x="4" y="11" width="16" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </svg>
+  );
+}
+
 function LinhaFatura({
   linha: l,
   estado: e,
@@ -1090,7 +1239,33 @@ function LinhaFatura({
   /* A conta mora em `partesDe`, junto do resto do rateio: com `De fora` as
      DUAS partes são zero, e fazer "total menos a do Irwin" aqui dava
      "Irwin R$ 0,00 · Maria R$ 90,00" num gasto que não é de nenhum dos dois. */
-  const partes = partesDe(valorLinha, e.divisao as Divisao, e.deFora, opcoes.pctIrwinRenda);
+  const partes = partesDe(
+    valorLinha,
+    e.divisao as Divisao,
+    e.deFora,
+    opcoes.pctIrwinRenda,
+    e.pctCustom,
+  );
+  const custom = !e.deFora && e.divisao === 'Custom';
+
+  /**
+   * O texto cru do campo que está sob o dedo, igual ao do Lançar.
+   *
+   * Sem isto, reescrever os dois lados a cada tecla faz o cursor pular e
+   * atropela o que está sendo digitado — `1` vira `1,00` antes de virar `10`.
+   * O outro lado continua derivado da porcentagem, que é a verdade gravada.
+   */
+  const [digitando, setDigitando] = useState<{ lado: 'irwin' | 'maria'; texto: string } | null>(
+    null,
+  );
+
+  function digitouParte(qual: 'irwin' | 'maria', texto: string) {
+    setDigitando({ lado: qual, texto });
+    if (valorLinha <= 0) return;
+    const v = Math.min(Math.max(lerMoeda(texto), 0), valorLinha);
+    const pct = ((qual === 'irwin' ? v : valorLinha - v) / valorLinha) * 100;
+    onTrocar({ pctCustom: Math.round(pct * 100) / 100 });
+  }
 
   return (
     <div className={`linha-fat${e.marcada ? ' marcada' : ''}`}>
@@ -1294,22 +1469,26 @@ function LinhaFatura({
                       }
                     />
                   </label>
-                  <label className="campo">
+                  {/* A data é TRAVADA: a do cartão é a que manda. Editá-la aqui
+                      inventava uma data de compra que a fatura já afirma — e a
+                      data é o que liga a parcela 2 à série que o app conhece.
+                      `dataEditada` continua existindo porque um lote reaberto
+                      pode ter uma, de antes desta regra. */}
+                  <div className="campo">
                     <span>Data</span>
-                    <input
-                      type="date"
-                      value={e.dataEditada || l.data}
-                      onChange={(ev) => onTrocar({ dataEditada: ev.target.value || null })}
-                    />
-                  </label>
+                    <div className="travado">
+                      <span className="valor">{dataBR(e.dataEditada || l.data)}</span>
+                      <Cadeado />
+                    </div>
+                  </div>
                 </div>
-                {(e.valorLiquido !== null || e.dataEditada) && (
+                {e.valorLiquido !== null && (
                   <div className="dica">
-                    na fatura: {brl(l.valor)} em {dataBR(l.data)} ·{' '}
+                    na fatura: {brl(l.valor)} ·{' '}
                     <button
                       type="button"
                       className="link"
-                      onClick={() => onTrocar({ valorLiquido: null, dataEditada: null })}
+                      onClick={() => onTrocar({ valorLiquido: null })}
                     >
                       voltar ao original
                     </button>
@@ -1382,60 +1561,97 @@ function LinhaFatura({
                     </p>
                   )}
 
+                  {/* Quem pagou fica TRAVADO quando a fatura resolveu o nome do
+                      cartão: o dono do cartão é quem pagou. No adicional da
+                      Maria quem paga é ela, e ela transfere depois — decisão do
+                      Irwin em 19/11, para ela enxergar o cartão dela como gasto
+                      dela. Trocar aqui só criaria divergência com a fatura.
+
+                      Quando o nome NÃO bateu com ninguém do elenco, os botões
+                      voltam. Sem pagador a gravação é recusada (A4), e um campo
+                      travado em branco deixaria a fatura impossível de fechar. */}
                   <div className="rot sep">
                     1 · Quem pagou <span className="leve">de quem saiu o dinheiro</span>
                   </div>
-                  <div className="chips">
-                    {opcoes.pagadores.map((q) => (
-                      <button
-                        key={q}
-                        type="button"
-                        className="chip"
-                        aria-pressed={e.quemPagou === q}
-                        onClick={() => onTrocar({ quemPagou: q })}
-                      >
-                        <i className={'pt ' + (q === 'Irwin' ? 'i' : q === 'Maria' ? 'm' : 'duo')} />
-                        {q === 'Ambos' ? 'Os dois' : q}
-                      </button>
-                    ))}
-                  </div>
-                  {l.nomeCartao && (
-                    <p className="nota">
-                      Já veio preenchido pelo nome no cartão: <b>{l.nomeCartao}</b>.
-                    </p>
+                  {e.quemPagou ? (
+                    <>
+                      <div className="travado">
+                        <i
+                          className={
+                            'pt ' +
+                            (e.quemPagou === 'Irwin' ? 'i' : e.quemPagou === 'Maria' ? 'm' : 'duo')
+                          }
+                        />
+                        <span className="valor">
+                          {e.quemPagou === 'Ambos' ? 'Os dois' : e.quemPagou}
+                        </span>
+                        <Cadeado />
+                      </div>
+                      {l.nomeCartao && (
+                        <p className="nota">
+                          Do nome no cartão: <b>{l.nomeCartao}</b>. A data e o pagador vêm da
+                          fatura e não mudam.
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="chips">
+                        {opcoes.pagadores.map((q) => (
+                          <button
+                            key={q}
+                            type="button"
+                            className="chip"
+                            aria-pressed={e.quemPagou === q}
+                            onClick={() => onTrocar({ quemPagou: q })}
+                          >
+                            <i
+                              className={'pt ' + (q === 'Irwin' ? 'i' : q === 'Maria' ? 'm' : 'duo')}
+                            />
+                            {q === 'Ambos' ? 'Os dois' : q}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="nota">
+                        O nome no cartão (<b>{l.nomeCartao || 'em branco'}</b>) não bateu com
+                        ninguém. <b>Escolha quem pagou</b> — sem isso a linha não é gravada.
+                      </p>
+                    </>
                   )}
 
+                  {/* Lista suspensa, e não chips: são seis opções, e a fatura é
+                      percorrida linha a linha dezenas de vezes. `Custom` —
+                      Valor exato — entra agora. Ela ficava de fora com a
+                      desculpa de que "quem quer valor exato divide a linha",
+                      mas dividir é outra coisa: pedaco é a mesma compra com
+                      dois DONOS, não a mesma compra em proporção diferente. */}
                   <div className="rot sep">
                     2 · De quem é o gasto <span className="leve">como dividir o custo</span>
                   </div>
-                  <div className="chips">
-                    {DIVISOES.filter((d) => d !== 'Custom').map((d) => (
-                      <button
-                        key={d}
-                        type="button"
-                        className="chip"
-                        aria-pressed={e.deFora ? d === 'De fora' : e.divisao === d}
-                        onClick={() =>
-                          onTrocar({
-                            deFora: d === 'De fora',
-                            divisao: d,
-                            /* Só limpa o dono ao SAIR de `De fora`. Limpar sempre
-                               apagava a marca do André — que não é divisão, é
-                               de quem é o custo — em quem trocasse 50/50 por
-                               100% Irwin depois de marcar o botão dele. */
-                            gastoDe:
-                              d === 'De fora'
-                                ? e.gastoDe || DE_FORA[0]
-                                : e.deFora
-                                  ? ''
-                                  : e.gastoDe,
-                          })
-                        }
-                      >
+                  <select
+                    value={e.deFora ? 'De fora' : e.divisao}
+                    onChange={(ev) => {
+                      const d = ev.target.value;
+                      setDigitando(null);
+                      onTrocar({
+                        deFora: d === 'De fora',
+                        divisao: d,
+                        pctCustom: d === 'Custom' ? (e.pctCustom ?? 50) : null,
+                        /* Só limpa o dono ao SAIR de `De fora`. Limpar sempre
+                           apagava a marca do André — que não é divisão, é
+                           de quem é o custo — em quem trocasse 50/50 por
+                           100% Irwin depois de marcar o botão dele. */
+                        gastoDe:
+                          d === 'De fora' ? e.gastoDe || DE_FORA[0] : e.deFora ? '' : e.gastoDe,
+                      });
+                    }}
+                  >
+                    {DIVISOES.map((d) => (
+                      <option key={d} value={d}>
                         {ROTULO_DIVISAO[d]}
-                      </button>
+                      </option>
                     ))}
-                  </div>
+                  </select>
 
                   {e.deFora && (
                     <>
@@ -1469,16 +1685,50 @@ function LinhaFatura({
                     </>
                   )}
 
-                  {/* O que cada um vai carregar, em número. É leitura, não campo:
-                      quem quiser um valor exato por pessoa divide a linha. */}
+                  {/* O que cada um vai carregar. Em Valor exato os dois são
+                      CAMPO: é a divisão em que o número vem do dedo, não do
+                      rótulo. Nas outras é leitura — digitar ali contradiria a
+                      divisão escolhida logo acima. */}
                   <div className="partes compactas">
                     <div className="parte i">
                       <div className="quem">Parte do Irwin</div>
-                      <div className="leitura">{brl(partes.irwin)}</div>
+                      {custom ? (
+                        <div className="moeda">
+                          <span className="cifra">R$</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            aria-label="Parte do Irwin"
+                            value={
+                              digitando?.lado === 'irwin' ? digitando.texto : numero(partes.irwin)
+                            }
+                            onChange={(ev) => digitouParte('irwin', ev.target.value)}
+                            onBlur={() => setDigitando(null)}
+                          />
+                        </div>
+                      ) : (
+                        <div className="leitura">{brl(partes.irwin)}</div>
+                      )}
                     </div>
                     <div className="parte m">
                       <div className="quem">Parte da Maria</div>
-                      <div className="leitura">{brl(partes.maria)}</div>
+                      {custom ? (
+                        <div className="moeda">
+                          <span className="cifra">R$</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            aria-label="Parte da Maria"
+                            value={
+                              digitando?.lado === 'maria' ? digitando.texto : numero(partes.maria)
+                            }
+                            onChange={(ev) => digitouParte('maria', ev.target.value)}
+                            onBlur={() => setDigitando(null)}
+                          />
+                        </div>
+                      ) : (
+                        <div className="leitura">{brl(partes.maria)}</div>
+                      )}
                     </div>
                   </div>
                   {e.deFora && (
@@ -1957,6 +2207,17 @@ function abaDe(l: Linha, e: Estado | undefined): Aba {
   return 'novos';
 }
 
+/**
+ * Esta linha é do cartão de quem está marcando?
+ *
+ * Sem dono escolhido, todas. E a linha cujo nome no cartão NÃO bateu com
+ * ninguém do elenco conta como sim, de propósito: ela é justamente a que
+ * precisa de atenção, e nascer desmarcada seria o jeito de esquecê-la.
+ */
+function doDono(quemPagou: string, dono: string): boolean {
+  return !dono || !quemPagou || quemPagou === dono;
+}
+
 function divisaoInicial(padrao: string, quemPagou: string): string {
   if (padrao !== PADRAO_PAGADOR) return padrao;
   // Sem nome reconhecido no cartão não se inventa pagador nem divisão: pela A4
@@ -2034,6 +2295,7 @@ function aoReabrir(salvo: EstadoSalvo, atual: AtualDoLote): Record<number, Estad
       tipoManual: e.tipoManual ?? false,
       origem: e.origem ?? 'Cartão',
       dataEditada: e.dataEditada ?? null,
+      pctCustom: e.pctCustom ?? null,
     };
 
     if (!a) {
@@ -2050,6 +2312,10 @@ function aoReabrir(salvo: EstadoSalvo, atual: AtualDoLote): Record<number, Estad
       descricao: a.descricao === nomeFatura ? '' : a.descricao,
       grupo: a.categoria,
       divisao: a.divisao,
+      /* Vem do BANCO como o resto desta reconstrução: reabrir com 50 no lugar
+         da porcentagem gravada faria a correção em lote reescrever metade
+         para cada um sem ninguém pedir. */
+      pctCustom: a.pctCustom ?? null,
       quemPagou: a.quemPagou ?? '',
       deFora: a.deFora ?? false,
       gastoDe: a.gastoDe ?? '',
@@ -2064,6 +2330,7 @@ function aoReabrir(salvo: EstadoSalvo, atual: AtualDoLote): Record<number, Estad
         (a.descricao === nomeFatura ? '' : a.descricao) !== (e.descricao ?? '') ||
         a.categoria !== e.grupo ||
         a.divisao !== e.divisao ||
+        (a.pctCustom ?? null) !== (e.pctCustom ?? null) ||
         a.tipo !== e.tipo ||
         (a.origem ?? 'Cartão') !== (e.origem ?? 'Cartão') ||
         (a.quemPagou ?? '') !== e.quemPagou ||
@@ -2084,6 +2351,9 @@ function assinaturaLinha(e: Estado | undefined): string {
   if (!e) return '';
   return [
     e.marcada, e.descricao ?? '', e.grupo, e.divisao, e.quemPagou,
+    // A porcentagem do Valor exato: trocar 70/30 por 60/40 não muda a divisão
+    // nem nada mais, e sem isto o diferencial não veria mexida em dinheiro.
+    e.pctCustom ?? '',
     e.forcadaNova, e.valorAtual ?? '',
     // O mesmo motivo dos pedacos abaixo: marcar a linha inteira como `De fora`
     // não muda nome, categoria nem divisão, e sem isto o diferencial a

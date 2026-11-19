@@ -92,9 +92,18 @@ export function partesDe(
   divisao: Divisao,
   deFora: boolean,
   pctRenda: number,
+  /**
+   * Quanto por cento é do Irwin quando a divisão é `Custom`, de 0 a 100.
+   * Só esta divisão o usa: nas outras a fração vem do rótulo, e é por isso
+   * que `fracaoDe` devolve `null` aqui. Ausente, cai em 50 — onde o campo
+   * nasce quando alguém escolhe Valor exato e ainda não digitou nada.
+   */
+  pctCustom?: number | null,
 ): { irwin: number; maria: number } {
   if (deFora || divisao === 'De fora') return { irwin: 0, maria: 0 };
-  const irwin = arred(total * (fracaoDe(divisao, pctRenda) ?? 0.5));
+  const fracao =
+    divisao === 'Custom' ? (pctCustom ?? 50) / 100 : (fracaoDe(divisao, pctRenda) ?? 0.5);
+  const irwin = arred(total * fracao);
   return { irwin, maria: arred(total - irwin) };
 }
 

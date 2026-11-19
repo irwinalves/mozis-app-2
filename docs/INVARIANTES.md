@@ -24,8 +24,8 @@ arquivo guarda o que precisa **sobreviver à troca de tecnologia**.
 
 ## Quantas estão verificadas por máquina
 
-56 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
-e `npm test` verifica mais oito contra a forma do front (`src/lib/tela.test.ts`),
+58 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
+e `npm test` verifica mais nove contra a forma do front (`src/lib/tela.test.ts`),
 e é por isso que os dois têm o mesmo nome: a distância entre os dois números é a medida
 de quanto ainda depende de alguém lembrar.
 
@@ -746,6 +746,54 @@ a metade de 375px cada um, e o segundo simplesmente sai pela borda direita do ca
 janela de datas do Dashboard ficou assim por meses sem ninguém ver, porque num navegador
 de mesa a largura sobra e o defeito não aparece — ele só existe no aparelho em que o app
 de fato é usado.
+
+---
+
+### C15. Marcado quer dizer coisas diferentes em cada tela
+
+**Regra:** numa importação NOVA, marcado quer dizer "vai ser criado" — e nasce marcado só
+o cartão de quem está importando. Ao REABRIR um lote, marcado quer dizer "está lançado no
+banco", e desmarcar **apaga**. Por isso o seletor que remarca em bloco existe só na
+primeira, nunca na segunda.
+
+**Se violada:** a fatura do casal vem com os dois cartões — medido na de março, 44 linhas
+no cartão do Irwin e 42 no da Maria. Tirar as do outro custava 42 toques, um por linha, e
+era isso que fazia a importação doer. Mas o mesmo atalho na tela de reabrir trocaria 44
+lançamentos existentes por 44 exclusões, em um toque, sem ninguém pedir.
+
+**A escolha:** quem não é o dono do cartão nasce **desmarcado**, e quem quiser lançar uma
+linha pelo outro **marca aquela linha**. Marcar uma é barato; desmarcar 42 não é.
+
+**O filtro é outra coisa:** `Mostrar` muda só o que está na tela, nunca o que vai ser
+gravado. O rodapé continua somando as marcadas, não as visíveis — um filtro que mexesse no
+que entra fecharia a fatura com metade dos gastos faltando. E "todas/nenhuma" vale para o
+que está **na tela**, porque o sentido do botão é "isto aqui que eu estou olhando".
+
+**Como provar:** `src/lib/tela.test.ts` reprova se o seletor de marcar aparecer na tela de
+reabrir. A prova de verdade é importar duas vezes e conferir a contagem no banco.
+
+---
+
+### C16. A fatura manda na data e no pagador
+
+**Regra:** data e quem pagou vêm da fatura e **não são editáveis** na revisão. O dono do
+cartão é quem pagou. A exceção é uma só: quando o nome no cartão não bateu com ninguém do
+elenco, os botões de pagador voltam.
+
+**Se violada:** editar a data inventa uma data de compra que a fatura já afirma — e a data
+é o que liga a parcela 2 à série que o app conhece. Trocar o pagador cria divergência com o
+documento que originou a linha.
+
+**A exceção não é detalhe:** sem pagador a gravação é recusada (A4). Um campo travado em
+branco deixaria a fatura impossível de fechar, e o erro só apareceria na gravação, depois
+de revisar 86 linhas.
+
+> **O cartão adicional é da pessoa, não de quem paga a fatura.** No adicional da Maria
+> quem paga é ela, e ela transfere depois — decisão do Irwin em 19/11, para ela enxergar
+> o cartão dela como gasto dela. Lançar tudo como pago pelo titular daria mais confusão
+> do que acerto.
+
+---
 
 ## Parte D — Só enquanto a base for a planilha Google
 

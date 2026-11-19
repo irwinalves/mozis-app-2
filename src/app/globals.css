@@ -1618,9 +1618,60 @@ a.btn-linha {
   font-size: 16px;
 }
 
-/* A parte de cada um como LEITURA, no painel da fatura: ali ela informa, não
-   pergunta. Quem precisa de um valor exato por pessoa divide a linha em
-   pedacos, que é onde esse caso mora. */
+/* Campo que VEM DA FATURA e não muda: data e quem pagou. Tem a altura e a
+   moldura de um campo, para a linha não desalinhar, mas fundo de leitura e um
+   cadeado — parecer editável e não aceitar toque é pior do que não parecer. */
+:is(.form-lanc, .campos-lanc) .travado {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  height: var(--alt-campo);
+  padding: 10px 12px;
+  border: 1px solid var(--borda-card);
+  border-radius: 8px;
+  background: var(--suave);
+  color: var(--texto2);
+  font-size: 16px;
+  line-height: 20px;
+}
+:is(.form-lanc, .campos-lanc) .travado .valor {
+  flex: 1;
+  min-width: 0;
+  color: var(--texto);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:is(.form-lanc, .campos-lanc) .travado .cadeado {
+  flex: 0 0 auto;
+  opacity: 0.75;
+}
+
+/* Os dois seletores de dono do cartão, no topo da revisão da fatura. */
+.filtro-dono label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 9px;
+}
+.filtro-dono label > span {
+  flex: 0 0 86px;
+  font-size: 13px;
+  color: var(--texto2);
+}
+.filtro-dono select {
+  flex: 1;
+  min-width: 0;
+}
+.filtro-dono .nota {
+  margin: 0;
+}
+
+/* A parte de cada um, no painel da fatura. Em Valor exato os dois são campo —
+   é a divisão em que o número vem do dedo; nas outras é leitura, porque
+   digitar ali contradiria a divisão escolhida logo acima. */
 :is(.form-lanc, .campos-lanc) .parte .leitura {
   font-size: 20px;
   font-weight: 700;

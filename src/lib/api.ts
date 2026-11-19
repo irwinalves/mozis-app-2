@@ -2200,6 +2200,7 @@ export async function estadoDaImportacao(id: number) {
     ref: number; pedaco: number; n: number; descricao: string; categoria: string;
     tipo: string; divisao: string; quem_pagou: string | null; valor: string; total: string;
     gasto_de: string | null; de_fora: boolean | null; fonte: string | null; data: string;
+    pct_custom: string | null;
   }>(sql`select importacao_linha as ref, importacao_pedaco as pedaco, count(*)::int as n,
                 (array_agg(descricao   order by seq nulls first, data, id))[1] as descricao,
                 (array_agg(categoria   order by seq nulls first, data, id))[1] as categoria,
@@ -2212,6 +2213,11 @@ export async function estadoDaImportacao(id: number) {
                 (array_agg(gasto_de     order by seq nulls first, data, id))[1] as gasto_de,
                 (array_agg(de_fora      order by seq nulls first, data, id))[1] as de_fora,
                 (array_agg(fonte        order by seq nulls first, data, id))[1] as fonte,
+                /* A porcentagem do Valor exato. Sem ela, reabrir um lote com
+                   divisao Custom voltaria com 50/50 e a correcao em lote
+                   regravaria metade para cada um — dinheiro mudando de dono
+                   em silencio. */
+                (array_agg(pct_irwin_custom order by seq nulls first, data, id))[1]::text as pct_custom,
                 /* A data da PRIMEIRA parcela e a da compra; as outras sao
                    derivadas dela por montarParcelas. Sem crase aqui dentro: a
                    consulta mora numa template string, e a crase a encerra. */
@@ -2239,6 +2245,8 @@ export async function estadoDaImportacao(id: number) {
     gastoDe: string | null;
     origem: string | null;
     data: string;
+    /** 0 a 100, so quando a divisao e `Custom`. */
+    pctCustom: number | null;
     valor: number;
     total: number;
   }
@@ -2266,6 +2274,7 @@ export async function estadoDaImportacao(id: number) {
       gastoDe: l.gasto_de,
       origem: l.fonte,
       data: l.data,
+      pctCustom: l.pct_custom === null ? null : Number(l.pct_custom) * 100,
       valor: Number(l.valor),
       total: Number(l.total),
     };
