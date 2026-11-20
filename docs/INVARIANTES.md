@@ -24,7 +24,7 @@ arquivo guarda o que precisa **sobreviver à troca de tecnologia**.
 
 ## Quantas estão verificadas por máquina
 
-59 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
+60 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
 e `npm test` verifica mais nove contra a forma do front (`src/lib/tela.test.ts`),
 e é por isso que os dois têm o mesmo nome: a distância entre os dois números é a medida
 de quanto ainda depende de alguém lembrar.
@@ -792,6 +792,40 @@ que está **na tela**, porque o sentido do botão é "isto aqui que eu estou olh
 
 **Como provar:** `src/lib/tela.test.ts` reprova se o seletor de marcar aparecer na tela de
 reabrir. A prova de verdade é importar duas vezes e conferir a contagem no banco.
+
+---
+
+### C17. A sugestão de categoria aprende do que já foi categorizado — e `7 Outros` não vota
+
+**Regra:** a categoria sugerida na importação sai primeiro do **histórico** do casal, e só
+cai na palavra-chave do Plano de Contas quando o histórico não sabe. `7 Outros` fica fora
+da votação, e por isso fora do índice inteiro.
+
+**Se violada:** as "palavras-chave" do Plano de Contas são a FRASE que descreve a categoria
+para um humano ler — *"Financiamento, IPVA, seguro, combustível, manutenção, estacionamento,
+multas, Uber/99"*. O termo gravado é `uber/99`, e nenhuma fatura escreve isso. Medido nos 409
+lançamentos de set a nov/2026: a regra sozinha acerta **19,1%**. Com o histórico, **47,2%**.
+
+**Por que `7 Outros` não vota:** `araujo` aparecia 63 vezes na base — 49 em Outros, 7 em
+Comida, 7 em Saúde. Aprendendo cru, o índice devolveria `7 Outros` com 78% de confiança:
+ele aprenderia a **não categorizar**, para sempre, e com cara de certeza. `7 Outros` é a
+ausência de uma decisão, não uma decisão.
+
+**Ganha confiança, não frequência.** `ifood` com 12 de 12 vale mais que `sao` com 400 de
+900: um nome de loja decide a categoria, uma preposição não decide nada. Abaixo de 3
+ocorrências ou de 60% de maioria, não sugere — na revisão, palpite errado custa mais caro
+que palpite nenhum, porque ele parece resposta.
+
+**Sem cache, de propósito:** o índice é montado a cada importação. É uma consulta de duas
+colunas, e importação é coisa rara. Em troca, **toda correção feita na revisão vale já na
+fatura seguinte** — é esse ciclo que faz os 41% sem palpite encolherem sozinhos. Um índice
+materializado precisaria ser atualizado, e desatualizado ele ensina o passado.
+
+**Como provar:** `src/lib/aprendizado.test.ts`, com os casos que a base real produziu.
+
+> **Treinar numa base errada ensina o erro.** Antes de ligar isto, 53 mil reais saíram de
+> `7 Outros` para as categorias certas, em lote. Fazer na ordem inversa teria gravado o
+> Araújo como "Outros" no índice.
 
 ---
 

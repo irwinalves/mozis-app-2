@@ -30,6 +30,7 @@ import {
   sugerirCategoria,
   type CategoriaKw,
 } from './importacao';
+import { montarIndice, sugerirPorHistorico, type Indice } from './aprendizado';
 import { ligarEstornos } from './estornos';
 import {
   acharNoApp,
@@ -1012,6 +1013,25 @@ export async function getDashboard(filtro?: {
  * Categorias que entram na sugestão automática.
  * Filtra `8 ` (investimento tem tela própria) e `9 ` (acerto não é gasto).
  */
+/**
+ * O índice do histórico, montado na hora.
+ *
+ * Duas colunas sobre os lançamentos já categorizados — `7 Outros` fica de fora
+ * porque ele não vota (ver `aprendizado.ts`). Importação é coisa rara, e em
+ * troca de uma consulta toda correção feita na revisão vale já na fatura
+ * seguinte.
+ */
+async function indiceDoHistorico(): Promise<Indice> {
+  const linhas = await db.execute<{ descricao: string; categoria: string }>(
+    sql`select descricao, categoria from lancamentos
+        where categoria is not null
+          and categoria not like '7 %'
+          and categoria not like '8 %'
+          and categoria not like '9 %'`,
+  );
+  return montarIndice(linhas);
+}
+
 async function planoParaSugestao(): Promise<CategoriaKw[]> {
   const linhas = await db.execute<{ nome: string; palavras_chave: string | null }>(
     sql`select nome, palavras_chave from plano_de_contas
@@ -1038,12 +1058,13 @@ async function planoTipoPadrao(categoria: string): Promise<string> {
 /** Lista sugerida, sem gravar nada. */
 export async function previewImportacao(conteudo: string, tipoArquivo: string) {
   const transacoes = parsePorTipo(conteudo, tipoArquivo);
-  const plano = await planoParaSugestao();
+  const [plano, idx] = await Promise.all([planoParaSugestao(), indiceDoHistorico()]);
   return transacoes.map((t) => ({
     data: t.data,
     descricao: t.descricao,
     valor: arred(t.valor),
-    categoria: sugerirCategoria(t.descricao, plano),
+    // O histórico primeiro; a palavra-chave é o que sobra quando ele não sabe.
+    categoria: sugerirPorHistorico(t.descricao, idx) ?? sugerirCategoria(t.descricao, plano),
   }));
 }
 
@@ -1721,7 +1742,10 @@ export async function analisarFatura(arquivoB64: string, nomeArquivo: string) {
     for (const l of linhas) doApp.set(l.id, l);
   }
 
-  const plano = await planoParaSugestao();
+  const [plano, idxHistorico] = await Promise.all([
+    planoParaSugestao(),
+    indiceDoHistorico(),
+  ]);
 
   /**
    * Os negativos ligados à compra que cancelam, DENTRO da mesma fatura.
@@ -1866,7 +1890,9 @@ export async function analisarFatura(arquivoB64: string, nomeArquivo: string) {
          * palavra-chave, que erra bastante e por isso a tela deixa editar.
          */
         categoriaSugerida:
-          (app?.categoria as string | undefined) ?? sugerirCategoria(c.linha.descricao, plano),
+          (app?.categoria as string | undefined) ??
+          sugerirPorHistorico(c.linha.descricao, idxHistorico) ??
+          sugerirCategoria(c.linha.descricao, plano),
         /** Divergência de valor com o que está no app, quando houver. */
         difValor: app ? arred(c.linha.valor - Number(app.valor)) : null,
         /** Um estorno desta fatura cobre a compra inteira. Entra desmarcada. */
