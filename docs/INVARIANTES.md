@@ -24,7 +24,7 @@ arquivo guarda o que precisa **sobreviver à troca de tecnologia**.
 
 ## Quantas estão verificadas por máquina
 
-58 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
+59 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
 e `npm test` verifica mais nove contra a forma do front (`src/lib/tela.test.ts`),
 e é por isso que os dois têm o mesmo nome: a distância entre os dois números é a medida
 de quanto ainda depende de alguém lembrar.
@@ -450,6 +450,27 @@ Verificado ponta a ponta em 16/11/2026: lançar R$ 200 `De fora` não moveu o ac
 > sido escrito antes da coluna existir e parou de encodar a mesma regra. **O que precisa
 > ser independente num check de dois caminhos é a implementação, não a regra:** um
 > segundo caminho que ignora uma regra do primeiro não verifica, só discorda.
+
+### A27. `Mozi` e `Família` são procedência, não meio de pagamento
+
+**Regra:** a coluna `fonte` guarda duas coisas diferentes. `Cartão` e `Banco` dizem **de
+onde saiu o dinheiro**. `Mozi` e `Família` dizem **de qual grupo do Splitwise a linha foi
+importada** — e nesse histórico o meio de pagamento nunca foi registrado. Os dois
+primeiros entram em comparação por meio de pagamento; os dois últimos **ficam de fora**.
+
+**Se violada:** medido no ciclo da fatura de março, 27/02 a 29/03: dos 73 lançamentos do
+app, 64 têm fonte `Mozi` ou `Família`. Qualquer lista do tipo "o que já está lançado neste
+cartão" que os inclua vira ruído com um punhado de sinal dentro — e pior, afirma que um
+jantar rachado no Splitwise foi pago no cartão, o que ninguém sabe.
+
+**Por que não converter:** não há como. A informação não existe em lugar nenhum. Apagar o
+rótulo para "limpar" jogaria fora a única coisa que esses lançamentos ainda dizem sobre si
+— de onde vieram. Decisão do Irwin, reafirmada em 19/11/2026: ficam, e a comparação é que
+tem que saber desviar.
+
+> **Isto não é A15.** Lá o rótulo antigo é o MESMO conceito com outro nome — `Conjunta` é
+> `Ambos`. Aqui são conceitos diferentes dividindo uma coluna, e o tratamento é oposto:
+> não se converte, se exclui da conta.
 
 ### A26. Lista de domínio existe uma vez só
 

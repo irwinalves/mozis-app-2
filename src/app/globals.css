@@ -1816,14 +1816,48 @@ a.btn-linha {
   line-height: 1.45;
 }
 
+/* A explicação não pode ter o peso do número que ela explica. Eram 12,5px ao
+   lado de linhas de 13,5px: seis blocos desses viram parede, e quem revisa 86
+   linhas lê a parede uma vez e ignora para sempre. */
 :is(.form-lanc, .campos-lanc) .nota {
-  margin: 11px 0 0;
-  font-size: 12.5px;
+  margin: 10px 0 0;
+  font-size: 11.5px;
   color: var(--texto2);
   background: var(--suave);
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 7px 10px;
   line-height: 1.45;
+}
+/* A nota DOBRADA: fica à vista a frase que decide alguma coisa, e o porquê
+   abre no toque. O resumo é um botão inteiro, não uma setinha de 10px — alvo
+   de toque no celular é o bloco. */
+:is(.form-lanc, .campos-lanc) .nota .puxa {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+:is(.form-lanc, .campos-lanc) .nota .puxa > span:first-child {
+  flex: 1;
+  min-width: 0;
+}
+:is(.form-lanc, .campos-lanc) .nota .seta {
+  flex: 0 0 auto;
+  font-size: 9px;
+  line-height: 1.9;
+  opacity: 0.6;
+}
+:is(.form-lanc, .campos-lanc) .nota .detalhe {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--borda-card);
 }
 :is(.form-lanc, .campos-lanc) .nota b {
   color: var(--texto);

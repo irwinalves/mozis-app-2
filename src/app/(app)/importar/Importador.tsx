@@ -24,7 +24,7 @@
  * revisão "só para editar" seria a mesma tela escrita duas vezes, e a que fica
  * para trás é sempre a que grava errado.
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { rpc } from '@/lib/rpc';
 import type { analisarFatura, previewConciliacao, LinhaParaLancar } from '@/lib/api';
@@ -652,11 +652,20 @@ export function Importador({
           </div>
 
           {edicao && (
-            <div className="card suave" style={{ marginBottom: 10, padding: '10px 12px' }}>
-              <div style={{ fontSize: 12.5 }}>
-                Correção em lote. As linhas abrem <b>como estão no app hoje</b>, e só as que você
-                mexer aqui são regravadas — o resto fica exatamente como está.
-              </div>
+            <div className="campos-lanc" style={{ marginBottom: 10 }}>
+              {/* Dobrada como as outras: a frase que muda o que você faz é a
+                  primeira; o resto é o contrato da gravação, que interessa uma
+                  vez e não em toda abertura da tela. */}
+              <Nota
+                detalhe={
+                  <>
+                    Só as linhas que você mexer aqui são regravadas — o resto fica
+                    exatamente como está.
+                  </>
+                }
+              >
+                Correção em lote: as linhas abrem <b>como estão no app hoje</b>.
+              </Nota>
               {mexidasDepois > 0 && (
                 <div className="dica" style={{ marginTop: 5 }}>
                   {mexidasDepois === 1
@@ -703,11 +712,16 @@ export function Importador({
                 </select>
               </label>
               {!edicao && donoMarcar && (
-                <p className="nota">
-                  As linhas dos outros cartões chegam <b>desmarcadas</b>. Continuam na lista,
-                  para você ver que existem — mas não sobem. Para lançar uma por quem não é
-                  você, basta <b>marcar aquela linha</b>.
-                </p>
+                <Nota
+                  detalhe={
+                    <>
+                      Continuam na lista, para você ver que existem — mas não sobem. Para
+                      lançar uma por quem não é você, basta <b>marcar aquela linha</b>.
+                    </>
+                  }
+                >
+                  As linhas dos outros cartões chegam <b>desmarcadas</b>.
+                </Nota>
               )}
             </div>
           )}
@@ -1170,6 +1184,37 @@ function PainelEstornos({
 // A linha
 // ---------------------------------------------------------------------------
 
+/**
+ * Uma explicação da tela. Com `detalhe`, ela chega DOBRADA: à vista fica a
+ * frase que decide alguma coisa, e o porquê abre no toque.
+ *
+ * Existe porque a revisão acumulou seis blocos de explicação, cada um quase do
+ * tamanho de uma linha de gasto. Quem revisa 86 linhas lê a parede uma vez e
+ * passa a ignorar todas — inclusive a que importava. Sem `detalhe` ela é um
+ * parágrafo comum: nota curta não ganha nada em virar botão, e dobrar uma
+ * instrução que a pessoa PRECISA seguir seria esconder o trabalho.
+ */
+function Nota({ children, detalhe }: { children: ReactNode; detalhe?: ReactNode }) {
+  const [aberta, setAberta] = useState(false);
+  if (!detalhe) return <p className="nota">{children}</p>;
+  return (
+    <div className="nota">
+      <button
+        type="button"
+        className="puxa"
+        aria-expanded={aberta}
+        onClick={() => setAberta(!aberta)}
+      >
+        <span>{children}</span>
+        <span className="seta" aria-hidden="true">
+          {aberta ? '▲' : '▼'}
+        </span>
+      </button>
+      {aberta && <div className="detalhe">{detalhe}</div>}
+    </div>
+  );
+}
+
 /** O cadeado dos campos que vêm da fatura e não mudam: data e quem pagou. */
 function Cadeado() {
   return (
@@ -1446,10 +1491,16 @@ function LinhaFatura({
                   </div>
                 )}
                 {e.gastoDe === 'André' && (
-                  <p className="nota">
-                    Marcado como gasto do <b>André</b>. Classifica de quem é o custo —{' '}
-                    <b>não muda a divisão nem o acerto</b>.
-                  </p>
+                  <Nota
+                    detalhe={
+                      <>
+                        Classifica de quem é o custo —{' '}
+                        <b>não muda a divisão nem o acerto</b>.
+                      </>
+                    }
+                  >
+                    Marcado como gasto do <b>André</b>.
+                  </Nota>
                 )}
 
                 <div className="linha">
@@ -1588,10 +1639,9 @@ function LinhaFatura({
                         <Cadeado />
                       </div>
                       {l.nomeCartao && (
-                        <p className="nota">
-                          Do nome no cartão: <b>{l.nomeCartao}</b>. A data e o pagador vêm da
-                          fatura e não mudam.
-                        </p>
+                        <Nota detalhe="A data e o pagador vêm da fatura e não mudam.">
+                          Do nome no cartão: <b>{l.nomeCartao}</b>.
+                        </Nota>
                       )}
                     </>
                   ) : (

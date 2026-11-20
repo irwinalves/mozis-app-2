@@ -201,10 +201,13 @@ export async function getOpcoes(pessoa: Pessoa | null = null) {
      * significou nada: um TED não é um Pix, e os dois saem da mesma conta.
      *
      * Os rótulos antigos continuam sendo LIDOS — `Pix` e `Extrato banco` são
-     * Banco; `Família` e `Mozi` são de antes do app, quando a origem do
-     * dinheiro não era registrada. Aceitar na leitura e nunca na escrita é a
-     * A15; criar um "não informado" no formulário seria resolver o passado
-     * abrindo o futuro.
+     * Banco. `Família` e `Mozi` são outra coisa, e não meio de pagamento
+     * nenhum: são os GRUPOS DO SPLITWISE de onde o histórico foi importado
+     * (A27). Ficam porque jogar fora a procedência seria perder informação
+     * que ninguém tem como recuperar.
+     *
+     * Aceitar na leitura e nunca na escrita é a A15; criar um "não informado"
+     * no formulário seria resolver o passado abrindo o futuro.
      */
     origens: ['Cartão', 'Banco'],
     /* `divisoes` SAIU daqui. Era uma segunda lista das mesmas opções, e
