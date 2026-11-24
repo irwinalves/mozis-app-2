@@ -24,7 +24,7 @@ arquivo guarda o que precisa **sobreviver à troca de tecnologia**.
 
 ## Quantas estão verificadas por máquina
 
-60 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
+61 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
 e `npm test` verifica mais nove contra a forma do front (`src/lib/tela.test.ts`),
 e é por isso que os dois têm o mesmo nome: a distância entre os dois números é a medida
 de quanto ainda depende de alguém lembrar.
@@ -826,6 +826,32 @@ materializado precisaria ser atualizado, e desatualizado ele ensina o passado.
 > **Treinar numa base errada ensina o erro.** Antes de ligar isto, 53 mil reais saíram de
 > `7 Outros` para as categorias certas, em lote. Fazer na ordem inversa teria gravado o
 > Araújo como "Outros" no índice.
+
+---
+
+### C18. O que sobrou do ciclo se mede no ciclo, e sem o próprio lote
+
+**Regra:** a revisão mostra, embaixo dos cruzamentos, o que está lançado **como cartão** no
+ciclo da fatura e nenhuma linha dela explicou. O ciclo é a janela das linhas **à vista**;
+os do Splitwise entram só como contagem (A27); e os lançamentos **do próprio lote** ficam
+de fora.
+
+**Se violada — a janela:** as parceladas carregam a data da COMPRA original. Na fatura de
+março, contando as 28 parceladas, a janela ia a agosto do ano anterior e o app tinha 485
+lançamentos nela. Com as 58 à vista, 73.
+
+**Se violada — o lote:** ao reabrir uma importação, as linhas que ela mesma lançou estão no
+ciclo, e o cruzamento não as reclama — ele só casa com o que já existia antes. Sem tirá-las,
+aparecem como "não explicadas" sendo as mais explicadas de todas. Foi o erro da primeira
+medição: *"Lavatudovip 1/6"* parecia exatamente um gasto esquecido, e era uma parcela que a
+própria importação tinha criado.
+
+**Medido em produção**, na fatura #5 (ciclo 29/10 a 15/11, 99 linhas): 18 lançamentos de
+cartão não explicados. Boa parte tem explicação conhecida — o 99Food cobra em bloco e a
+fatura não vê pedido a pedido —, e é isso que a lista serve para mostrar: o que o app tem
+no período e o documento não tem.
+
+**Como provar:** `src/lib/tela.test.ts` reprova se o lote ou a janela à vista sumirem.
 
 ---
 

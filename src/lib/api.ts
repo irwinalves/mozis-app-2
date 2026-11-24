@@ -2391,6 +2391,76 @@ async function apagarLinhasDe(tx: Transacao, id: number, refs: number[]) {
  * A prévia vem antes, porque mudar o valor mexe no acerto daquele mês — e a
  * regra é a mesma da edição de série: o número aparece antes de confirmar.
  */
+/**
+ * Os grupos do Splitwise de onde o histórico foi importado (A27).
+ *
+ * Não são meio de pagamento — são procedência, e lá o meio de pagamento nunca
+ * foi registrado. Por isso ficam FORA de qualquer comparação do tipo "o que já
+ * está lançado neste cartão": afirmar que um jantar rachado no Splitwise foi
+ * pago no cartão seria inventar.
+ */
+export const FONTES_SPLITWISE = ['Mozi', 'Família'] as const;
+
+/**
+ * O que está lançado no app, no ciclo do cartão, e a fatura NÃO explicou (C18).
+ *
+ * É o complemento do cruzamento. O cruzamento acha, para cada linha da fatura,
+ * o lançamento que já existe; isto aqui devolve o contrário — o que existe no
+ * mesmo período e nenhuma linha reclamou. É onde aparece um gasto lançado duas
+ * vezes, ou lançado como cartão mas pago por outro meio.
+ *
+ * A JANELA vem de quem chama, e é o ciclo — as datas das linhas À VISTA. As
+ * parceladas carregam a data da COMPRA original: na fatura de março elas
+ * esticariam a janela até agosto do ano anterior, onde o app tem 485
+ * lançamentos. Com o ciclo, são 73.
+ *
+ * SÓ `Cartão` VOLTA COMO LISTA. Os do Splitwise voltam só como contagem — eles
+ * são a maioria do período (40 de 46 em março) e nenhum pode ser comparado com
+ * fatura. Os de `Banco` nem como contagem: não são cartão e não são dúvida.
+ *
+ * `importacaoId` existe para a tela de REABRIR um lote: ali as linhas que este
+ * próprio lote lançou estão no período, e sem tirá-las todas apareceriam como
+ * "não explicadas" — sendo justamente as mais explicadas de todas.
+ */
+export async function sobrasDoCiclo(
+  ini: string,
+  fim: string,
+  explicados: number[],
+  importacaoId: number | null,
+) {
+  const DATA = /^\d{4}-\d{2}-\d{2}$/;
+  if (!DATA.test(String(ini)) || !DATA.test(String(fim)) || ini > fim) {
+    throw new Error('Janela do ciclo inválida.');
+  }
+  const ids = (Array.isArray(explicados) ? explicados : [])
+    .map(Number)
+    .filter((n) => Number.isInteger(n) && n > 0);
+  const lote = importacaoId == null ? null : Number(importacaoId);
+
+  const linhas = await db.execute<{
+    id: number;
+    data: string;
+    descricao: string;
+    valor: number;
+    fonte: string | null;
+  }>(
+    sql`select id, data::text as data, descricao, valor_total::float as valor, fonte
+        from lancamentos
+        where data between ${ini} and ${fim}
+          and categoria not like '8 %'
+          and categoria not like '9 %'
+          ${ids.length ? sql`and id not in (${sql.join(ids.map((i) => sql`${i}`), sql`, `)})` : sql``}
+          ${lote ? sql`and importacao_id is distinct from ${lote}` : sql``}
+        order by data desc, id desc`,
+  );
+
+  const splitwise = new Set<string>(FONTES_SPLITWISE);
+  return {
+    cartao: linhas.filter((l) => l.fonte === 'Cartão'),
+    splitwise: linhas.filter((l) => splitwise.has(l.fonte ?? '')).length,
+  };
+}
+
 export async function previewConciliacao(idLancamento: number, novoValor: number) {
   const [l] = await db.execute<LinhaView>(
     sql`select * from v_lancamentos where id = ${idLancamento}`,

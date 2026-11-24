@@ -24,10 +24,15 @@
  * revisão "só para editar" seria a mesma tela escrita duas vezes, e a que fica
  * para trás é sempre a que grava errado.
  */
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { rpc } from '@/lib/rpc';
-import type { analisarFatura, previewConciliacao, LinhaParaLancar } from '@/lib/api';
+import type {
+  analisarFatura,
+  previewConciliacao,
+  sobrasDoCiclo,
+  LinhaParaLancar,
+} from '@/lib/api';
 import { brl, comSinal, dataBR, diaMes, lerMoeda, mascaraMoeda, numero } from '@/lib/formato';
 // `DE_FORA` vem do componente compartilhado: a lista de quem pode ser dono de
 // um gasto que não é do casal é UMA, e repeti-la aqui faria a importação e o
@@ -51,6 +56,7 @@ import type { Pessoa } from '@/lib/pessoas';
 type Analise = Awaited<ReturnType<typeof analisarFatura>>;
 type Linha = Analise['linhas'][number];
 type Preview = Awaited<ReturnType<typeof previewConciliacao>>;
+type Sobras = Awaited<ReturnType<typeof sobrasDoCiclo>>;
 
 interface Opcoes {
   gruposLancar: { nome: string; tipo: string }[];
@@ -808,6 +814,14 @@ export function Importador({
             )}
           </div>
           )}
+
+          {/* Embaixo dos cruzamentos, e não numa quinta aba: as quatro abas são
+              uma PARTIÇÃO da fatura — 36 + 4 + 46 + 8 fecha o arquivo. Isto é
+              de outro universo, lançamentos do app sem caixinha, e numa aba o
+              número dele pareceria somar com os outros. */}
+          {aba === 'app' && (
+            <SobrasDoCiclo analise={analise} importacaoId={edicao?.id ?? null} />
+          )}
         </div>
       </div>
 
@@ -1183,6 +1197,122 @@ function PainelEstornos({
 // ---------------------------------------------------------------------------
 // A linha
 // ---------------------------------------------------------------------------
+
+/**
+ * O que está lançado no app, no ciclo deste cartão, e a fatura não explicou.
+ *
+ * Nasceu de um caso real: "Anthropic" na fatura, "Claude" já lançado à mão. O
+ * cruzamento não liga os dois — nome diferente —, e o Irwin conferia num
+ * SEGUNDO CELULAR o que já estava no app naqueles dias. Isto põe essa conferência
+ * na própria tela.
+ *
+ * NASCE FECHADA, numa linha só. A pergunta "isto já está lá?" é a exceção da
+ * revisão, não a regra, e uma lista aberta embaixo de 36 cruzamentos seria
+ * parede. A consulta corre ao abrir a aba, para o NÚMERO já estar no título —
+ * é ele que diz se vale abrir.
+ */
+function SobrasDoCiclo({
+  analise,
+  importacaoId,
+}: {
+  analise: Analise;
+  importacaoId: number | null;
+}) {
+  // O ciclo vem das linhas À VISTA: as parceladas carregam a data da compra
+  // original e esticariam a janela por meses (ver `sobrasDoCiclo`).
+  const ciclo = useMemo(() => {
+    const datas = analise.linhas
+      .filter((l) => !l.parcela)
+      .map((l) => l.data)
+      .sort();
+    return datas.length ? { ini: datas[0], fim: datas[datas.length - 1] } : null;
+  }, [analise]);
+  const explicados = useMemo(
+    () =>
+      analise.linhas
+        .map((l) => ladoApp(l.app)?.id)
+        .filter((x): x is number => typeof x === 'number'),
+    [analise],
+  );
+  const [dados, setDados] = useState<Sobras | null>(null);
+  const [erro, setErro] = useState('');
+  const [aberta, setAberta] = useState(false);
+
+  useEffect(() => {
+    if (!ciclo) return;
+    let viva = true;
+    rpc('sobrasDoCiclo', ciclo.ini, ciclo.fim, explicados, importacaoId)
+      .then((d) => {
+        if (viva) setDados(d);
+      })
+      .catch((e) => {
+        if (viva) setErro(e instanceof Error ? e.message : 'Não consegui consultar o app.');
+      });
+    return () => {
+      viva = false;
+    };
+  }, [ciclo, explicados, importacaoId]);
+
+  if (!ciclo) return null;
+  const n = dados ? dados.cartao.length : null;
+
+  return (
+    <div className="sobras">
+      <button
+        type="button"
+        className="sobras-puxa"
+        aria-expanded={aberta}
+        disabled={!n}
+        onClick={() => setAberta(!aberta)}
+      >
+        <span className="seta" aria-hidden="true">
+          {aberta ? '\u25be' : '\u25b8'}
+        </span>
+        <span className="tit">
+          De cartão, no app, e não nesta fatura
+          <small>
+            {dataBR(ciclo.ini).slice(0, 5)} a {dataBR(ciclo.fim).slice(0, 5)} — o ciclo deste
+            cartão
+          </small>
+        </span>
+        <span className={'conta' + (n ? ' tem' : '')}>{erro ? '!' : n === null ? '…' : n}</span>
+      </button>
+
+      {erro && <p className="sobras-nota">{erro}</p>}
+
+      {aberta && dados && n ? (
+        <div className="sobras-miolo">
+          <p className="sobras-alerta">
+            {n === 1 ? 'Um gasto lançado' : `${n} gastos lançados`} <b>como cartão</b> neste
+            ciclo que a fatura não trouxe. Ou foram de outro cartão, ou já estão lançados duas
+            vezes.
+          </p>
+          {dados.cartao.map((l) => {
+            const { dia, mes } = diaMes(l.data);
+            return (
+              <div key={l.id} className="sobras-item">
+                <span className="dt">
+                  {dia}
+                  <br />
+                  {mes}
+                </span>
+                <span className="nm">{l.descricao}</span>
+                <span className="vl">{brl(l.valor)}</span>
+              </div>
+            );
+          })}
+          {dados.splitwise > 0 && (
+            <p className="sobras-fora">
+              Outros <b>{dados.splitwise}</b> lançamentos deste ciclo vieram do Splitwise, pelos
+              grupos Mozi e Família. Lá o meio de pagamento nunca foi registrado, então eles ficam
+              fora desta comparação.
+            </p>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 /**
  * Uma explicação da tela. Com `detalhe`, ela chega DOBRADA: à vista fica a

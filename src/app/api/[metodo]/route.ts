@@ -27,6 +27,8 @@ const METODOS = {
   estadoDaImportacao: api.estadoDaImportacao,
   ajustarImportacao: api.ajustarImportacao,
   previewConciliacao: api.previewConciliacao,
+  // O que o app tem no ciclo do cartão e a fatura não explicou (C18). Só lê.
+  sobrasDoCiclo: api.sobrasDoCiclo,
   conciliarValor: api.conciliarValor,
   salvarLancamento: api.salvarLancamento,
   obterLancamento: api.obterLancamento,

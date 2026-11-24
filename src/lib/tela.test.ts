@@ -253,3 +253,24 @@ test('data e pagador da fatura não viram campo', () => {
     'sumiu a saída para a linha cujo nome no cartão não bateu com ninguém',
   );
 });
+
+test('o que sobrou do ciclo não acusa o que o próprio lote lançou', () => {
+  /* C18. Ao reabrir um lote, as linhas que ELE MESMO lançou estão no ciclo e
+     nenhuma linha da fatura as "reclama" — o cruzamento só casa com o que já
+     existia antes. Sem tirar o lote, elas apareceriam como não explicadas,
+     sendo as mais explicadas de todas. Foi exatamente o erro da primeira
+     medição: "Lavatudovip 1/6" parecia um gasto esquecido e era uma parcela
+     que a própria importação tinha criado. */
+  assert.match(
+    API,
+    /importacao_id is distinct from \$\{lote\}/,
+    'sobrasDoCiclo parou de excluir os lançamentos do próprio lote',
+  );
+  // E a janela vem das linhas À VISTA: parcelada carrega a data da compra
+  // original e esticaria o ciclo por meses.
+  assert.match(
+    IMPORTADOR,
+    /\.filter\(\(l\) => !l\.parcela\)/,
+    'o ciclo voltou a contar as parceladas, que esticam a janela até a data da compra',
+  );
+});
