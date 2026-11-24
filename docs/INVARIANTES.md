@@ -24,8 +24,8 @@ arquivo guarda o que precisa **sobreviver à troca de tecnologia**.
 
 ## Quantas estão verificadas por máquina
 
-61 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
-e `npm test` verifica mais nove contra a forma do front (`src/lib/tela.test.ts`),
+62 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
+e `npm test` verifica mais dez contra a forma do front (`src/lib/tela.test.ts`),
 e é por isso que os dois têm o mesmo nome: a distância entre os dois números é a medida
 de quanto ainda depende de alguém lembrar.
 
@@ -873,6 +873,31 @@ de revisar 86 linhas.
 > quem paga é ela, e ela transfere depois — decisão do Irwin em 19/11, para ela enxergar
 > o cartão dela como gasto dela. Lançar tudo como pago pelo titular daria mais confusão
 > do que acerto.
+
+---
+
+### C19. O topo do painel fala do último mês fechado
+
+**Regra:** os números do topo do Dashboard (fixo e variável) são do **último mês fechado**,
+e o rótulo diz qual. O mês corrente aparece numa linha à parte, como *em andamento*. O
+período escolhido vale só para **categoria e divisão**; o fixo mensal, a evolução das
+fixas e o já comprometido têm janela própria e não obedecem a ele.
+
+**Se violada — "este mês":** o mês corrente nunca está fechado — a fatura dele só entra no
+mês seguinte. Em 20/11 a variável do topo marcava pouco mais da metade da de outubro, e
+a leitura natural era "estamos gastando menos", que era falso.
+
+**Se violada — o período em tudo:** recortada por "3 meses fechados", a evolução anual fica
+com uma barra só; o já comprometido olha para a frente e uma janela no passado o esvazia
+sem dizer por quê.
+
+**Detalhe de implementação que custou atenção:** o período nasce preenchido (3 meses
+fechados) **na declaração** de `FILTRO_DASH`, porque o boot chama `carregarDashboard()`
+antes de o bloco do Dashboard rodar. Inicializar lá embaixo mandaria a primeira carga sem
+janela nenhuma.
+
+**Como provar:** `src/lib/tela.test.ts` reprova se o topo voltar a ler o mês corrente ou se
+o período deixar de nascer na declaração.
 
 ---
 

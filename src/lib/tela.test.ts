@@ -274,3 +274,16 @@ test('o que sobrou do ciclo não acusa o que o próprio lote lançou', () => {
     'o ciclo voltou a contar as parceladas, que esticam a janela até a data da compra',
   );
 });
+
+test('o topo do painel fala do último mês fechado', () => {
+  /* C19. "Este mês" nunca está fechado: em 20/11 o topo dava
+     pouco mais da metade da variável de outubro, e parecia economia. */
+  assert.match(FORM, /\$\('valVarMes'\)\.textContent = brl\(f\.variavel\)/, 'o topo deixou de ler o mês fechado');
+  assert.doesNotMatch(FORM, />Fixo este mês</, 'o rótulo "este mês" voltou');
+  // O período nasce na declaração: o boot carrega o painel antes do bloco dele rodar.
+  assert.match(
+    FORM,
+    /let FILTRO_DASH = \{[^}]*preset: '3m'[^}]*\};\s*\(function\(\)\{ const j = janelaPreset\('3m'\)/,
+    'o período deixou de nascer preenchido na declaração de FILTRO_DASH',
+  );
+});
