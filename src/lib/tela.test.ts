@@ -275,21 +275,31 @@ test('o que sobrou do ciclo não acusa o que o próprio lote lançou', () => {
   );
 });
 
-test('o topo do painel fala do último mês fechado', () => {
-  /* C19. "Este mês" nunca está fechado: em 20/11 o topo dava
-     pouco mais da metade da variável de outubro, e parecia economia. */
-  assert.match(FORM, /\$\('valVarMes'\)\.textContent = brl\(f\.variavel\)/, 'o topo deixou de ler o mês fechado');
-  assert.doesNotMatch(FORM, />Fixo este mês</, 'o rótulo "este mês" voltou');
+test('o painel nunca soma o mês em andamento', () => {
+  /* C19. "Este mês" nunca está fechado: em 20/11 o topo dava pouco mais da
+     metade da variável de outubro, e parecia economia. Com o período mandando
+     na tela toda, a guarda passou para os atalhos: todos terminam no último
+     mês fechado — "Este ano" e "Tudo" incluídos. */
+  const preset = FORM.slice(FORM.indexOf('function janelaPreset('), FORM.indexOf('function rotuloPeriodo('));
+  assert.match(preset, /const fimFechado = isoLocal\(new Date\(y, m, 0\)\)/, 'o fim dos atalhos deixou de ser o último mês fechado');
+  for (const p of ['ultimo', '3m', '12m', 'ano']) {
+    assert.match(preset, new RegExp(`p === '${p}'\\)\\s*return \\[[^\\]]*,\\s*fimFechado\\]`), `o atalho '${p}' deixou de terminar no último mês fechado`);
+  }
+  assert.match(preset, /return \['', fimFechado\];/, '"Tudo" voltou a incluir o mês em andamento');
   // O período nasce na declaração: o boot carrega o painel antes do bloco dele rodar.
   assert.match(
     FORM,
     /let FILTRO_DASH = \{[^}]*preset: '3m'[^}]*\};\s*\(function\(\)\{ const j = janelaPreset\('3m'\)/,
     'o período deixou de nascer preenchido na declaração de FILTRO_DASH',
   );
-  // O anualizado para no último mês fechado, como o topo.
-  assert.match(
-    API,
-    /as meses\s+\$\{base\} and data <= \$\{fechado\.fim\}/,
-    'o anualizado voltou a contar o mês em andamento',
-  );
+});
+
+test('o filtro por pessoa conta a parte, e a parte da recorrência sai da regra do gatilho', () => {
+  /* C20. A parte do Irwin mais a da Maria tem que dar o todo. Nos lançamentos
+     isso vem pronto da view; nas recorrências do "já comprometido" a parte é
+     calculada aqui — e o custom da regra é guardado em FRAÇÃO (0,4), enquanto
+     `pctIrwinDe` espera percentual. Sem o `* 100`, o Condomínio custom saía
+     com 0,5% para o Irwin. Foi exatamente o erro da primeira medição. */
+  assert.match(API, /sql\.raw\(pessoa === 'todos' \? 'valor_total' : `parte_\$\{pessoa\}`\)/, 'o filtro deixou de contar a parte da pessoa');
+  assert.match(API, /pctIrwinDe\(divisao, Number\(pctCustom\) \* 100, pctRenda\)/, 'a parte da recorrência perdeu a conversão de fração para percentual');
 });

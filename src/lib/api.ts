@@ -903,12 +903,12 @@ const MESES = [
   'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
 ];
 
-/** Primeiro e último dia do mês `desloc` meses a partir de `ano`/`mes` (1–12), em ISO. */
 /** Percentual com uma casa, e zero quando a base é zero. */
 function pctDe(parte: number, todo: number) {
   return todo > 0 ? Math.round((parte / todo) * 1000) / 10 : 0;
 }
 
+/** Primeiro e último dia do mês `desloc` meses a partir de `ano`/`mes` (1–12), em ISO. */
 function janelaDoMes(ano: number, mes: number, desloc: number) {
   const i = new Date(Date.UTC(ano, mes - 1 + desloc, 1));
   const f = new Date(Date.UTC(ano, mes + desloc, 0));
@@ -920,28 +920,74 @@ function janelaDoMes(ano: number, mes: number, desloc: number) {
   };
 }
 
+const isoUTC = (d: Date) => d.toISOString().slice(0, 10);
+const diaUTC = (s: string) => new Date(`${s}T00:00:00Z`);
+
+/**
+ * O período imediatamente antes de [ini, fim], do mesmo tamanho.
+ *
+ * Em MESES quando a janela é de meses inteiros, e em dias só quando não é.
+ * Por dias, "outubro" (31 dias) viraria 31/08 a 30/09 — nem agosto nem
+ * setembro, e o rótulo "o mês antes" mentiria.
+ *
+ * "Este ano" é a exceção: jan a out contra "os 10 meses antes" daria mar a dez
+ * do ano passado, que ninguém compara. Janela que começa em janeiro e não sai
+ * do ano compara com os MESMOS meses do ano anterior.
+ */
+function periodoAnterior(ini: string, fim: string) {
+  const a = diaUTC(ini);
+  const b = diaUTC(fim);
+  const fimDoMes = new Date(Date.UTC(b.getUTCFullYear(), b.getUTCMonth() + 1, 0));
+  if (a.getUTCDate() === 1 && b.getTime() === fimDoMes.getTime()) {
+    const meses =
+      (b.getUTCFullYear() - a.getUTCFullYear()) * 12 + b.getUTCMonth() - a.getUTCMonth() + 1;
+    if (a.getUTCMonth() === 0 && a.getUTCFullYear() === b.getUTCFullYear() && meses < 12) {
+      return {
+        ini: isoUTC(new Date(Date.UTC(a.getUTCFullYear() - 1, 0, 1))),
+        fim: isoUTC(new Date(Date.UTC(b.getUTCFullYear() - 1, b.getUTCMonth() + 1, 0))),
+        meses,
+        anoPassado: true,
+      };
+    }
+    return {
+      ini: isoUTC(new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth() - meses, 1))),
+      fim: isoUTC(new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), 0))),
+      meses,
+      anoPassado: false,
+    };
+  }
+  const dias = Math.round((b.getTime() - a.getTime()) / 86400000) + 1;
+  return {
+    ini: isoUTC(new Date(a.getTime() - dias * 86400000)),
+    fim: isoUTC(new Date(a.getTime() - 86400000)),
+    meses: null,
+    anoPassado: false,
+  };
+}
+
 /**
  * O painel.
  *
- * O MÊS QUE MANDA É O ÚLTIMO FECHADO, não o corrente. A fatura do cartão de
- * novembro só entra em dezembro, então o mês corrente está sempre incompleto:
- * em 20/11 a variável marcava pouco mais da metade da de outubro, e a tela
- * dizia "este mês" como se fosse comparável. O corrente aparece, mas como
- * "em andamento", com o tamanho que tem.
+ * DOIS FILTROS MANDAM NA TELA TODA:
+ * - DE QUEM: todos, ou a PARTE de uma pessoa em cada gasto — metade do 50/50,
+ *   tudo do 100% dela, nada do 100% do outro. Parte, e não quem pagou: a
+ *   pergunta é "do meu dinheiro, o que eu gasto com cada coisa". A parte do
+ *   Irwin mais a da Maria dá o total de "todos";
+ * - O PERÍODO. Os atalhos da tela terminam sempre no último mês FECHADO (C19):
+ *   a fatura do mês corrente só entra no seguinte, e somá-lo puxaria tudo
+ *   para baixo sem ninguém ver.
  *
- * CADA CARD TEM A SUA JANELA, e ela é dita no próprio card:
- * - nosso fixo: os seis meses fechados, ou a série inteira por ano. Reais e %
- *   no MESMO gráfico: eram dois cards, e o % sozinho enganava — ele sobe tanto
- *   porque o fixo cresceu quanto porque a variável encolheu;
- * - fixo vs. variável: o último fechado contra a média dos seis;
- * - categoria e divisão: o PERÍODO escolhido na tela;
- * - já comprometido: os três próximos meses. O único que olha para a frente.
- *
- * As duas séries do "nosso fixo" vêm juntas, e Mensal/Anualizado é só troca de
- * tela: ida ao servidor por um toque era o que abria espaço para a resposta
- * velha pintar por cima da nova.
+ * A única exceção ao período é o JÁ COMPROMETIDO: ele olha para a frente, e
+ * uma janela no passado o esvaziaria sem dizer por quê. O "de quem" vale nele.
  */
-export async function getDashboard(filtro?: { dataIni?: string; dataFim?: string }) {
+export async function getDashboard(filtro?: {
+  dataIni?: string;
+  dataFim?: string;
+  pessoa?: 'todos' | 'irwin' | 'maria';
+}) {
+  const pessoa = filtro?.pessoa === 'irwin' || filtro?.pessoa === 'maria' ? filtro.pessoa : 'todos';
+  // O valor que conta: o lançamento inteiro, ou a parte de uma pessoa nele.
+  const V = sql.raw(pessoa === 'todos' ? 'valor_total' : `parte_${pessoa}`);
   /* Investimento, '9 Acerto de Contas' e o que é de fora ficam fora de todo
      relatório de gasto. Os três por motivos diferentes: o segundo é
      transferência entre os dois, o terceiro nem é gasto do casal — só passou
@@ -956,85 +1002,131 @@ export async function getDashboard(filtro?: { dataIni?: string; dataFim?: string
   const DATA = /^\d{4}-\d{2}-\d{2}$/;
   const pIni = filtro?.dataIni && DATA.test(filtro.dataIni) ? filtro.dataIni : null;
   const pFim = filtro?.dataFim && DATA.test(filtro.dataFim) ? filtro.dataFim : null;
-  const noPeriodo = sql`${pIni ? sql`and data >= ${pIni}` : sql``}
-                        ${pFim ? sql`and data <= ${pFim}` : sql``}`;
+  const entre = (ini: string | null, fim: string | null) =>
+    sql`${ini ? sql`and data >= ${ini}` : sql``} ${fim ? sql`and data <= ${fim}` : sql``}`;
+  const noPeriodo = entre(pIni, pFim);
 
   // O "hoje" do banco, o mesmo de `current_date` em todo o resto do app.
   const [{ hoje }] = await db.execute<{ hoje: string }>(sql`select current_date::text as hoje`);
   const [ano, mes] = hoje.split('-').map(Number);
-  const fechados = [-6, -5, -4, -3, -2, -1].map((d) => janelaDoMes(ano, mes, d));
-  const fechado = fechados[fechados.length - 1];
   const corrente = janelaDoMes(ano, mes, 0);
   const proximos = [1, 2, 3].map((d) => janelaDoMes(ano, mes, d));
 
-  const porMes = await db.execute<{ mes: string; fixa: string; variavel: string; qtd: string }>(
-    sql`select to_char(date_trunc('month', data), 'YYYY-MM') as mes,
-               coalesce(sum(valor_total) filter (where tipo = 'Fixa'), 0) as fixa,
-               coalesce(sum(valor_total) filter (where tipo = 'Variável'), 0) as variavel,
-               count(*) as qtd
-        ${base} and data >= ${fechados[0].ini} and data <= ${corrente.fim}
-        group by 1`,
-  );
-  const doMes = (chave: string) => {
-    const r = porMes.find((x) => x.mes === chave);
-    return { fixa: Number(r?.fixa ?? 0), variavel: Number(r?.variavel ?? 0), qtd: Number(r?.qtd ?? 0) };
-  };
-  const seis = fechados.map((j) => doMes(j.chave));
-  const mediaFixa = seis.reduce((a, x) => a + x.fixa, 0) / seis.length;
-  const mediaVar = seis.reduce((a, x) => a + x.variavel, 0) / seis.length;
+  const somaFV = (onde: ReturnType<typeof entre>) =>
+    db.execute<{ fixa: string; variavel: string; meses: string }>(
+      sql`select coalesce(sum(${V}) filter (where tipo = 'Fixa'), 0) as fixa,
+                 coalesce(sum(${V}) filter (where tipo = 'Variável'), 0) as variavel,
+                 count(distinct date_trunc('month', data)) as meses
+          ${base} ${onde}`,
+    );
 
-  const categorias = await db.execute<{
-    categoria: string; total: string; irwin: string; maria: string;
-  }>(
-    sql`select categoria,
-               sum(valor_total) as total,
-               sum(parte_irwin) as irwin,
-               sum(parte_maria) as maria
-        ${base} ${noPeriodo}
-        group by categoria order by sum(valor_total) desc`,
+  /* FIXO VS. VARIÁVEL: o período contra os meses logo antes, do mesmo
+     tamanho. Era "o último fechado contra a média dos seis", e a média não
+     servia mais: com 3 meses escolhidos, ela cobria o próprio período. Sem
+     começo ("Tudo") não existe antes, e a comparação some. */
+  const ant = pIni && pFim ? periodoAnterior(pIni, pFim) : null;
+  const [[resumo], anteriorRows, corr] = await Promise.all([
+    somaFV(noPeriodo),
+    ant ? somaFV(entre(ant.ini, ant.fim)) : Promise.resolve(null),
+    db.execute<{ total: string; qtd: string }>(
+      sql`select coalesce(sum(${V}), 0) as total, count(*) filter (where ${V} > 0) as qtd
+          ${base} and data >= ${corrente.ini} and data <= ${corrente.fim}`,
+    ),
+  ]);
+  const rFixa = Number(resumo.fixa);
+  const rVar = Number(resumo.variavel);
+  const rMeses = Math.max(1, Number(resumo.meses));
+  const anterior =
+    ant && anteriorRows
+      ? {
+          ini: ant.ini,
+          fim: ant.fim,
+          meses: ant.meses,
+          anoPassado: ant.anoPassado,
+          fixa: arred(Number(anteriorRows[0].fixa)),
+          variavel: arred(Number(anteriorRows[0].variavel)),
+        }
+      : null;
+
+  /* NOSSO FIXO: as barras são os meses do período. Acima de 12 meses — ou sem
+     começo — viram ANOS, com a média de fixo por mês de cada um (dividida
+     pelos meses que o ano tem na base: 2020 começa no meio, e dividir por 12
+     o encolheria; e um ano com menos de 3 meses na base, que não seja o
+     último, fica de fora). Não há botão Mensal/Anualizado: quem escolhe é o período,
+     e um "anualizado" de 3 meses seria uma barra só. Ano sem fixo nenhum
+     fica de fora: é a base que ainda não cobria aquele ano. */
+  const mesesNoPeriodo =
+    pIni && pFim
+      ? (diaUTC(pFim).getUTCFullYear() - diaUTC(pIni).getUTCFullYear()) * 12 +
+        diaUTC(pFim).getUTCMonth() - diaUTC(pIni).getUTCMonth() + 1
+      : Infinity;
+  const porAno = mesesNoPeriodo > 12;
+  const barras = await db.execute<{ rotulo: string; fixa: string; total: string; meses: string }>(
+    porAno
+      ? sql`select extract(year from data)::text as rotulo,
+                   coalesce(sum(${V}) filter (where tipo = 'Fixa'), 0) as fixa,
+                   sum(${V}) as total,
+                   count(distinct date_trunc('month', data)) as meses
+            ${base} ${noPeriodo}
+            group by 1
+            having coalesce(sum(valor_total) filter (where tipo = 'Fixa'), 0) > 0
+            order by 1`
+      : sql`select to_char(data, 'YYYY-MM') as rotulo,
+                   coalesce(sum(${V}) filter (where tipo = 'Fixa'), 0) as fixa,
+                   sum(${V}) as total,
+                   1 as meses
+            ${base} ${noPeriodo}
+            group by 1 order by 1`,
   );
 
-  const divisoes = await db.execute<{ divisao: string; total: string }>(
-    sql`select divisao, sum(valor_total) as total
-        ${base} ${noPeriodo}
-        group by divisao order by sum(valor_total) desc`,
-  );
-
-  /* O ANO, para o "Anualizado". Para no último mês FECHADO, e isso é regra:
-     um parcelamento nasce com a série inteira (A19) e joga linhas até o ano
-     que vem, enquanto as fixas só são geradas até hoje (A18) — o futuro tem
-     parcela e não tem fixa, e o ano corrente sairia com o % lá embaixo. O
-     mês corrente fica fora pelo motivo do topo: está sempre incompleto.
-     O valor é a MÉDIA DE FIXO POR MÊS, dividida pelos meses que o ano tem na
-     base — 2020 começa no meio, e dividir por 12 o encolheria. Ano sem fixo
-     nenhum fica de fora: é a base que ainda não cobria aquele ano (2019 tem
-     uma linha só), não um ano em que o casal não teve conta fixa. */
-  const anos = await db.execute<{ ano: string; fixa: string; total: string; meses: string }>(
-    sql`select extract(year from data)::text as ano,
-               coalesce(sum(valor_total) filter (where tipo = 'Fixa'), 0) as fixa,
-               sum(valor_total) as total,
-               count(distinct date_trunc('month', data)) as meses
-        ${base} and data <= ${fechado.fim}
-        group by 1
-        having coalesce(sum(valor_total) filter (where tipo = 'Fixa'), 0) > 0
-        order by 1 desc limit 8`,
-  );
+  const [categorias, divisoes] = await Promise.all([
+    db.execute<{ categoria: string; total: string; irwin: string; maria: string }>(
+      sql`select categoria,
+                 sum(${V}) as total,
+                 sum(parte_irwin) as irwin,
+                 sum(parte_maria) as maria
+          ${base} ${noPeriodo}
+          group by categoria
+          having sum(${V}) > 0
+          order by sum(${V}) desc`,
+    ),
+    db.execute<{ divisao: string; total: string }>(
+      sql`select divisao, sum(${V}) as total
+          ${base} ${noPeriodo}
+          group by divisao
+          having sum(${V}) > 0
+          order by sum(${V}) desc`,
+    ),
+  ]);
 
   /* JÁ COMPROMETIDO — o que os próximos meses já têm antes de qualquer compra.
      Duas fontes, e elas não se sobrepõem por construção: as RECORRÊNCIAS não
      estão gravadas no futuro (o gatilho só gera até o fim do mês corrente,
      A18), então vêm das regras; as PARCELAS estão (A19), então vêm dos
      lançamentos. `not recorrente` é a guarda para o dia em que alguém gravar
-     uma ocorrência adiantada — ela não pode contar duas vezes. */
-  const regras = await db.execute<{
-    descricao: string; valor: string; frequencia: string; data_inicio: string;
-    data_fim: string | null; ultima_geracao: string | null;
-  }>(
-    sql`select descricao, valor, frequencia, data_inicio::text as data_inicio,
-               data_fim::text as data_fim, ultima_geracao::text as ultima_geracao
-        from recorrencias
-        where ativo = true and categoria not like '8 %' and categoria not like '9 %'`,
-  );
+     uma ocorrência adiantada — ela não pode contar duas vezes.
+     A parte de cada pessoa numa recorrência sai da MESMA regra que o gatilho
+     usa ao gerar o lançamento (`pctIrwinDe`, com o custom guardado em fração). */
+  const [regras, [conf]] = await Promise.all([
+    db.execute<{
+      descricao: string; valor: string; frequencia: string; data_inicio: string;
+      data_fim: string | null; ultima_geracao: string | null; divisao: string;
+      pct_irwin_custom: string | null;
+    }>(
+      sql`select descricao, valor, frequencia, data_inicio::text as data_inicio,
+                 data_fim::text as data_fim, ultima_geracao::text as ultima_geracao,
+                 divisao, pct_irwin_custom
+          from recorrencias
+          where ativo = true and categoria not like '8 %' and categoria not like '9 %'`,
+    ),
+    db.execute<{ pct_irwin_renda: string }>(sql`select pct_irwin_renda from config where id = 1`),
+  ]);
+  const pctRenda = Number(conf?.pct_irwin_renda ?? 0.5);
+  const fatia = (divisao: string, pctCustom: string | null) => {
+    if (pessoa === 'todos') return 1;
+    const pI = pctIrwinDe(divisao, Number(pctCustom) * 100, pctRenda);
+    return pessoa === 'irwin' ? pI : 1 - pI;
+  };
   /* Linha a linha, e não somado: o card abre o mês para mostrar O QUE é, que é
      a pergunta de quem quer saber o que dá para cortar. A descrição da parcela
      vem da SÉRIE, sem o sufixo — o `seq/total` vira etiqueta à parte. */
@@ -1044,19 +1136,21 @@ export async function getDashboard(filtro?: { dataIni?: string; dataFim?: string
   }>(
     sql`select to_char(date_trunc('month', l.data), 'YYYY-MM') as mes,
                coalesce(s.descricao, l.descricao) as descricao,
-               l.valor_total as valor, l.seq, s.total,
+               l.${V} as valor, l.seq, s.total,
                (l.serie_id is not null) as parcela
         from v_lancamentos l left join series s on s.id = l.serie_id
         where l.tipo <> 'Investimento' and not l.eh_quitacao and not l.de_fora
-          and not l.recorrente
+          and not l.recorrente and l.${V} > 0
           and l.data >= ${proximos[0].ini} and l.data <= ${proximos[2].fim}
-        order by l.valor_total desc`,
+        order by l.${V} desc`,
   );
   const comprometido = proximos.map((j) => {
     const lim = parseDataLocal(j.fim);
     const ini = parseDataLocal(j.ini).getTime();
     const recorrencias: { descricao: string; valor: number; vezes: number; total: number; ate: string | null }[] = [];
     for (const r of regras) {
+      const parte = fatia(r.divisao, r.pct_irwin_custom);
+      if (parte <= 0) continue;
       const freq = normalizarFreq(r.frequencia);
       const teto = r.data_fim ? parseDataLocal(r.data_fim) : null;
       const limite = teto && teto.getTime() < lim.getTime() ? teto : lim;
@@ -1067,11 +1161,13 @@ export async function getDashboard(filtro?: { dataIni?: string; dataFim?: string
         (d) => d.getTime() >= ini,
       ).length;
       if (n) {
+        // O total sai do valor cheio: arredondar a unidade antes e multiplicar
+        // depois fazia a parte do Irwin mais a da Maria errar o todo em centavos.
         recorrencias.push({
           descricao: r.descricao,
-          valor: Number(r.valor),
+          valor: arred(Number(r.valor) * parte),
           vezes: n,
-          total: arred(n * Number(r.valor)),
+          total: arred(n * Number(r.valor) * parte),
           ate: r.data_fim,
         });
       }
@@ -1080,7 +1176,7 @@ export async function getDashboard(filtro?: { dataIni?: string; dataFim?: string
     const doMesF = futuros.filter((x) => x.mes === j.chave);
     const item = (x: (typeof futuros)[number]) => ({
       descricao: x.descricao,
-      valor: Number(x.valor),
+      valor: arred(Number(x.valor)),
       seq: x.seq,
       de: x.total,
     });
@@ -1101,25 +1197,31 @@ export async function getDashboard(filtro?: { dataIni?: string; dataFim?: string
   const maria = categorias.reduce((a, c) => a + Number(c.maria ?? 0), 0);
 
   return {
-    mesFechado: { mes: fechado.nome, ...doMes(fechado.chave) },
+    pessoa,
+    periodo: { ini: pIni, fim: pFim },
     mesCorrente: {
       mes: corrente.nome,
       proximo: proximos[0].nome,
-      total: arred(doMes(corrente.chave).fixa + doMes(corrente.chave).variavel),
-      qtd: doMes(corrente.chave).qtd,
+      total: arred(Number(corr[0].total)),
+      qtd: Number(corr[0].qtd),
     },
-    mediaFechados: { fixa: arred(mediaFixa), variavel: arred(mediaVar), meses: seis.length },
-    fixoMensal: fechados.map((j, k) => ({
-      rotulo: j.nome,
-      fixa: arred(seis[k].fixa),
-      pct: pctDe(seis[k].fixa, seis[k].fixa + seis[k].variavel),
-    })),
-    fixoAnual: anos.reverse().map((a) => ({
-      rotulo: a.ano,
-      fixa: arred(Number(a.fixa) / Math.max(1, Number(a.meses))),
-      pct: pctDe(Number(a.fixa), Number(a.total)),
-    })),
-    periodo: { ini: pIni, fim: pFim },
+    resumo: { fixa: arred(rFixa), variavel: arred(rVar), meses: rMeses },
+    anterior,
+    fixo: {
+      porAno,
+      mediaMes: arred(rFixa / rMeses),
+      pct: pctDe(rFixa, rFixa + rVar),
+      barras: barras
+        // O ano em que a base COMEÇA, com um ou dois meses soltos, não é um ano:
+        // 2018 tem uma linha de fixo e virava uma barra de 1%. O último fica
+        // sempre — em fevereiro o ano corrente também só tem um mês fechado.
+        .filter((b, k) => !porAno || Number(b.meses) >= 3 || k === barras.length - 1)
+        .map((b) => ({
+        rotulo: b.rotulo,
+        fixa: arred(Number(b.fixa) / Math.max(1, Number(b.meses))),
+        pct: pctDe(Number(b.fixa), Number(b.total)),
+      })),
+    },
     categorias: categorias.map((c) => ({
       categoria: c.categoria,
       total: Number(c.total),
@@ -1127,7 +1229,7 @@ export async function getDashboard(filtro?: { dataIni?: string; dataFim?: string
       maria: Number(c.maria ?? 0),
     })),
     divisao: {
-      porTipo: divisoes.map((d) => ({ divisao: d.divisao, total: Number(d.total) })),
+      porTipo: divisoes.map((d) => ({ divisao: d.divisao, total: arred(Number(d.total)) })),
       irwin: arred(irwin),
       maria: arred(maria),
     },

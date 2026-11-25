@@ -24,7 +24,7 @@ arquivo guarda o que precisa **sobreviver à troca de tecnologia**.
 
 ## Quantas estão verificadas por máquina
 
-62 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
+63 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
 e `npm test` verifica mais dez contra a forma do front (`src/lib/tela.test.ts`),
 e é por isso que os dois têm o mesmo nome: a distância entre os dois números é a medida
 de quanto ainda depende de alguém lembrar.
@@ -876,33 +876,46 @@ de revisar 86 linhas.
 
 ---
 
-### C19. O topo do painel fala do último mês fechado
+### C19. O painel nunca soma o mês em andamento
 
-**Regra:** os números do topo do Dashboard (fixo e variável) são do **último mês fechado**,
-e o rótulo diz qual. O mês corrente aparece numa linha à parte, como *em andamento*. O
-período escolhido vale só para **categoria e divisão**; o nosso fixo (mensal e anualizado)
-e o já comprometido têm janela própria e não obedecem a ele. O anualizado também para no
-último mês fechado: o ano corrente não leva o mês em andamento.
+**Regra:** todo atalho de período do Dashboard termina no **último mês fechado** — "Este
+ano" e "Tudo" incluídos. Só o Personalizado é livre. O mês corrente aparece numa linha à
+parte, como *em andamento*, do tamanho que tem. O período vale para a tela toda, menos o
+já comprometido, que olha para a frente.
 
-**Se violada — "este mês":** o mês corrente nunca está fechado — a fatura dele só entra no
-mês seguinte. Em 20/11 a variável do topo marcava pouco mais da metade da de outubro, e
-a leitura natural era "estamos gastando menos", que era falso.
-
-**Se violada — o período em tudo:** recortado por "3 meses fechados", o anualizado fica
-com uma barra só; o já comprometido olha para a frente e uma janela no passado o esvazia
-sem dizer por quê.
+**Se violada:** o mês corrente nunca está fechado — a fatura dele só entra no mês
+seguinte. Em 20/11 o topo, que dizia "este mês", marcava pouco mais da metade da variável
+de outubro, e a leitura natural era "estamos gastando menos", que era falso.
 
 **Detalhe de implementação que custou atenção:** o período nasce preenchido (3 meses
-fechados) **na declaração** de `FILTRO_DASH`, porque o boot chama `carregarDashboard()`
-antes de o bloco do Dashboard rodar. Inicializar lá embaixo mandaria a primeira carga sem
-janela nenhuma.
+fechados) **na declaração** de `FILTRO_DASH`, e as constantes que o painel usa também
+ficam lá em cima, porque o boot chama `carregarDashboard()` antes de o bloco do Dashboard
+rodar. Declarar lá embaixo dá *"Cannot access before initialization"* — aconteceu duas
+vezes.
 
-**Se violada — o % sem os reais:** o % de fixo sozinho engana, porque sobe tanto quando o
-fixo cresce quanto quando a variável encolhe. Em 25/11 ele foi lido como erro. Por isso o
-gráfico do fixo leva o valor em reais e o % juntos, na mesma barra.
+**Como provar:** `src/lib/tela.test.ts` reprova se um atalho deixar de terminar no último
+mês fechado ou se o período deixar de nascer na declaração.
 
-**Como provar:** `src/lib/tela.test.ts` reprova se o topo voltar a ler o mês corrente, se
-o período deixar de nascer na declaração ou se o anualizado passar do último mês fechado.
+---
+
+### C20. Filtrar por pessoa é contar a parte dela, e as partes somam o todo
+
+**Regra:** o "De quem" do Dashboard conta a **parte** de cada pessoa em cada gasto —
+metade do 50/50, tudo do 100% dela, nada do 100% do outro, a fração do valor exato. Não
+conta quem pagou. A parte do Irwin mais a da Maria dá o total de "Todos", em todo card.
+
+**Se violada — quem pagou no lugar da parte:** a pergunta é "do meu dinheiro, o que eu
+gasto com cada coisa". Quem pagou responde outra coisa, e quem paga a fatura do cartão
+pareceria gastar tudo.
+
+**Se violada — a fração da recorrência:** nos lançamentos a parte vem pronta da view. Nas
+recorrências do já comprometido ela é calculada na hora, com a mesma `pctIrwinDe` do
+gatilho — e o custom da regra é guardado em **fração** (0,4), enquanto a função espera
+**percentual**. Sem a conversão, o Condomínio saía com 0,5% para o Irwin.
+
+**Como provar:** `src/lib/tela.test.ts` reprova se o filtro deixar de ler `parte_*` ou se
+a conversão sumir. A soma das partes foi conferida na produção em 25/11: fixo do período,
+divisão e comprometido batem com "Todos" ao centavo.
 
 ---
 
