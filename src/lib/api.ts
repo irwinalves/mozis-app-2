@@ -904,6 +904,11 @@ const MESES = [
 ];
 
 /** Primeiro e último dia do mês `desloc` meses a partir de `ano`/`mes` (1–12), em ISO. */
+/** Percentual com uma casa, e zero quando a base é zero. */
+function pctDe(parte: number, todo: number) {
+  return todo > 0 ? Math.round((parte / todo) * 1000) / 10 : 0;
+}
+
 function janelaDoMes(ano: number, mes: number, desloc: number) {
   const i = new Date(Date.UTC(ano, mes - 1 + desloc, 1));
   const f = new Date(Date.UTC(ano, mes + desloc, 0));
@@ -925,19 +930,18 @@ function janelaDoMes(ano: number, mes: number, desloc: number) {
  * "em andamento", com o tamanho que tem.
  *
  * CADA CARD TEM A SUA JANELA, e ela é dita no próprio card:
- * - fixo mensal: os seis meses fechados — é tendência, precisa de comprimento;
+ * - nosso fixo: os seis meses fechados, ou a série inteira por ano. Reais e %
+ *   no MESMO gráfico: eram dois cards, e o % sozinho enganava — ele sobe tanto
+ *   porque o fixo cresceu quanto porque a variável encolheu;
  * - fixo vs. variável: o último fechado contra a média dos seis;
  * - categoria e divisão: o PERÍODO escolhido na tela;
- * - evolução do % de fixas: a série inteira — anual ou os últimos 12 meses.
- *   Recortada por um período de três meses, a anual teria uma barra só;
  * - já comprometido: os três próximos meses. O único que olha para a frente.
+ *
+ * As duas séries do "nosso fixo" vêm juntas, e Mensal/Anualizado é só troca de
+ * tela: ida ao servidor por um toque era o que abria espaço para a resposta
+ * velha pintar por cima da nova.
  */
-export async function getDashboard(filtro?: {
-  dataIni?: string;
-  dataFim?: string;
-  granularidade?: 'mensal' | 'anual';
-}) {
-  const granularidade = filtro?.granularidade ?? 'anual';
+export async function getDashboard(filtro?: { dataIni?: string; dataFim?: string }) {
   /* Investimento, '9 Acerto de Contas' e o que é de fora ficam fora de todo
      relatório de gasto. Os três por motivos diferentes: o segundo é
      transferência entre os dois, o terceiro nem é gasto do casal — só passou
@@ -996,27 +1000,24 @@ export async function getDashboard(filtro?: {
         group by divisao order by sum(valor_total) desc`,
   );
 
-  /* A evolução para no mês corrente, e isso é regra, não gosto.
-     Um parcelamento nasce com a série inteira (A19) e uma compra em 12x joga
-     linhas até o ano que vem; as fixas, ao contrário, só são geradas até hoje
-     (A18). O futuro então tem parcela e não tem fixa, e o gráfico desenhava
-     uma fileira de meses em 0,0% — que não é "o casal parou de ter aluguel",
-     é "esse mês ainda não aconteceu". */
-  const ateAgora = sql`and data < date_trunc('month', current_date) + interval '1 month'`;
-  const evolucao = await db.execute<{ rotulo: string; pct: string }>(
-    granularidade === 'mensal'
-      ? sql`select to_char(data, 'MM/YY') as rotulo,
-                   round(100.0 * coalesce(sum(valor_total) filter (where tipo = 'Fixa'), 0)
-                         / nullif(sum(valor_total), 0), 1) as pct
-            ${base} ${ateAgora}
-            group by date_trunc('month', data), to_char(data, 'MM/YY')
-            order by date_trunc('month', data) desc limit 12`
-      : sql`select extract(year from data)::text as rotulo,
-                   round(100.0 * coalesce(sum(valor_total) filter (where tipo = 'Fixa'), 0)
-                         / nullif(sum(valor_total), 0), 1) as pct
-            ${base} ${ateAgora}
-            group by extract(year from data)
-            order by extract(year from data) desc limit 8`,
+  /* O ANO, para o "Anualizado". Para no último mês FECHADO, e isso é regra:
+     um parcelamento nasce com a série inteira (A19) e joga linhas até o ano
+     que vem, enquanto as fixas só são geradas até hoje (A18) — o futuro tem
+     parcela e não tem fixa, e o ano corrente sairia com o % lá embaixo. O
+     mês corrente fica fora pelo motivo do topo: está sempre incompleto.
+     O valor é a MÉDIA DE FIXO POR MÊS, dividida pelos meses que o ano tem na
+     base — 2020 começa no meio, e dividir por 12 o encolheria. Ano sem fixo
+     nenhum fica de fora: é a base que ainda não cobria aquele ano (2019 tem
+     uma linha só), não um ano em que o casal não teve conta fixa. */
+  const anos = await db.execute<{ ano: string; fixa: string; total: string; meses: string }>(
+    sql`select extract(year from data)::text as ano,
+               coalesce(sum(valor_total) filter (where tipo = 'Fixa'), 0) as fixa,
+               sum(valor_total) as total,
+               count(distinct date_trunc('month', data)) as meses
+        ${base} and data <= ${fechado.fim}
+        group by 1
+        having coalesce(sum(valor_total) filter (where tipo = 'Fixa'), 0) > 0
+        order by 1 desc limit 8`,
   );
 
   /* JÁ COMPROMETIDO — o que os próximos meses já têm antes de qualquer compra.
@@ -1026,27 +1027,35 @@ export async function getDashboard(filtro?: {
      lançamentos. `not recorrente` é a guarda para o dia em que alguém gravar
      uma ocorrência adiantada — ela não pode contar duas vezes. */
   const regras = await db.execute<{
-    valor: string; frequencia: string; data_inicio: string; data_fim: string | null;
-    ultima_geracao: string | null;
+    descricao: string; valor: string; frequencia: string; data_inicio: string;
+    data_fim: string | null; ultima_geracao: string | null;
   }>(
-    sql`select valor, frequencia, data_inicio::text as data_inicio,
+    sql`select descricao, valor, frequencia, data_inicio::text as data_inicio,
                data_fim::text as data_fim, ultima_geracao::text as ultima_geracao
         from recorrencias
         where ativo = true and categoria not like '8 %' and categoria not like '9 %'`,
   );
-  const futuros = await db.execute<{ mes: string; total: string; qtd: string; parcelas: string }>(
-    sql`select to_char(date_trunc('month', data), 'YYYY-MM') as mes,
-               sum(valor_total) as total, count(*) as qtd,
-               count(*) filter (where serie_id is not null) as parcelas
-        ${base} and not recorrente
-          and data >= ${proximos[0].ini} and data <= ${proximos[2].fim}
-        group by 1`,
+  /* Linha a linha, e não somado: o card abre o mês para mostrar O QUE é, que é
+     a pergunta de quem quer saber o que dá para cortar. A descrição da parcela
+     vem da SÉRIE, sem o sufixo — o `seq/total` vira etiqueta à parte. */
+  const futuros = await db.execute<{
+    mes: string; descricao: string; valor: string; seq: number | null; total: number | null;
+    parcela: boolean;
+  }>(
+    sql`select to_char(date_trunc('month', l.data), 'YYYY-MM') as mes,
+               coalesce(s.descricao, l.descricao) as descricao,
+               l.valor_total as valor, l.seq, s.total,
+               (l.serie_id is not null) as parcela
+        from v_lancamentos l left join series s on s.id = l.serie_id
+        where l.tipo <> 'Investimento' and not l.eh_quitacao and not l.de_fora
+          and not l.recorrente
+          and l.data >= ${proximos[0].ini} and l.data <= ${proximos[2].fim}
+        order by l.valor_total desc`,
   );
   const comprometido = proximos.map((j) => {
     const lim = parseDataLocal(j.fim);
     const ini = parseDataLocal(j.ini).getTime();
-    let qtdRec = 0;
-    let valorRec = 0;
+    const recorrencias: { descricao: string; valor: number; vezes: number; total: number; ate: string | null }[] = [];
     for (const r of regras) {
       const freq = normalizarFreq(r.frequencia);
       const teto = r.data_fim ? parseDataLocal(r.data_fim) : null;
@@ -1058,19 +1067,33 @@ export async function getDashboard(filtro?: {
         (d) => d.getTime() >= ini,
       ).length;
       if (n) {
-        qtdRec++;
-        valorRec += n * Number(r.valor);
+        recorrencias.push({
+          descricao: r.descricao,
+          valor: Number(r.valor),
+          vezes: n,
+          total: arred(n * Number(r.valor)),
+          ate: r.data_fim,
+        });
       }
     }
-    const f = futuros.find((x) => x.mes === j.chave);
-    const valorLanc = Number(f?.total ?? 0);
+    recorrencias.sort((a, b) => b.total - a.total);
+    const doMesF = futuros.filter((x) => x.mes === j.chave);
+    const item = (x: (typeof futuros)[number]) => ({
+      descricao: x.descricao,
+      valor: Number(x.valor),
+      seq: x.seq,
+      de: x.total,
+    });
+    const parcelas = doMesF.filter((x) => x.parcela).map(item);
+    const avulsos = doMesF.filter((x) => !x.parcela).map(item);
+    const soma = (xs: { total?: number; valor: number }[]) =>
+      xs.reduce((a, x) => a + (x.total ?? x.valor), 0);
     return {
       mes: j.nome,
-      recorrencias: qtdRec,
-      parcelas: Number(f?.parcelas ?? 0),
-      avulsos: Number(f?.qtd ?? 0) - Number(f?.parcelas ?? 0),
-      total: arred(valorRec + valorLanc),
-      valorRecorrencias: arred(valorRec),
+      total: arred(soma(recorrencias) + soma(parcelas) + soma(avulsos)),
+      recorrencias,
+      parcelas,
+      avulsos,
     };
   });
 
@@ -1086,7 +1109,16 @@ export async function getDashboard(filtro?: {
       qtd: doMes(corrente.chave).qtd,
     },
     mediaFechados: { fixa: arred(mediaFixa), variavel: arred(mediaVar), meses: seis.length },
-    fixoMensal: fechados.map((j, k) => ({ mes: j.nome, fixa: arred(seis[k].fixa) })),
+    fixoMensal: fechados.map((j, k) => ({
+      rotulo: j.nome,
+      fixa: arred(seis[k].fixa),
+      pct: pctDe(seis[k].fixa, seis[k].fixa + seis[k].variavel),
+    })),
+    fixoAnual: anos.reverse().map((a) => ({
+      rotulo: a.ano,
+      fixa: arred(Number(a.fixa) / Math.max(1, Number(a.meses))),
+      pct: pctDe(Number(a.fixa), Number(a.total)),
+    })),
     periodo: { ini: pIni, fim: pFim },
     categorias: categorias.map((c) => ({
       categoria: c.categoria,
@@ -1099,10 +1131,6 @@ export async function getDashboard(filtro?: {
       irwin: arred(irwin),
       maria: arred(maria),
     },
-    evolucaoFixas: evolucao.reverse().map((e) => ({
-      rotulo: e.rotulo,
-      pct: Number(e.pct ?? 0),
-    })),
     comprometido,
   };
 }

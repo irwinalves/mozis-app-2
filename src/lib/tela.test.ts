@@ -286,4 +286,10 @@ test('o topo do painel fala do último mês fechado', () => {
     /let FILTRO_DASH = \{[^}]*preset: '3m'[^}]*\};\s*\(function\(\)\{ const j = janelaPreset\('3m'\)/,
     'o período deixou de nascer preenchido na declaração de FILTRO_DASH',
   );
+  // O anualizado para no último mês fechado, como o topo.
+  assert.match(
+    API,
+    /as meses\s+\$\{base\} and data <= \$\{fechado\.fim\}/,
+    'o anualizado voltou a contar o mês em andamento',
+  );
 });

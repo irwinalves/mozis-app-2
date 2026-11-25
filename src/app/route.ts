@@ -21,9 +21,6 @@ export async function GET() {
   // verificável por hash.
   const injecao = [
     '  <script src="/gs-shim.js"></script>',
-    // A planilha identifica um casal específico e o `Form.html` é público, então
-    // a URL vem do ambiente. Sem a variável, o botão "Ver planilha" não aparece.
-    `  <script>window.PLANILHA_URL=${JSON.stringify(process.env.PLANILHA_URL ?? '')}</script>`,
     // C2 pede que "pagaram os dois" tenha representação PRÓPRIA — antes caía
     // num círculo cinza idêntico ao de "sem pagador", que é coisa diferente.
     // Aqui a foto da família cumpre isso melhor que o círculo dividido, e por

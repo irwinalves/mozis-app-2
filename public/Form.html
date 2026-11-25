@@ -275,9 +275,6 @@ a.linha-terceiros .seta{flex:0 0 auto;color:var(--texto3)}
       color:#fff;background:var(--verde);cursor:pointer;font-family:inherit}
 
 /* link para a planilha */
-.btn-planilha{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--texto2);
-      background:var(--chip-neutro);border:none;border-radius:999px;padding:7px 12px;text-decoration:none;
-      margin-bottom:12px}
 
 /* separador de mês/ano */
 .mes-separador{padding:11px 0 5px;font-size:12.5px;font-weight:700;color:var(--texto2);
@@ -414,24 +411,10 @@ input.valor-rateio{border:none;background:none;font-size:17px;font-weight:500;wi
 /* dashboard */
 .dash-card h3{margin:0 0 10px;font-size:13px;font-weight:500}
 .dash-card .sub{font-size:11px;color:var(--texto2);margin:-6px 0 10px}
-.barra-linha{margin-bottom:10px}
-.barra-linha .rotulo{font-size:11px;color:var(--texto2);margin-bottom:4px}
 .barra-empilhada{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--chip-neutro)}
 .legenda{display:flex;gap:14px;font-size:11px;color:var(--texto2);margin-top:8px}
 .legenda span{display:flex;align-items:center;gap:5px}
 .legenda i{width:8px;height:8px;border-radius:2px;display:inline-block}
-/* Doze meses não cabem em 375px: a 27px por coluna o rótulo '42.5%' já é mais
-   largo que a própria coluna, e o excesso vazava para fora do cartão levando
-   junto os meses MAIS RECENTES, que são os que interessam. Agora a faixa rola
-   na horizontal, com largura mínima por coluna, e `carregarDashboard` a deixa
-   no fim — o mês atual aparece sem ninguém precisar arrastar. */
-.evolucao{display:flex;align-items:flex-end;gap:10px;height:110px;
-  overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-.evolucao::-webkit-scrollbar{display:none}
-.evolucao .col{flex:1 0 36px;min-width:36px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
-.evolucao .val{font-size:11px;font-weight:500;margin-bottom:4px}
-.evolucao .barra{width:100%;background:var(--fixa);border-radius:4px 4px 0 0}
-.evolucao .ano{font-size:10px;color:var(--texto2);margin-top:6px}
 .cat-linha{margin-bottom:10px}
 .cat-linha .topo{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}
 .cat-linha .barra-fundo{height:8px;border-radius:999px;background:var(--chip-neutro)}
@@ -444,7 +427,6 @@ input.valor-rateio{border:none;background:none;font-size:17px;font-weight:500;wi
 .filtro-rot{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--texto2);font-weight:500;margin:0 0 9px}
 .numerao{font-size:26px;font-weight:500;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
 .dash-card .sub-num{margin:2px 0 12px}
-.evolucao-baixa{height:96px}
 .nota-dash{font-size:11.5px;color:var(--texto2);margin-top:10px;line-height:1.5}
 .nota-dash b{color:var(--texto);font-weight:500}
 .barra-dupla{display:flex;height:100%;border-radius:999px;overflow:hidden}
@@ -457,11 +439,49 @@ input.valor-rateio{border:none;background:none;font-size:17px;font-weight:500;wi
 .parte-dash small{font-size:11px}
 .chips-gran{margin:0 0 12px}
 .chips-gran .chip{padding:5px 10px;font-size:12.5px}
-.linha-dash{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--borda-card);font-size:13px}
-.linha-dash.primeira{border-top:none}
-.linha-dash span b{font-weight:500}
-.linha-dash span small{display:block;font-size:11px;color:var(--texto2);margin-top:1px}
-.linha-dash > b{font-weight:500;font-variant-numeric:tabular-nums}
+/* Nosso fixo: altura = reais, % dentro. A coluna do último mês fechado é a
+   cheia; as outras, a mesma cor mais rala — legível nos dois temas. */
+.colunas{display:flex;align-items:flex-end;gap:8px;height:112px}
+.colunas .col{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+.colunas .rs{font-size:10.5px;font-weight:500;margin-bottom:4px;font-variant-numeric:tabular-nums}
+.colunas .barra{width:100%;border-radius:4px 4px 0 0;display:flex;align-items:flex-end;justify-content:center;
+  padding-bottom:3px;font-size:10px;font-weight:700;font-variant-numeric:tabular-nums;
+  background:color-mix(in srgb, var(--fixa) 35%, transparent);color:var(--texto)}
+.colunas .barra.atual{background:var(--fixa);color:var(--fixa-l)}
+.colunas .eixo{font-size:10px;color:var(--texto2);margin-top:6px}
+.fv{margin-bottom:14px}
+.fv-topo{display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px}
+.fv-topo span{color:var(--texto2)}
+.fv-topo b{font-weight:500;font-variant-numeric:tabular-nums}
+.fv-valores{display:flex;justify-content:space-between;gap:8px;font-size:12px;font-weight:500;margin-bottom:4px;font-variant-numeric:tabular-nums}
+.barra-pct{display:flex;height:18px;border-radius:6px;overflow:hidden}
+.barra-pct div{display:flex;align-items:center;font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums}
+.barra-pct .pf{background:var(--fixa);color:var(--fixa-l);padding-left:7px}
+.barra-pct .pv{background:var(--var);color:var(--var-l);justify-content:flex-end;padding-right:7px}
+.tabela-div{margin-top:10px}
+.tabela-div .lin{display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 0;border-top:1px solid var(--borda-card)}
+.tabela-div .lin:first-child{border-top:none}
+.tabela-div i{width:8px;height:8px;border-radius:2px;flex:0 0 auto}
+.tabela-div .nome{flex:1}
+.tabela-div .rs{font-variant-numeric:tabular-nums;font-weight:500}
+.tabela-div .pc{width:46px;text-align:right;color:var(--texto2);font-variant-numeric:tabular-nums}
+.mes-lin{display:flex;align-items:center;gap:10px;padding:9px 0;width:100%;border:none;border-top:1px solid var(--borda-card);
+  background:none;color:inherit;font:inherit;font-size:13px;text-align:left;cursor:pointer}
+.mes-lin.primeira{border-top:none}
+.mes-lin .quem{flex:1;min-width:0}
+.mes-lin .quem b{font-weight:500}
+.mes-lin .quem small{display:block;font-size:11px;color:var(--texto2);margin-top:1px}
+.mes-lin .total{font-weight:500;font-variant-numeric:tabular-nums;color:var(--fixa)}
+.seta-mes{width:14px;height:14px;color:var(--texto2);flex:0 0 auto;transition:transform .15s}
+.mes-lin.aberta .seta-mes{transform:rotate(90deg)}
+.mes-itens{background:var(--suave);border-radius:8px;padding:2px 10px 8px;margin-bottom:4px}
+.grupo-rot{display:flex;justify-content:space-between;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--texto2);margin:10px 0 3px;font-weight:500}
+.item-c{display:flex;align-items:baseline;gap:8px;font-size:12px;padding:4px 0}
+.item-c .d{flex:1;min-width:0}
+.item-c .tag{font-size:10px;color:var(--texto2);margin-left:5px;white-space:nowrap}
+.item-c .tag.ult{color:var(--verde)}
+.item-c .v{font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion: reduce){.seta-mes{transition:none}}
 
 /* overlay sucesso */
 .overlay{position:absolute;inset:0;background:var(--bg);display:none;flex-direction:column;align-items:center;
@@ -581,6 +601,7 @@ input.valor-rateio{border:none;background:none;font-size:17px;font-weight:500;wi
         <div class="card" id="cardFiltroDash">
           <div class="filtro-rot">Período · vale para categoria e divisão</div>
           <select id="dashPreset" aria-label="Período">
+            <option value="ultimo">Último mês fechado</option>
             <option value="3m">3 meses fechados</option>
             <option value="12m">12 meses fechados</option>
             <option value="ano">Este ano</option>
@@ -670,6 +691,10 @@ const AVATAR_ANDRE = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQABLAEsAAD/4QNiRXh
 
 let OPC = null, DASH = null, ULTIMOS = null, EVENTOS = [];
 let DASH_PEDIDO = 0; // ver carregarDashboard()
+// Os nomes dos meses do painel. Aqui em cima pelo mesmo motivo do FILTRO_DASH:
+// o boot já desenha o Dashboard antes de o bloco dele rodar.
+const MESES_NOMES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const MES_CURTO = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 /* Os filtros da lista. Vazio = sem filtro; combinam entre si com E.
    O backend recebe este objeto como está — `clausulasDe` em src/lib/api.ts.
 
@@ -714,7 +739,7 @@ let FILTROS = filtrosGuardados() || Object.assign({}, FILTROS_PADRAO);
    declaração: o boot chama carregarDashboard() antes de o bloco do Dashboard
    rodar, e uma inicialização lá embaixo chegaria tarde — a primeira carga iria
    sem janela nenhuma. `janelaPreset` é declaração de função, então já existe. */
-let FILTRO_DASH = { granularidade: 'anual', preset: '3m', dataIni: '', dataFim: '' };
+let FILTRO_DASH = { granularidade: 'mensal', preset: '3m', dataIni: '', dataFim: '' };
 (function(){ const j = janelaPreset('3m'); FILTRO_DASH.dataIni = j[0]; FILTRO_DASH.dataFim = j[1]; })();
 let tabAtiva = 'home', telaAtual = 'home';
 const QTD_RECENTES = 50;
@@ -1412,6 +1437,7 @@ function isoLocal(d){
    meses cheios puxaria a média para baixo sem ninguém ver. */
 function janelaPreset(p){
   const h = new Date(), y = h.getFullYear(), m = h.getMonth();
+  if (p === 'ultimo') return [isoLocal(new Date(y, m - 1, 1)), isoLocal(new Date(y, m, 0))];
   if (p === '3m')  return [isoLocal(new Date(y, m - 3, 1)),  isoLocal(new Date(y, m, 0))];
   if (p === '12m') return [isoLocal(new Date(y, m - 12, 1)), isoLocal(new Date(y, m, 0))];
   if (p === 'ano') return [y + '-01-01', isoLocal(h)];
@@ -1425,17 +1451,21 @@ function rotuloPeriodo(){
   return a ? 'Desde ' + br(a) : 'Até ' + br(b);
 }
 function montarFiltroDash(){
+  // A opção diz QUAL mês é: "último fechado" muda de sentido todo dia 1º.
+  const h = new Date();
+  $('dashPreset').options[0].textContent = 'Último mês fechado · ' + MESES_NOMES[new Date(h.getFullYear(), h.getMonth() - 1, 1).getMonth()];
   $('dashPreset').value = FILTRO_DASH.preset;
   $('dashDataIni').value = FILTRO_DASH.dataIni;
   $('dashDataFim').value = FILTRO_DASH.dataFim;
 }
-/* Anualizado/Mensal mora DENTRO do card que ele muda. Estava no topo da tela,
-   a seis cards de distância do único gráfico que ele afeta. */
+/* Mensal/Anualizado mora DENTRO do card que ele muda, e só troca a tela: as
+   duas séries já vieram no mesmo pedido. Redesenha só o card do fixo. */
 function montarGranularidade(){
   const c = $('chipsGranularidade'); if (!c) return; c.innerHTML = '';
-  [['anual','Anualizado'],['mensal','Mensal']].forEach(function(o){
+  [['mensal','Mensal'],['anual','Anualizado']].forEach(function(o){
     const b = chip(c, o[1], FILTRO_DASH.granularidade === o[0], '#2F5233', 'var(--chip-neutro)', function(){
-      FILTRO_DASH.granularidade = o[0]; carregarDashboard();
+      FILTRO_DASH.granularidade = o[0];
+      $('cardFixo').innerHTML = htmlCardFixo(); montarGranularidade();
     });
     b.classList.add('seg');
   });
@@ -1451,18 +1481,26 @@ $('dashPreset').addEventListener('change', function(){
 });
 $('dashDataIni').addEventListener('change', function(){ FILTRO_DASH.dataIni = this.value; FILTRO_DASH.preset = 'custom'; montarFiltroDash(); carregarDashboard(); });
 $('dashDataFim').addEventListener('change', function(){ FILTRO_DASH.dataFim = this.value; FILTRO_DASH.preset = 'custom'; montarFiltroDash(); carregarDashboard(); });
+/* Abrir um mês do "Já comprometido" é só mostrar o que já veio: os itens de
+   cada mês chegam junto, escondidos. */
+$('dashConteudo').addEventListener('click', function(e){
+  const b = e.target.closest('.mes-lin'); if (!b) return;
+  const lista = b.nextElementSibling, abrir = lista.hidden;
+  lista.hidden = !abrir;
+  b.classList.toggle('aberta', abrir);
+  b.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+});
 
-/* Só a resposta do ÚLTIMO pedido pinta a tela. Trocar o período e logo em
-   seguida a granularidade dispara dois pedidos, e nada garante a ordem em que
-   voltam: sem isto, o chip dizia "Anualizado" sobre barras mensais. O contador
-   `DASH_PEDIDO` é declarado lá em cima, junto do DASH, pelo mesmo motivo do
-   FILTRO_DASH: o boot chama esta função antes de este bloco rodar. */
+/* Só a resposta do ÚLTIMO pedido pinta a tela. Trocar o período duas vezes
+   seguidas dispara dois pedidos, e nada garante a ordem em que voltam. O
+   contador `DASH_PEDIDO` é declarado lá em cima, junto do DASH, pelo mesmo
+   motivo do FILTRO_DASH: o boot chama esta função antes de este bloco rodar. */
 function carregarDashboard(){
   const meu = ++DASH_PEDIDO;
   google.script.run.withSuccessHandler(function(d){
     if (meu !== DASH_PEDIDO) return;
     DASH = d; renderDashboard(); renderTilesResumo();
-  }).getDashboard(FILTRO_DASH);
+  }).getDashboard({ dataIni: FILTRO_DASH.dataIni, dataFim: FILTRO_DASH.dataFim });
 }
 
 function cap(s){ return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
@@ -1485,37 +1523,76 @@ function renderTilesResumo(){
   $('avisoCorrente').innerHTML = '<b>' + cap(c.mes) + ' em andamento:</b> ' + brl(c.total) + ' em ' + c.qtd + ' lançamentos — a fatura dele só entra em ' + c.proximo + '.';
 }
 
-/* A URL da planilha não mora mais aqui: ela identifica a planilha de um casal
-   específico e este arquivo é público. Vem por `window.PLANILHA_URL`, injetada
-   pelo `route.ts` a partir da variável de ambiente. Sem ela, o botão não aparece,
-   que é o certo desde que a planilha deixou de ser a fonte da verdade. */
-const PLANILHA_URL = (typeof window !== 'undefined' && window.PLANILHA_URL) || '';
+/* NOSSO FIXO — eram dois cards, "fixo mensal" e "evolução do % de fixas", e o
+   % sozinho enganava: ele sobe tanto porque o fixo cresceu quanto porque a
+   variável encolheu. Agora é um gráfico só: a ALTURA é o fixo em reais, o
+   número em cima também, e o % do mês vai dentro da barra. */
+function htmlCardFixo(){
+  const anual = FILTRO_DASH.granularidade === 'anual';
+  const serie = anual ? DASH.fixoAnual : DASH.fixoMensal;
+  const ult = DASH.fixoMensal[DASH.fixoMensal.length - 1];
+  const max = Math.max(1, ...serie.map(function(x){ return x.fixa; }));
+  let h = '<h3>Nosso fixo</h3>' +
+    '<div class="numerao" style="color:var(--fixa)">' + brl(DASH.mesFechado.fixa) + '</div>' +
+    '<div class="sub sub-num">por mês, em ' + DASH.mesFechado.mes + (ult ? ' — ' + Math.round(ult.pct) + '% de tudo que gastamos no mês' : '') + '</div>' +
+    '<div class="chips chips-gran" id="chipsGranularidade"></div><div class="colunas">';
+  serie.forEach(function(x, k){
+    const fim = k === serie.length - 1;
+    const alt = Math.max(16, Math.round(x.fixa / max * 70));
+    const rot = anual ? x.rotulo : (MES_CURTO[MESES_NOMES.indexOf(x.rotulo)] || x.rotulo.slice(0, 3));
+    h += '<div class="col"><div class="rs"' + (fim ? ' style="color:var(--fixa)"' : '') + '>' + milhar(x.fixa) + '</div>' +
+         '<div class="barra' + (fim ? ' atual' : '') + '" style="height:' + alt + 'px">' + Math.round(x.pct) + '%</div>' +
+         '<div class="eixo">' + rot + '</div></div>';
+  });
+  h += '</div><div class="legenda legenda-quebra">' +
+       '<span>Em cima: ' + (anual ? 'média de fixo por mês' : 'quanto foi fixo, em reais') + '</span>' +
+       '<span>Dentro: que % ' + (anual ? 'do ano' : 'do mês') + ' isso foi</span></div>';
+  if (anual && serie.length) h += '<div class="nota-dash">No ano, o valor em cima é a <b>média de fixo por mês</b>. ' + serie[serie.length - 1].rotulo + ' vai até ' + DASH.mesFechado.mes + ', o último mês fechado.</div>';
+  return h;
+}
+
+/* Fixo vs. variável: o total em cima, os reais de cada parte logo abaixo, nas
+   pontas, e o % dentro da barra. A versão anterior só mostrava o total, e o
+   olho lia o total como se fosse o fixo. */
+function fvLinha(rotulo, fixa, variavel, opac){
+  const tot = fixa + variavel;
+  const pF = tot > 0 ? fixa / tot * 100 : 50, pV = 100 - pF;
+  const dentro = function(p){ return p >= 9 ? Math.round(p) + '%' : ''; };
+  return '<div class="fv"><div class="fv-topo"><span>' + rotulo + '</span><b>' + brl(tot) + '</b></div>' +
+    '<div class="fv-valores"><span style="color:var(--fixa)">Fixa ' + brl(fixa) + '</span><span style="color:var(--var)">Variável ' + brl(variavel) + '</span></div>' +
+    '<div class="barra-pct" style="opacity:' + opac + '">' +
+    '<div class="pf" style="width:' + pF.toFixed(1) + '%">' + dentro(pF) + '</div>' +
+    '<div class="pv" style="width:' + pV.toFixed(1) + '%">' + dentro(pV) + '</div></div></div>';
+}
+
+function tagsItem(it, tipo){
+  let t = '';
+  if (tipo === 'rec'){
+    if (it.vezes > 1) t += '<span class="tag">' + it.vezes + ' × ' + brl(it.valor) + '</span>';
+    if (it.ate){ const p = it.ate.split('-'); t += '<span class="tag">até ' + MES_CURTO[Number(p[1]) - 1] + '/' + p[0].slice(2) + '</span>'; }
+  } else if (it.seq){
+    const ultima = it.de && it.seq === it.de;
+    t += '<span class="tag' + (ultima ? ' ult' : '') + '">' + it.seq + (it.de ? '/' + it.de : '') + (ultima ? ' · última' : '') + '</span>';
+  }
+  return t;
+}
+function grupoItens(rotulo, itens, tipo){
+  if (!itens.length) return '';
+  const soma = itens.reduce(function(a, x){ return a + (tipo === 'rec' ? x.total : x.valor); }, 0);
+  let h = '<div class="grupo-rot"><span>' + itens.length + ' ' + rotulo + '</span><span>' + brl(soma) + '</span></div>';
+  itens.forEach(function(it){
+    h += '<div class="item-c"><span class="d">' + escapeHtml(it.descricao) + tagsItem(it, tipo) + '</span><span class="v">' + brl(tipo === 'rec' ? it.total : it.valor) + '</span></div>';
+  });
+  return h;
+}
 
 function renderDashboard(){
   if (!DASH) return;
   const el = $('dashConteudo');
   let h = '';
 
-  if (PLANILHA_URL) h += '<a class="btn-planilha" href="' + PLANILHA_URL + '" target="_blank" rel="noopener">📄 Ver planilha</a>';
-
-  /* 1 — Nosso fixo mensal. O número que não existia em lugar nenhum da tela, e
-     a sua tendência nos seis meses fechados. */
-  const fm = DASH.fixoMensal;
-  const maxFm = Math.max(1, ...fm.map(function(x){ return x.fixa; }));
-  const rec = DASH.comprometido[0];
-  h += '<div class="card dash-card"><h3>Nosso fixo mensal</h3>' +
-       '<div class="numerao" style="color:var(--fixa)">' + brl(DASH.mesFechado.fixa) + '</div>' +
-       '<div class="sub sub-num">por mês, em ' + DASH.mesFechado.mes + '</div>' +
-       '<div class="evolucao evolucao-baixa">';
-  fm.forEach(function(x, k){
-    const alt = Math.max(4, Math.round(x.fixa / maxFm * 70));
-    h += '<div class="col"><div class="val">' + milhar(x.fixa) + '</div>' +
-         '<div class="barra" style="height:' + alt + 'px;opacity:' + (k === fm.length - 1 ? 1 : .55) + '"></div>' +
-         '<div class="ano">' + x.mes.slice(0, 3) + '</div></div>';
-  });
-  h += '</div>';
-  if (rec && rec.recorrencias) h += '<div class="nota-dash">' + rec.recorrencias + ' recorrências ativas somam <b>' + brl(rec.valorRecorrencias) + '</b> por mês.</div>';
-  h += '</div>';
+  // 1 — Nosso fixo (ver htmlCardFixo).
+  h += '<div class="card dash-card" id="cardFixo">' + htmlCardFixo() + '</div>';
 
   /* 2 — Gasto por categoria, no período. A barra se divide por de quem é o
      gasto: a parte do Irwin no tom cheio, a da Maria no claro. Isso substitui o
@@ -1538,15 +1615,20 @@ function renderDashboard(){
   if (cats.length && totCat > 0) h += '<div class="nota-dash"><b>' + escapeHtml(cats[0].categoria.replace(/^\d+\s/, '')) + ' é ' + Math.round(cats[0].total / totCat * 100) + '% de tudo</b> no período.</div>';
   h += '</div>';
 
-  /* 3 — Fixo vs. variável: o último mês fechado contra a média dos seis. */
+  // 3 — Fixo vs. variável: o último mês fechado contra a média dos seis.
   const f = DASH.mesFechado, md = DASH.mediaFechados;
   h += '<div class="card dash-card"><h3>Fixo vs. variável</h3>';
-  h += barraEmpilhada(cap(f.mes) + ' — ' + brl(f.fixa + f.variavel), f.fixa, f.variavel, 1);
-  h += barraEmpilhada('Média dos ' + md.meses + ' meses fechados — ' + brl(md.fixa + md.variavel), md.fixa, md.variavel, .6);
-  h += '<div class="legenda"><span><i style="background:var(--fixa)"></i>Fixa</span><span><i style="background:var(--var)"></i>Variável</span></div></div>';
+  h += fvLinha(cap(f.mes), f.fixa, f.variavel, 1);
+  h += fvLinha('Média dos ' + md.meses + ' meses fechados', md.fixa, md.variavel, .7);
+  const dFixo = f.fixa - md.fixa, totF = f.fixa + f.variavel, totM = md.fixa + md.variavel, dTot = totF - totM;
+  if (totM > 0 && Math.abs(dFixo) >= 1){
+    h += '<div class="nota-dash">' + cap(f.mes) + ' teve <b>' + brl(Math.abs(dFixo)) + (dFixo > 0 ? ' a mais' : ' a menos') + ' de fixo</b> que a média, e ' +
+         (Math.abs(dTot) / totM < .08 ? 'quase a mesma conta no total.' : '<b>' + brl(Math.abs(dTot)) + (dTot > 0 ? ' a mais' : ' a menos') + '</b> no total.') + '</div>';
+  }
+  h += '</div>';
 
-  /* 4 — Divisão do período. Sem a lista de transações fora do meio a meio: ela
-     era um extrato dentro de um painel. Ficam a composição e quanto foi de cada um. */
+  /* 4 — Divisão do período. O % de cada tipo não cabe dentro da barra (os 3%
+     dariam 10 pixels), então vai numa tabelinha logo embaixo, com os reais. */
   const dv = DASH.divisao;
   const totDiv = dv.porTipo.reduce(function(a, x){ return a + x.total; }, 0);
   const meio = dv.porTipo.find(function(x){ return x.divisao === '50/50'; });
@@ -1555,8 +1637,11 @@ function renderDashboard(){
   if (totDiv > 0){
     h += '<div class="barra-empilhada barra-alta">';
     dv.porTipo.forEach(function(x){ if (x.total > 0) h += '<div style="width:' + (x.total / totDiv * 100).toFixed(2) + '%;background:' + (COR_DIV[x.divisao] || 'var(--texto2)') + '"></div>'; });
-    h += '</div><div class="legenda legenda-quebra">';
-    dv.porTipo.forEach(function(x){ if (x.total > 0) h += '<span><i style="background:' + (COR_DIV[x.divisao] || 'var(--texto2)') + '"></i>' + escapeHtml(ROT_DIV[x.divisao] || x.divisao) + ' · ' + pct1(x.total / totDiv * 100) + '</span>'; });
+    h += '</div><div class="tabela-div">';
+    dv.porTipo.forEach(function(x){
+      if (x.total > 0) h += '<div class="lin"><i style="background:' + (COR_DIV[x.divisao] || 'var(--texto2)') + '"></i><span class="nome">' + escapeHtml(ROT_DIV[x.divisao] || x.divisao) + '</span>' +
+        '<span class="rs">' + brl(x.total) + '</span><span class="pc">' + pct1(x.total / totDiv * 100) + '</span></div>';
+    });
     h += '</div>';
   }
   const totIM = dv.irwin + dv.maria;
@@ -1565,26 +1650,21 @@ function renderDashboard(){
        '<div class="parte-dash" style="background:var(--maria-l);color:var(--maria)"><span>Gasto da Maria</span><b>' + brl(dv.maria) + '</b><small>' + pct1(totIM ? dv.maria / totIM * 100 : 0) + '</small></div>' +
        '</div></div>';
 
-  /* 5 — Evolução do % de fixas. A série inteira, de propósito: recortada por um
-     período de três meses, a anual teria uma barra só. */
-  h += '<div class="card dash-card"><h3>Evolução do % de despesas fixas</h3><div class="sub">O indicador mais importante do sistema</div>' +
-       '<div class="chips chips-gran" id="chipsGranularidade"></div><div class="evolucao">';
-  const maxPct = Math.max(10, ...DASH.evolucaoFixas.map(function(a){ return a.pct; }));
-  DASH.evolucaoFixas.forEach(function(a){
-    const alt = Math.max(6, Math.round(a.pct / maxPct * 90));
-    h += '<div class="col"><div class="val">' + a.pct.toFixed(1) + '%</div><div class="barra" style="height:' + alt + 'px"></div><div class="ano">' + a.rotulo + '</div></div>';
-  });
-  h += '</div></div>';
-
-  /* 6 — Já comprometido. O único card que olha para a frente, e por isso o
-     único que ignora o período: uma janela no passado o esvaziaria sem dizer por quê. */
+  /* 5 — Já comprometido. O único card que olha para a frente, e por isso o
+     único que ignora o período. O mês abre AQUI, e não num atalho para o
+     Início: as recorrências de um mês futuro ainda não existem como lançamento
+     (A18), e o Início filtrado mostraria só as parcelas. */
   const mediaMes = md.fixa + md.variavel;
-  h += '<div class="card dash-card"><h3>Já comprometido</h3><div class="sub">O que os próximos meses já têm antes de qualquer compra nova.</div>';
+  h += '<div class="card dash-card"><h3>Já comprometido</h3><div class="sub">O que os próximos meses já têm antes de qualquer compra nova. Toque no mês para ver o quê.</div>';
   DASH.comprometido.forEach(function(c, k){
-    const partes = [c.recorrencias + ' recorrências'];
-    if (c.parcelas) partes.push(c.parcelas + ' parcelas');
-    if (c.avulsos) partes.push(c.avulsos + ' avulsos');
-    h += '<div class="linha-dash' + (k === 0 ? ' primeira' : '') + '"><span><b>' + cap(c.mes) + '</b><small>' + partes.join(' + ') + '</small></span><b>' + brl(c.total) + '</b></div>';
+    const partes = [c.recorrencias.length + ' recorrências'];
+    if (c.parcelas.length) partes.push(c.parcelas.length + ' parcelas');
+    if (c.avulsos.length) partes.push(c.avulsos.length + ' avulsos');
+    h += '<button type="button" class="mes-lin' + (k === 0 ? ' primeira' : '') + '" aria-expanded="false">' +
+         '<span class="quem"><b>' + cap(c.mes) + '</b><small>' + partes.join(' + ') + '</small></span>' +
+         '<span class="total">' + brl(c.total) + '</span>' +
+         '<svg class="seta-mes" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg></button>' +
+         '<div class="mes-itens" hidden>' + grupoItens('recorrências', c.recorrencias, 'rec') + grupoItens('parcelas', c.parcelas, 'parc') + grupoItens('avulsos', c.avulsos, 'parc') + '</div>';
   });
   const c0 = DASH.comprometido[0];
   if (c0 && mediaMes > 0) h += '<div class="nota-dash">' + cap(c0.mes) + ' já tem <b>' + brl(c0.total) + '</b> antes de começar — ' + Math.round(c0.total / mediaMes * 100) + '% da média mensal dos meses fechados.</div>';
@@ -1592,21 +1672,6 @@ function renderDashboard(){
 
   el.innerHTML = h;
   montarGranularidade();
-
-  /* Os gráficos nascem rolados até o fim: a coluna da direita é a mais
-     recente, e é ela que a pessoa abriu o Dashboard para ver. */
-  el.querySelectorAll('.evolucao').forEach(function(faixa){ faixa.scrollLeft = faixa.scrollWidth; });
-}
-
-function barraEmpilhada(rotulo, fixa, variavel, opacidade){
-  const total = fixa + variavel;
-  const pFixa = total > 0 ? (fixa/total*100) : 50;
-  const pVar = total > 0 ? (variavel/total*100) : 50;
-  return '<div class="barra-linha"><div class="rotulo">' + rotulo + '</div>' +
-    '<div class="barra-empilhada" style="opacity:' + opacidade + '">' +
-    '<div style="width:' + pFixa + '%;background:var(--fixa)"></div>' +
-    '<div style="width:' + pVar + '%;background:var(--var)"></div>' +
-    '</div></div>';
 }
 
 /* ---------------- Importar ---------------- */

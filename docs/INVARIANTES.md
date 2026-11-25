@@ -880,14 +880,15 @@ de revisar 86 linhas.
 
 **Regra:** os números do topo do Dashboard (fixo e variável) são do **último mês fechado**,
 e o rótulo diz qual. O mês corrente aparece numa linha à parte, como *em andamento*. O
-período escolhido vale só para **categoria e divisão**; o fixo mensal, a evolução das
-fixas e o já comprometido têm janela própria e não obedecem a ele.
+período escolhido vale só para **categoria e divisão**; o nosso fixo (mensal e anualizado)
+e o já comprometido têm janela própria e não obedecem a ele. O anualizado também para no
+último mês fechado: o ano corrente não leva o mês em andamento.
 
 **Se violada — "este mês":** o mês corrente nunca está fechado — a fatura dele só entra no
 mês seguinte. Em 20/11 a variável do topo marcava pouco mais da metade da de outubro, e
 a leitura natural era "estamos gastando menos", que era falso.
 
-**Se violada — o período em tudo:** recortada por "3 meses fechados", a evolução anual fica
+**Se violada — o período em tudo:** recortado por "3 meses fechados", o anualizado fica
 com uma barra só; o já comprometido olha para a frente e uma janela no passado o esvazia
 sem dizer por quê.
 
@@ -896,8 +897,12 @@ fechados) **na declaração** de `FILTRO_DASH`, porque o boot chama `carregarDas
 antes de o bloco do Dashboard rodar. Inicializar lá embaixo mandaria a primeira carga sem
 janela nenhuma.
 
-**Como provar:** `src/lib/tela.test.ts` reprova se o topo voltar a ler o mês corrente ou se
-o período deixar de nascer na declaração.
+**Se violada — o % sem os reais:** o % de fixo sozinho engana, porque sobe tanto quando o
+fixo cresce quanto quando a variável encolhe. Em 25/11 ele foi lido como erro. Por isso o
+gráfico do fixo leva o valor em reais e o % juntos, na mesma barra.
+
+**Como provar:** `src/lib/tela.test.ts` reprova se o topo voltar a ler o mês corrente, se
+o período deixar de nascer na declaração ou se o anualizado passar do último mês fechado.
 
 ---
 
