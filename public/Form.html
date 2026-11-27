@@ -352,7 +352,21 @@ a.linha-terceiros .seta{flex:0 0 auto;color:var(--texto3)}
       color:var(--verde);font-weight:500;font-size:14px;cursor:pointer;font-family:inherit;margin-bottom:12px}
 
 /* busca de lançamentos */
-.busca-lanc{margin-bottom:9px}
+/* O ✕ mora DENTRO do campo, no fim: é onde o polegar procura para apagar, e
+   ele apaga tudo — o texto e os filtros — de volta ao padrão. A faixa de
+   filtros rola para o lado, então um filtro ligado pode estar fora da vista;
+   o ✕ aparece sempre que algo foge do padrão, visível ou não. */
+.busca-wrap{position:relative;margin-bottom:9px}
+.busca-wrap .busca-lanc{margin-bottom:0;padding-right:40px}
+.busca-limpa{position:absolute;right:4px;top:50%;transform:translateY(-50%);
+      width:32px;height:32px;border:none;border-radius:999px;background:transparent;
+      color:var(--texto2);font-size:15px;cursor:pointer;font-family:inherit;
+      display:flex;align-items:center;justify-content:center}
+.busca-limpa[hidden]{display:none}
+.busca-limpa span{width:20px;height:20px;border-radius:999px;background:var(--chip-neutro);
+      display:flex;align-items:center;justify-content:center;font-size:11px}
+.quem-ve{font-size:11.5px;color:var(--texto3);margin:-4px 0 12px;line-height:1.45}
+.item-valor .partes.so{color:var(--texto2)}
 /* Filtros numa faixa que rola na horizontal, sempre visível: filtro escondido
    atrás de menu é filtro esquecido. */
 .filtros{display:flex;gap:7px;overflow-x:auto;padding:1px 0 9px;
@@ -575,9 +589,15 @@ input.valor-rateio{border:none;background:none;font-size:17px;font-weight:500;wi
           <b id="terceirosValor"></b>
           <span class="seta">›</span>
         </a>
+        <div class="filtro-rot">De quem</div>
+        <div class="chips chips-pessoa" id="chipsPessoaLista"></div>
+        <div class="quem-ve" id="quemVe" style="display:none"></div>
         <div class="card">
           <label style="display:block;font-size:12px;color:var(--texto2);margin-bottom:8px">Lançamentos recentes</label>
-          <input type="text" id="buscaLanc" class="busca-lanc" placeholder="Buscar por nome, data ou valor">
+          <div class="busca-wrap">
+            <input type="text" id="buscaLanc" class="busca-lanc" placeholder="Buscar por nome, data ou valor">
+            <button type="button" class="busca-limpa" id="buscaLimpa" hidden aria-label="Limpar busca e filtros" title="Limpar busca e filtros"><span>✕</span></button>
+          </div>
           <div class="filtros" id="filtrosLanc"></div>
           <div class="filtro-resumo" id="filtroResumo" style="display:none"></div>
           <button class="btn-futuros" id="btnFuturos" style="display:none"></button>
@@ -709,7 +729,7 @@ const FILTROS_PADRAO = { dividido: true };
    existe porque o estado volta de fora do código (sessionStorage) e chave
    desconhecida vindo de lá não tem por que chegar ao servidor. */
 const CHAVES_FILTRO = ['recorrente', 'parcelado', 'importado', 'quitacao', 'gastoDe',
-                       'categoria', 'quemPagou', 'dividido', 'de', 'ate'];
+                       'categoria', 'quemPagou', 'dividido', 'de', 'ate', 'pessoa'];
 const CHAVE_FILTROS = 'mozis.filtros.v1';
 /* Os filtros sobrevivem à navegação, e isso é requisito, não conveniência:
    abrir um lançamento sai desta página para uma página React, e voltar
@@ -732,11 +752,24 @@ function filtrosGuardados(){
   } catch (e) { return null; }
 }
 let FILTROS = filtrosGuardados() || Object.assign({}, FILTROS_PADRAO);
+if (FILTROS.pessoa !== 'irwin' && FILTROS.pessoa !== 'maria') delete FILTROS.pessoa;
+/* A busca também sobrevive à edição, pelo mesmo motivo dos filtros: quem
+   procurou "Verdemar", abriu um e voltou, quer continuar vendo os Verdemar. */
+const CHAVE_BUSCA = 'mozis.busca.v1';
+function guardarBusca(termo){
+  try { if (termo) sessionStorage.setItem(CHAVE_BUSCA, termo); else sessionStorage.removeItem(CHAVE_BUSCA); } catch (e) {}
+}
+function buscaGuardada(){
+  try { return sessionStorage.getItem(CHAVE_BUSCA) || ''; } catch (e) { return ''; }
+}
 /* O período nasce em "3 meses fechados", e as datas são preenchidas AQUI, na
    declaração: o boot chama carregarDashboard() antes de o bloco do Dashboard
    rodar, e uma inicialização lá embaixo chegaria tarde — a primeira carga iria
    sem janela nenhuma. `janelaPreset` é declaração de função, então já existe. */
-let FILTRO_DASH = { pessoa: 'todos', preset: '3m', dataIni: '', dataFim: '' };
+/* `pessoa` é a MESMA do Início (C22): quem escolhe "Irwin" numa tela está
+   olhando o processo inteiro como o Irwin, e a outra tela não pode desmentir.
+   A fonte é FILTROS.pessoa, que já sobrevive à navegação. */
+let FILTRO_DASH = { pessoa: FILTROS.pessoa || 'todos', preset: '3m', dataIni: '', dataFim: '' };
 (function(){ const j = janelaPreset('3m'); FILTRO_DASH.dataIni = j[0]; FILTRO_DASH.dataFim = j[1]; })();
 let tabAtiva = 'home', telaAtual = 'home';
 const QTD_RECENTES = 50;
@@ -850,7 +883,11 @@ google.script.run.withSuccessHandler(function(o){
 }).getOpcoes();
 
 carregarAcerto();
-carregarUltimos({reset:true});
+(function(){
+  const termo = buscaGuardada();
+  if (termo){ $('buscaLanc').value = termo; buscaAtiva = true; buscarLanc(termo); }
+  else carregarUltimos({reset:true});
+})();
 carregarDashboard();
 
 window.addEventListener('online', () => $('offline').classList.remove('on'));
@@ -1116,7 +1153,54 @@ function fchipData(container, rotulo, valor, onChange){
   container.appendChild(l);
 }
 
+/* Fugiu do padrão? Algum filtro ligado que não seja o "Divididos" de sempre. */
+function foraDoPadrao(){
+  return Object.keys(FILTROS).some(function(k){ return FILTROS[k] && FILTROS[k] !== FILTROS_PADRAO[k]; }) ||
+         Object.keys(FILTROS_PADRAO).some(function(k){ return !FILTROS[k]; });
+}
+function atualizarLimpa(){
+  $('buscaLimpa').hidden = !($('buscaLanc').value.trim() || foraDoPadrao());
+}
+/* Volta ao PADRÃO, não ao vazio: zerar desligaria o "Divididos" de lado, e a
+   lista passaria a mostrar compra pessoal sem ninguém ter pedido. A pessoa
+   volta para Todos — no dashboard também, porque é a mesma escolha. */
+function limparTudo(){
+  $('buscaLanc').value = ''; guardarBusca('');
+  FILTROS = Object.assign({}, FILTROS_PADRAO);
+  FILTRO_DASH.pessoa = 'todos'; montarPessoaDash(); DASH = null;
+  aplicarFiltros();
+}
+const NOME_PESSOA = { irwin: 'Irwin', maria: 'Maria' };
+const DO_PESSOA = { irwin: 'do Irwin', maria: 'da Maria' };
+/* Uma escolha só, duas telas (C22). */
+function escolherPessoa(p){
+  if (p === 'irwin' || p === 'maria') FILTROS.pessoa = p; else delete FILTROS.pessoa;
+  FILTRO_DASH.pessoa = FILTROS.pessoa || 'todos';
+  montarPessoaDash();
+  aplicarFiltros();
+  if (telaAtual === 'dashboard') carregarDashboard(); else DASH = null;
+}
+function montarPessoaLista(){
+  const c = $('chipsPessoaLista'); if (!c) return;
+  c.innerHTML = '';
+  const atual = FILTROS.pessoa || 'todos';
+  [['todos','Todos','#2F5233',null],['irwin','Irwin','var(--irwin)',AVATAR_IRWIN],['maria','Maria','var(--maria)',AVATAR_MARIA]].forEach(function(o){
+    const b = chip(c, o[1], atual === o[0], o[2], 'var(--chip-neutro)', function(){ escolherPessoa(o[0]); }, o[3]);
+    b.classList.add('seg');
+  });
+  const outra = atual === 'irwin' ? 'maria' : 'irwin';
+  const qv = $('quemVe');
+  if (atual === 'todos'){ qv.style.display = 'none'; }
+  else {
+    qv.style.display = 'block';
+    qv.textContent = 'Cada linha mostra a parte ' + DO_PESSOA[atual] + '. Some o que é 100% ' +
+                     DO_PESSOA[outra] + ', as quitações e o que é de fora.';
+  }
+}
+
 function montarFiltros(){
+  montarPessoaLista();
+  atualizarLimpa();
   const c = $('filtrosLanc');
   if (!c) return;
   c.innerHTML = '';
@@ -1128,7 +1212,9 @@ function montarFiltros(){
      um dos dois está aceso, então a tela nunca esconde linha em silêncio. */
   fchip(c, 'Divididos', !!FILTROS.dividido, 'on', null,
         function(){ FILTROS.dividido = true;  aplicarFiltros(); }, true);
-  fchip(c, 'Todos',     !FILTROS.dividido,   'on', null,
+  /* "Tudo", não "Todos": "Todos" já é a primeira opção do De quem, logo acima,
+     e dois "Todos" na mesma tela querendo dizer coisas diferentes confundem. */
+  fchip(c, 'Tudo',      !FILTROS.dividido,   'on', null,
         function(){ delete FILTROS.dividido;  aplicarFiltros(); }, true);
   fchipData(c, 'de',  FILTROS.de  || '', function(v){ FILTROS.de  = v; aplicarFiltros(); });
   fchipData(c, 'até', FILTROS.ate || '', function(v){ FILTROS.ate = v; aplicarFiltros(); });
@@ -1151,14 +1237,17 @@ function mostrarResumo(resumo){
   const el = $('filtroResumo');
   if (!resumo || !temFiltro()){ el.style.display = 'none'; return; }
   el.style.display = 'block';
-  el.innerHTML = '<b>' + resumo.qtd + '</b> ' + (resumo.qtd === 1 ? 'lançamento' : 'lançamentos') +
-                 ' · <b>' + brl(resumo.soma) + '</b> · ' +
-                 '<span class="limpar" id="limparFiltros">limpar</span>';
-  // Volta ao PADRÃO, não ao vazio: zerar desligaria o "Divididos" de lado,
-  // e a lista passaria a mostrar compra pessoal sem ninguém ter pedido.
-  $('limparFiltros').onclick = function(){
-    FILTROS = Object.assign({}, FILTROS_PADRAO); aplicarFiltros();
-  };
+  const qtd = '<b>' + resumo.qtd + '</b> ' + (resumo.qtd === 1 ? 'lançamento' : 'lançamentos');
+  const limpar = '<span class="limpar" id="limparFiltros">limpar</span>';
+  if (resumo.pessoa){
+    // Com uma pessoa e sem datas, o servidor manda o mês corrente (C22).
+    el.innerHTML = (resumo.mes ? escapeHtml(resumo.mes) + ' até agora: ' : '') +
+                   '<b>' + brl(resumo.soma) + '</b> da parte ' + DO_PESSOA[resumo.pessoa] +
+                   ' · ' + qtd + ' · ' + limpar;
+  } else {
+    el.innerHTML = qtd + ' · <b>' + brl(resumo.soma) + '</b> · ' + limpar;
+  }
+  $('limparFiltros').onclick = limparTudo;
 }
 
 /**
@@ -1201,7 +1290,7 @@ function carregarUltimos(opts){
   buscaAtiva = false;
   // Não apaga a busca quando a recarga vem de um filtro: `aplicarFiltros` já
   // decidiu que não havia termo.
-  if (!opts.manterBusca) $('buscaLanc').value = '';
+  if (!opts.manterBusca){ $('buscaLanc').value = ''; guardarBusca(''); atualizarLimpa(); }
   google.script.run.withSuccessHandler(function(r){
     ULTIMOS = r.itens;
     EVENTOS = r.eventos || [];
@@ -1258,6 +1347,8 @@ function buscarLanc(termo){
 
 $('buscaLanc').addEventListener('input', function(){
   const termo = this.value.trim();
+  guardarBusca(termo);
+  atualizarLimpa();
   clearTimeout(debounceBusca);
   debounceBusca = setTimeout(function(){
     if (!termo){ carregarUltimos(); return; }
@@ -1269,6 +1360,7 @@ $('buscaLanc').addEventListener('input', function(){
 });
 
 $('btnVerMais').onclick = carregarMaisUltimos;
+$('buscaLimpa').onclick = limparTudo;
 
 $('listaUltimos').addEventListener('click', function(e){
   // O lote vem primeiro: o selo mora DENTRO da linha, e sem isto o clique nele
@@ -1340,8 +1432,7 @@ function renderUltimos(){
       '<div class="item-info"><div class="desc">' + tagRecorrente + marcaParcela + escapeHtml(descricaoLimpa) + tagFatura + '</div>' +
       '<div class="meta">' + (quit ? metaQuitacao(x) : escapeHtml(x.categoria || '') + ' · ' + escapeHtml(x.tipo || '')) + '</div></div>' +
       tagAndre +
-      '<div class="item-valor"><div class="v">' + brl(x.valor) + '</div>' +
-      efeitoNoAcerto(x.saldoIrwin) + '</div>' +
+      '<div class="item-valor">' + valorDaLinha(x) + '</div>' +
       '</div>';
   });
   pendentes.forEach(function(ev){ h += htmlEvento(ev); });
@@ -1382,6 +1473,22 @@ function metaQuitacao(x){
 
    Saldo Maria não precisa vir do servidor: é o oposto exato do Saldo Irwin, porque
    'pago' e 'parte' somam o valor cheio dos dois lados. */
+/* O número da linha (C22). Em Todos, o valor cheio e o efeito no acerto, como
+   sempre (C1). Com uma pessoa, a PARTE dela — e embaixo de quanto ela é, ou
+   "só do Irwin" quando o gasto inteiro é dele. O efeito no acerto sai da
+   linha: a pergunta da tela virou "quanto disto é meu", e o card do acerto,
+   no topo, continua respondendo a outra. */
+function valorDaLinha(x){
+  const p = FILTROS.pessoa;
+  if (p !== 'irwin' && p !== 'maria'){
+    return '<div class="v">' + brl(x.valor) + '</div>' + efeitoNoAcerto(x.saldoIrwin);
+  }
+  const parte = Number(p === 'irwin' ? x.parteIrwin : x.parteMaria) || 0;
+  const so = Math.abs(parte - (Number(x.valor) || 0)) < 0.005;
+  return '<div class="v">' + brl(parte) + '</div>' +
+         '<div class="partes' + (so ? ' so' : '') + '">' + (so ? 'só ' + DO_PESSOA[p] : 'de ' + brl(x.valor)) + '</div>';
+}
+
 function efeitoNoAcerto(saldoIrwin){
   const s = Number(saldoIrwin) || 0;
   // Zero é comum (quem pagou é dono de 100% do gasto, ou cada um pôs a própria parte).
@@ -1482,13 +1589,14 @@ function montarPessoaDash(){
   const c = $('chipsPessoa'); c.innerHTML = '';
   [['todos','Todos','#2F5233',null],['irwin','Irwin','var(--irwin)',AVATAR_IRWIN],['maria','Maria','var(--maria)',AVATAR_MARIA]].forEach(function(o){
     const b = chip(c, o[1], FILTRO_DASH.pessoa === o[0], o[2], 'var(--chip-neutro)', function(){
-      FILTRO_DASH.pessoa = o[0]; montarPessoaDash(); carregarDashboard();
+      escolherPessoa(o[0]);
     }, o[3]);
     b.classList.add('seg');
   });
 }
 montarFiltroDash();
 montarPessoaDash();
+montarPessoaLista();
 /* A lista PREENCHE as datas; mexer numa data vira Personalizado sozinho. Os
    dois caminhos ficam abertos — o atalho para o de sempre, a janela livre para
    quando a pergunta for outra. */

@@ -24,7 +24,7 @@ arquivo guarda o que precisa **sobreviver à troca de tecnologia**.
 
 ## Quantas estão verificadas por máquina
 
-64 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
+65 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
 e `npm test` verifica mais dez contra a forma do front (`src/lib/tela.test.ts`),
 e é por isso que os dois têm o mesmo nome: a distância entre os dois números é a medida
 de quanto ainda depende de alguém lembrar.
@@ -947,6 +947,38 @@ pessoa quiser parcela, ela marca parcela.
 
 **Como provar:** `src/lib/tela.test.ts` reprova se o filtro ou a lista voltarem a
 reconhecer parcela pelo padrão do nome.
+
+---
+
+### C22. Quem olha é um só: o "De quem" vale para o Início e o Dashboard
+
+**Regra:** o Início tem o mesmo "De quem" do Dashboard (Todos, Irwin, Maria), com a regra
+da C20, e **a escolha é uma só para as duas telas**: escolher Irwin numa leva a outra
+junto. Com uma pessoa escolhida, a lista:
+
+- some com o que não é gasto dela — 100% do outro, quitações, o que é de fora e o
+  investimento (a mesma base do Dashboard);
+- mostra a **parte** dela como número da linha, com "de R$ X" embaixo, ou "só do Irwin"
+  quando o gasto inteiro é dele. O efeito no acerto (C1) sai da linha; o card do acerto
+  no topo não muda;
+- resume a parte dela no **mês corrente** quando não há datas escolhidas. Com datas, o
+  resumo segue as datas.
+
+Em "Todos", a lista é a de sempre. O par Divididos/**Tudo** continua valendo por cima — e
+é "Tudo", não "Todos", porque "Todos" já é a primeira opção do "De quem" logo acima.
+
+**Se violada — cada tela com a sua pessoa:** o Dashboard mostraria a parte do Irwin e a
+lista ao lado os gastos de todos, e a mesma pessoa leria números que não conversam.
+
+**O que sobrevive à navegação:** filtros, pessoa **e o texto da busca**, em
+`sessionStorage` — abrir um lançamento é sair para uma página React, e a volta recarrega o
+Início do zero. O ✕ dentro da busca apaga tudo de volta ao padrão (Divididos, Todos, sem
+busca), e aparece sempre que algo foge dele — inclusive filtro fora da vista, na faixa que
+rola para o lado.
+
+**Como provar:** `src/lib/tela.test.ts` reprova se a pessoa deixar de ser uma só, se a
+linha voltar a mostrar o valor cheio com pessoa escolhida, ou se a busca deixar de ser
+guardada.
 
 ---
 

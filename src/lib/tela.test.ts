@@ -102,6 +102,41 @@ test('o filtro é guardado e relido, não vive só na memória', () => {
   );
 });
 
+test('a busca também sobrevive à navegação, e o ✕ volta ao padrão (C22)', () => {
+  assert.ok(/guardarBusca\(termo\)/.test(FORM), 'o texto da busca deixou de ser guardado');
+  assert.ok(/const termo = buscaGuardada\(\)/.test(FORM), 'o boot deixou de reler a busca guardada');
+  const i = FORM.indexOf('function limparTudo()');
+  assert.ok(i > 0, 'limparTudo sumiu');
+  const corpo = FORM.slice(i, i + 400);
+  assert.ok(
+    corpo.includes('FILTROS = Object.assign({}, FILTROS_PADRAO)'),
+    'o ✕ deixou de voltar ao PADRÃO — zerar desligaria o Divididos sem ninguém pedir',
+  );
+  assert.ok(/id="buscaLimpa"/.test(FORM), 'o ✕ saiu de dentro da busca');
+});
+
+test('o "De quem" é um só para o Início e o Dashboard (C22)', () => {
+  assert.ok(
+    /let FILTRO_DASH = \{ pessoa: FILTROS\.pessoa \|\| 'todos'/.test(FORM),
+    'o Dashboard voltou a nascer com a sua própria pessoa',
+  );
+  const i = FORM.indexOf('function montarPessoaDash()');
+  assert.ok(FORM.slice(i, i + 600).includes('escolherPessoa('), 'o Dashboard voltou a escolher pessoa sozinho');
+  assert.ok(CHAVES_INCLUI_PESSOA(), "'pessoa' saiu das chaves guardadas — a escolha morre ao navegar");
+  // Com pessoa, o número da linha é a parte dela; o servidor manda as duas.
+  assert.ok(/parteIrwin: r\.parte_irwin/.test(API), 'paraItem deixou de mandar a parte de cada um');
+  assert.ok(/function valorDaLinha\(x\)/.test(FORM), 'a linha voltou a mostrar sempre o valor cheio');
+  // A mesma base do Dashboard (C20).
+  assert.ok(
+    /not eh_quitacao and not de_fora\s*\n\s*and \$\{sql\.raw\(`parte_\$\{p\}`\)\} > 0/.test(API),
+    'o filtro por pessoa deixou de usar a base do Dashboard',
+  );
+});
+function CHAVES_INCLUI_PESSOA() {
+  const m = FORM.match(/const CHAVES_FILTRO = \[([^\]]*)\]/);
+  return !!m && m[1].includes("'pessoa'");
+}
+
 // ---------------------------------------------------------------------------
 // 4. A lista de divisões existe UMA vez, e tem `De fora`
 // ---------------------------------------------------------------------------

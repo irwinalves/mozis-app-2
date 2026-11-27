@@ -162,6 +162,10 @@ function paraItem(r: LinhaView) {
     // idênticas quando se mostra "100 e 100", mesmo com efeito oposto no saldo.
     // Vai UM número só: o outro lado é o negativo exato, derivado no front.
     saldoIrwin: r.saldo_irwin === null ? null : Number(r.saldo_irwin),
+    // A parte de cada um no gasto: é o número da linha quando a lista olha
+    // para UMA pessoa (C22). Em "Todos" a tela não usa.
+    parteIrwin: r.parte_irwin === null ? null : Number(r.parte_irwin),
+    parteMaria: r.parte_maria === null ? null : Number(r.parte_maria),
     quemPagou: r.quem_pagou ?? '',
     recorrente: !!r.recorrente,
     gastoDe: r.gasto_de ?? '',
@@ -311,6 +315,17 @@ export interface FiltrosLista {
   de?: string;
   /** Fim do intervalo de datas, 'YYYY-MM-DD'. Inclusive. */
   ate?: string;
+  /**
+   * De quem (C22): a lista passa a mostrar a PARTE de uma pessoa, com a mesma
+   * regra do dashboard (C20). Some o que é 100% do outro, as quitações e o
+   * que é de fora — nenhum dos três é gasto dessa pessoa.
+   */
+  pessoa?: 'irwin' | 'maria';
+}
+
+/** A pessoa do filtro, se for uma das duas — qualquer outra coisa é "todos". */
+function pessoaDe(f: FiltrosLista): 'irwin' | 'maria' | null {
+  return f.pessoa === 'irwin' || f.pessoa === 'maria' ? f.pessoa : null;
 }
 
 function clausulasDe(f: FiltrosLista = {}) {
@@ -344,6 +359,15 @@ function clausulasDe(f: FiltrosLista = {}) {
   // deram idênticos e esconderam R$ 2.719,16. Regra nº 6 do projeto.
   if (f.de) partes.push(sql`data >= ${f.de}::date`);
   if (f.ate) partes.push(sql`data <= ${f.ate}::date`);
+  // A mesma base do dashboard (C20): sem investimento, sem quitação, sem o que
+  // é de fora — e só o que tem parte dessa pessoa.
+  const p = pessoaDe(f);
+  if (p) {
+    partes.push(
+      sql`tipo <> 'Investimento' and not eh_quitacao and not de_fora
+          and ${sql.raw(`parte_${p}`)} > 0`,
+    );
+  }
   if (!partes.length) return sql`true`;
   return partes.reduce((a, b) => sql`${a} and ${b}`);
 }
@@ -382,12 +406,29 @@ export async function ultimosLancamentos(
   // Com filtro ativo, "quantos e quanto somam" costuma ser a pergunta real por
   // trás do filtro — e não dá para responder pela página, que é parcial.
   const temFiltro = Object.keys(filtros).some((k) => filtros[k as keyof FiltrosLista]);
+  //
+  // Com uma pessoa escolhida, a soma é a PARTE dela. E, sem datas pedidas, o
+  // resumo fica no mês corrente: a parte de alguém em todo o histórico é um
+  // número que ninguém usa, e "quanto já foi meu este mês" é a pergunta.
   let resumo = null;
   if (temFiltro) {
-    const [r] = await db.execute<{ n: string; soma: string | null }>(
-      sql`select count(*) as n, sum(valor_total) as soma from v_lancamentos where ${filtro}`,
+    const p = pessoaDe(filtros);
+    const doMes = Boolean(p) && !pediuIntervalo;
+    const soma = sql.raw(p ? `parte_${p}` : 'valor_total');
+    const corte = doMes
+      ? sql`${filtro} and data >= date_trunc('month', current_date)::date and data <= ${limite}`
+      : filtro;
+    const [r] = await db.execute<{ n: string; soma: string | null; mes: number }>(
+      sql`select count(*) as n, round(sum(${soma})::numeric, 2) as soma,
+                 extract(month from current_date)::int as mes
+          from v_lancamentos where ${corte}`,
     );
-    resumo = { qtd: Number(r.n), soma: Number(r.soma ?? 0) };
+    resumo = {
+      qtd: Number(r.n),
+      soma: Number(r.soma ?? 0),
+      pessoa: p,
+      mes: doMes ? MESES_PT[Number(r.mes) - 1] : null,
+    };
   }
 
   const temMais = linhas.length > qtd;
