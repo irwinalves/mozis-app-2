@@ -138,6 +138,8 @@ interface LinhaView extends Record<string, unknown> {
   seq: number | null;
   importacao_id: number | null;
   importacao_linha: number | null;
+  /** `total` da série quando ela é um parcelamento; null em qualquer outro caso. */
+  parcela_total?: number | null;
 }
 
 /** Converte uma linha da view no item que a lista do Início espera. */
@@ -163,10 +165,13 @@ function paraItem(r: LinhaView) {
     quemPagou: r.quem_pagou ?? '',
     recorrente: !!r.recorrente,
     gastoDe: r.gasto_de ?? '',
-    // Derivado da descrição, não de coluna: quem numera as parcelas é
-    // `montarParcelas`, sempre no formato " N/M" no fim. Não há coluna de
-    // parcelamento e criar uma deixaria as 272 linhas do histórico de fora.
-    parcelado: / \(?\d[\d,+]*\/\d+\)?$/.test(String(r.descricao || '')),
+    // C21: parcela é o que pertence a uma série de parcelamento — nunca o que
+    // o nome diz. Um "Fone 2/3" digitado à mão é só um nome.
+    parcelado: r.parcela_total != null,
+    // O rótulo vem do dado (`seq` de `total`), não do texto. A tela usa o
+    // sufixo do nome quando ele existe, para não perder "2+3/5", e cai aqui
+    // quando o nome não tem — como nas 5 linhas `Kit DDS Dani 1/4 [cartao temp]`.
+    parcela: r.parcela_total != null && r.seq != null ? `${r.seq}/${r.parcela_total}` : null,
     // Quando veio de um lote: a lista mostra o selo e o selo abre o lote.
     importacaoId: r.importacao_id ?? null,
   };
@@ -262,6 +267,14 @@ export async function getOpcoes(pessoa: Pessoa | null = null) {
  */
 const ORDEM = sql`order by data desc, descricao collate "pt-BR-x-icu" asc, id desc`;
 
+/**
+ * O `total` da série de parcelamento da linha, ou null. Subconsulta escalar e
+ * não `join`: com `series` no `from`, `descricao`, `tipo` e `id` ficariam
+ * ambíguos no `ORDEM` e nas cláusulas dos filtros, que não qualificam coluna.
+ */
+const PARCELA_TOTAL = sql`(select s.total from series s
+  where s.id = v.serie_id and s.tipo = 'parcelamento') as parcela_total`;
+
 /** Os filtros da tela de Início. Todos opcionais; combinam entre si com AND. */
 export interface FiltrosLista {
   /** Só recorrentes. */
@@ -303,19 +316,14 @@ export interface FiltrosLista {
 function clausulasDe(f: FiltrosLista = {}) {
   const partes = [];
   if (f.recorrente) partes.push(sql`recorrente = true`);
-  // O mesmo padrão " N/M" que `paraItem` usa — a regra de reconhecer parcela
-  // vive nos dois lugares porque um é SQL e o outro é JS, mas é a MESMA regra:
-  // se mudar aqui, muda lá.
-  // Dois formatos convivem na base: ` N/M`, que o app gera, e ` (N/M)`, de 11
-  // linhas lançadas à mão antes disso. Reconhecer só o primeiro deixava a série
-  // `Vacina RH- (1/4)` inteira fora do filtro.
-  // `[(]` e não `\(`: dentro de uma template string a contrabarra é consumida
-  // pelo JavaScript antes de chegar ao Postgres, e o padrão vira ` (?...)?$`,
-  // que o Postgres recusa com "quantifier operand invalid". Classe de caractere
-  // não tem esse problema — e o typecheck não pega, porque é só uma string.
-  // `[0-9][0-9,+]*` cobre também as parcelas AGRUPADAS num lançamento só —
-  // "Fotos parto 2+3/5" e "Japaratinga 3,4,5/6" são parceladas como as outras.
-  if (f.parcelado) partes.push(sql`descricao ~ ' [(]?[0-9][0-9,+]*/[0-9]+[)]?$'`);
+  // C21: parcelada é a linha que pertence a uma série de parcelamento — a
+  // mesma regra de `paraItem`. Não se lê o nome: até 27/11/2026 o filtro
+  // procurava ` N/M` no fim da descrição, o que transformava qualquer nome
+  // digitado em parcela e deixava de fora as 5 linhas do `Kit DDS Dani`, que
+  // são série de verdade com o número no meio do nome.
+  if (f.parcelado) {
+    partes.push(sql`serie_id in (select id from series where tipo = 'parcelamento')`);
+  }
   if (f.importado) partes.push(sql`importacao_id is not null`);
   // A mesma regra do `ehQuitacaoDe`, do lado do SQL: categoria do grupo 9.
   if (f.quitacao) partes.push(sql`categoria ~ '^9 '`);
@@ -366,7 +374,7 @@ export async function ultimosLancamentos(
   const filtro = sql`${janela} and ${clausulasDe(filtros)}`;
 
   const linhas = await db.execute<LinhaView>(
-    sql`select * from v_lancamentos where ${filtro}
+    sql`select v.*, ${PARCELA_TOTAL} from v_lancamentos v where ${filtro}
         ${ORDEM}
         limit ${qtd + 1} offset ${offset}`,
   );
@@ -464,7 +472,7 @@ export async function buscarLancamentos(termo: string, filtros: FiltrosLista = {
   }
 
   const linhas = await db.execute<LinhaView>(
-    sql`select * from v_lancamentos
+    sql`select v.*, ${PARCELA_TOTAL} from v_lancamentos v
          where ${alvo} and ${clausulasDe(filtros)}
          ${ORDEM} limit 60`,
   );
@@ -2362,7 +2370,7 @@ export async function obterImportacao(id: number, pessoa: Pessoa | null = null) 
   if (!imp) throw new Error('Importação não encontrada.');
 
   const linhas = await db.execute<LinhaView & Record<string, unknown>>(
-    sql`select * from v_lancamentos where importacao_id = ${id} order by data desc, id desc`,
+    sql`select v.*, ${PARCELA_TOTAL} from v_lancamentos v where importacao_id = ${id} order by data desc, id desc`,
   );
   const [ef] = await db.execute<{ saldo: string }>(
     sql`select coalesce(round(sum(saldo_irwin)::numeric, 2), 0)::text as saldo

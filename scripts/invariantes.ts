@@ -483,27 +483,39 @@ const invariantes: Invariante[] = [
 
   {
     id: 'serie-identidade',
-    regra: 'Fase 0.2 — série tem id, não sufixo de texto',
-    pergunta: 'Toda parcela pertence a uma série identificada?',
+    regra: 'A19 e C21 — parcela é o que pertence à série, não o que o nome diz',
+    pergunta: 'Toda linha de parcelamento sabe a sua posição, e toda série sabe o total?',
     checar: async () => {
-      // Sem isto a tela de edição volta a agrupar por texto, e agrupar por
-      // texto funde séries diferentes: `Seguro Carro` são duas compras, 10x de
-      // R$ 407,52 e 12x de R$ 199,77, com a mesma raiz de descrição.
-      const soltas = await sql<{ id: number; data: string; descricao: string }[]>`
-        select id, data::text as data, descricao from lancamentos
-        where descricao ~ ' [(]?[0-9][0-9,+]*/[0-9]+[)]?' and serie_id is null
-        order by data desc limit 8`;
-      const [{ n: total }] = await sql<{ n: string }[]>`
-        select count(*)::text as n from lancamentos
-        where descricao ~ ' [(]?[0-9][0-9,+]*/[0-9]+[)]?'`;
+      // Até 27/11/2026 este invariante lia o nome: toda descrição terminada em
+      // ` N/M` tinha que ter série. Isso fazia do texto uma regra — e um nome
+      // digitado à mão, como "Fone 2/3", virava defeito do banco. A C21 tirou
+      // essa leitura: parcela é dado (`serie_id`, `seq`, `total`), e é o dado
+      // que se confere aqui. Sem ele a tela de edição volta a agrupar por texto,
+      // e agrupar por texto funde séries diferentes: `Seguro Carro` são duas
+      // compras, 10x de R$ 407,52 e 12x de R$ 199,77, com a mesma raiz.
+      const semPosicao = await sql<{ id: number; data: string; descricao: string }[]>`
+        select l.id, l.data::text as data, l.descricao
+        from lancamentos l join series s on s.id = l.serie_id
+        where s.tipo = 'parcelamento' and l.seq is null
+        order by l.data desc limit 8`;
+      const semTotal = await sql<{ id: number; descricao: string }[]>`
+        select id, descricao from series
+        where tipo = 'parcelamento' and total is null limit 8`;
+      const [{ n: parcelas }] = await sql<{ n: string }[]>`
+        select count(*)::text as n
+        from lancamentos l join series s on s.id = l.serie_id
+        where s.tipo = 'parcelamento'`;
       const [{ n: series }] = await sql<{ n: string }[]>`
         select count(*)::text as n from series where tipo = 'parcelamento'`;
 
       return {
-        ok: soltas.length === 0,
+        ok: semPosicao.length === 0 && semTotal.length === 0,
         severidade: 'defeito',
-        medida: `${Number(total) - soltas.length} de ${total} parcelas em ${series} séries · ${soltas.length} sem identidade`,
-        exemplos: soltas.map((l) => `#${l.id} ${l.data} — ${l.descricao}`),
+        medida: `${parcelas} parcelas em ${series} séries · ${semPosicao.length} sem posição · ${semTotal.length} série(s) sem total`,
+        exemplos: [
+          ...semPosicao.map((l) => `sem posição: #${l.id} ${l.data} — ${l.descricao}`),
+          ...semTotal.map((s) => `sem total: série #${s.id} ${s.descricao}`),
+        ],
       };
     },
   },

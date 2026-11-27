@@ -24,7 +24,7 @@ arquivo guarda o que precisa **sobreviver à troca de tecnologia**.
 
 ## Quantas estão verificadas por máquina
 
-63 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
+64 regras escritas. **`scripts/invariantes.ts` verifica 17 delas contra o banco real**,
 e `npm test` verifica mais dez contra a forma do front (`src/lib/tela.test.ts`),
 e é por isso que os dois têm o mesmo nome: a distância entre os dois números é a medida
 de quanto ainda depende de alguém lembrar.
@@ -317,8 +317,11 @@ setembro** pela tela de Lançar, todas sem `serie_id`. O custo é duplo e nenhum
 > Quando um defeito é "o registro-pai não foi criado", procure os outros tipos de
 > registro-pai no mesmo caminho de gravação.
 
-**Como provar:** `scripts/invariantes.ts`, invariante `serie-identidade` — toda linha
-cuja descrição termina em ` N/M` tem `serie_id`.
+**Como provar:** `src/lib/tela.test.ts` reprova se a gravação de uma compra parcelada
+deixar de criar a série e numerar as parcelas. No banco, `scripts/invariantes.ts`,
+invariante `serie-identidade` — toda linha de parcelamento tem posição e toda série tem
+total. Até 27/11/2026 esta prova lia o nome (` N/M` no fim exigia série); a C21 tirou
+essa leitura.
 
 ---
 
@@ -916,6 +919,34 @@ gatilho — e o custom da regra é guardado em **fração** (0,4), enquanto a fu
 **Como provar:** `src/lib/tela.test.ts` reprova se o filtro deixar de ler `parte_*` ou se
 a conversão sumir. A soma das partes foi conferida na produção em 25/11: fixo do período,
 divisão e comprometido batem com "Todos" ao centavo.
+
+---
+
+### C21. Parcela é o que foi parcelado, não o que o nome diz
+
+**Regra:** uma linha é parcela quando pertence a uma série de parcelamento (`serie_id`,
+`seq`, `total`), criada pelo Lançar ou pela fatura. **O nome nunca decide.** Quem quer
+parcelar escolhe "Parcelado"; quem escreve "Fone 2/3" escreveu um nome, e ele fica
+inteiro, sem marca de parcela, fora do filtro Parceladas e fora de qualquer
+verificação.
+
+**Por que não ler o texto:** até 27/11/2026 o filtro, a marca da lista e um invariante
+procuravam ` N/M` no fim da descrição. Isso transformava digitação em regra — um nome
+com valores diferentes do que ele sugere viraria uma "parcela" que não bate com nada, e
+o invariante acusaria defeito num lançamento legítimo. E errava para o outro lado: as 5
+linhas do `Kit DDS Dani 1/4 [cartao temp]` são série de verdade e ficavam fora do
+filtro, porque o número não está no fim.
+
+**O que continua lendo texto, e por quê é outra coisa:** a fatura traz `Parcela 8 de 12`
+do banco — dado do emissor, não digitação. E dentro de uma série o sufixo ` N/M` que o
+app gera é só apresentação (`serie-rotulo` confere que ele concorda com o dado).
+
+**Não vire invariante o contrário.** Não crie checagem, aviso ou sugestão que leia
+` N/M` num nome avulso e trate como parcela. Foi decisão do Irwin em 27/11/2026: se a
+pessoa quiser parcela, ela marca parcela.
+
+**Como provar:** `src/lib/tela.test.ts` reprova se o filtro ou a lista voltarem a
+reconhecer parcela pelo padrão do nome.
 
 ---
 

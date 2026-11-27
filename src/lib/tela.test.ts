@@ -303,3 +303,25 @@ test('o filtro por pessoa conta a parte, e a parte da recorrência sai da regra 
   assert.match(API, /sql\.raw\(pessoa === 'todos' \? 'valor_total' : `parte_\$\{pessoa\}`\)/, 'o filtro deixou de contar a parte da pessoa');
   assert.match(API, /pctIrwinDe\(divisao, Number\(pctCustom\) \* 100, pctRenda\)/, 'a parte da recorrência perdeu a conversão de fração para percentual');
 });
+
+test('parcela é o que pertence à série, não o que o nome diz', () => {
+  /* C21. Até 27/11/2026 o filtro Parceladas e a marca da lista procuravam
+     ` N/M` no fim da descrição — um nome digitado virava parcela, e as 5
+     linhas do `Kit DDS Dani 1/4 [cartao temp]`, que são série, ficavam de fora. */
+  const clausulas = API.slice(API.indexOf('function clausulasDe('), API.indexOf('function clausulasDe(') + 3000);
+  assert.doesNotMatch(clausulas, /descricao ~/, 'o filtro Parceladas voltou a ler o nome');
+  assert.match(clausulas, /serie_id in \(select id from series where tipo = 'parcelamento'\)/, 'o filtro Parceladas deixou de olhar a série');
+  const item = API.slice(API.indexOf('function paraItem('), API.indexOf('function paraItem(') + 2500);
+  assert.match(item, /parcelado: r\.parcela_total != null/, 'a lista deixou de saber parcela pela série');
+  assert.doesNotMatch(item, /parcelado: \//, 'a lista voltou a saber parcela pelo nome');
+  // A marca só corta o sufixo do nome quando a linha É parcela.
+  assert.match(FORM, /const m = x\.parcelado \? \//, 'a marca de parcela voltou a valer para qualquer nome com N/M');
+});
+
+test('uma compra parcelada nasce com série e posição', () => {
+  /* A19. Em setembro, 17 parcelas nasceram sem série pela tela de Lançar. Com
+     a C21, a série é a ÚNICA coisa que faz uma linha ser parcela — sem ela, a
+     compra parcelada some do filtro e da marca. */
+  assert.match(API, /insert into series \(tipo, descricao, total, origem\)\s*values \('parcelamento'/, 'gravar um parcelamento deixou de criar a série');
+  assert.match(API, /\$\{serieId\}, \$\{serieId \? i \+ 1 : null\}\)/, 'as parcelas deixaram de receber série e posição');
+});

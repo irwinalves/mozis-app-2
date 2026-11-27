@@ -1315,10 +1315,14 @@ function renderUltimos(){
        Custa 31px da descrição, e só nas linhas que a têm. */
     const tagAndre = marcaGastoDe(x.gastoDe);
     /* O 'N/M' sai do meio da descrição e vira marca própria, como o ⟳ do
-       recorrente já era. Libera o texto e deixa a parcela legível de relance. */
-    // ` N/M` (gerado pelo app) e ` (N/M)` (11 linhas antigas, à mão).
-    const m = /^(.*) \(?(\d[\d,+]*\/\d+)\)?$/.exec(String(x.descricao || ''));
-    const marcaParcela = m ? '<span class="tag-parcela">' + m[2] + '</span>' : '';
+       recorrente já era. Libera o texto e deixa a parcela legível de relance.
+       C21: só quando a linha É parcela (pertence a uma série de parcelamento).
+       Um nome digitado com "2/3" no fim fica inteiro, sem marca. */
+    // ` N/M` (gerado pelo app) e ` (N/M)` (11 linhas antigas, à mão). Sem
+    // sufixo no nome, a marca vem do dado: `seq` de `total`.
+    const m = x.parcelado ? /^(.*) \(?(\d[\d,+]*\/\d+)\)?$/.exec(String(x.descricao || '')) : null;
+    const rotuloParcela = m ? m[2] : (x.parcelado ? x.parcela : '');
+    const marcaParcela = rotuloParcela ? '<span class="tag-parcela">' + escapeHtml(rotuloParcela) + '</span>' : '';
     const descricaoLimpa = m ? m[1] : x.descricao;
     /* Veio de um lote: o selo diz de onde, e leva ao lote inteiro. Vai no FIM
        da descrição porque, ao contrário da parcela, não é o que se procura ao
